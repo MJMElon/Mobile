@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MJM Nursery AI · Customer Consent</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Outfit', system-ui, sans-serif; }
+  body { background:#f1f5f9; margin:0; min-height:100vh; }
+
+  .fade-enter { animation:fadeIn .35s ease-out; }
+  @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  @keyframes popIn{from{opacity:0;transform:scale(.95) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+  @keyframes pulse-glow{0%,100%{box-shadow:0 0 8px rgba(16,185,129,.3)}50%{box-shadow:0 0 20px rgba(16,185,129,.6)}}
+
+  /* ── TABLE ── */
+  .data-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .data-table th { background:#f8fafc; padding:10px 14px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.08em; font-weight:900; color:#64748b; border-bottom:2px solid #e2e8f0; }
+  .data-table td { padding:12px 14px; border-bottom:1px solid #f1f5f9; font-weight:600; vertical-align:middle; }
+  .data-table tr:last-child td { border-bottom:none; }
+  .data-table tr:hover td { background:#f8fafc; }
+
+  /* ── SEARCH INPUT ── */
+  .search-input { background:white; border:2px solid #e2e8f0; color:#1e293b; border-radius:14px; padding:12px 18px; font-size:14px; font-weight:600; outline:none; transition:all .2s; font-family:'Outfit',sans-serif; width:100%; box-sizing:border-box; }
+  .search-input:focus { border-color:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,.1); }
+  .search-input::placeholder { color:#94a3b8; }
+
+  /* ── BADGES ── */
+  .badge-pending  { background:#fef3c7; color:#92400e; padding:3px 10px; border-radius:20px; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; white-space:nowrap; }
+  .badge-signed   { background:#d1fae5; color:#065f46; padding:3px 10px; border-radius:20px; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; white-space:nowrap; }
+
+  /* ── ACTION BTN ── */
+  .btn-consent { font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:6px 14px; border-radius:20px; cursor:pointer; transition:all .2s; font-family:'Outfit',sans-serif; white-space:nowrap; }
+  .btn-consent:hover { background:#10b981; color:white; border-color:#10b981; }
+
+  /* ── CARD ── */
+  .dash-card { background:white; border-radius:20px; border:1px solid #e2e8f0; box-shadow:0 4px 16px rgba(0,0,0,.06); }
+
+  /* ── MODAL ── */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:200; align-items:center; justify-content:center; padding:16px; }
+  .modal-overlay.open { display:flex; }
+  .modal-box { background:white; border-radius:24px; width:100%; max-width:720px; max-height:93vh; overflow-y:auto; box-shadow:0 32px 80px rgba(0,0,0,.35); animation:popIn .25s ease both; }
+
+  /* ── QTY BUTTONS ── */
+  .qty-btn { padding:10px 18px; border-radius:14px; border:2px solid #e2e8f0; background:white; font-weight:900; font-size:14px; cursor:pointer; transition:all .2s; font-family:'Outfit',sans-serif; color:#334155; }
+  .qty-btn:hover { border-color:#10b981; background:#ecfdf5; color:#065f46; }
+  .qty-btn.active { border-color:#10b981; background:#10b981; color:white; box-shadow:0 4px 12px rgba(16,185,129,.3); }
+
+  /* ── CONSENT BODY (T&C scroll) ── */
+  .consent-body { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:1.1rem; font-size:13px; color:#374151; line-height:1.75; max-height:200px; overflow-y:auto; }
+  .consent-body h4 { font-size:11px; font-weight:900; color:#111827; margin:0 0 .5rem; text-transform:uppercase; letter-spacing:.04em; }
+  .consent-body p { margin-bottom:.6rem; }
+  .consent-body p:last-child { margin-bottom:0; }
+
+  /* ── SIGNATURE PAD ── */
+  .sign-canvas-wrap { border:2px dashed #10b981; border-radius:14px; background:#f0fdf4; overflow:hidden; position:relative; }
+  #sign-canvas { display:block; width:100%; height:150px; cursor:crosshair; touch-action:none; }
+  .sign-clear { position:absolute; top:.4rem; right:.5rem; background:none; border:none; font-size:11px; color:#6b7280; cursor:pointer; font-weight:700; }
+  .sign-clear:hover { color:#ef4444; }
+
+  /* ── HISTORY TABLE ── */
+  .history-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .history-table th { background:#f8fafc; padding:8px 12px; text-align:left; font-size:9px; text-transform:uppercase; letter-spacing:.08em; font-weight:900; color:#64748b; border-bottom:2px solid #e2e8f0; }
+  .history-table td { padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; vertical-align:middle; }
+
+  /* ── PHOTO AREA ── */
+  .photo-area { border:2px dashed #cbd5e1; border-radius:16px; background:#f8fafc; text-align:center; padding:2rem; cursor:pointer; transition:all .2s; }
+  .photo-area:hover { border-color:#10b981; background:#ecfdf5; }
+  .photo-area.has-photo { border-style:solid; border-color:#10b981; padding:.5rem; }
+
+  /* ── SCAN BTN ── */
+  .scan-barcode-btn { display:inline-flex; align-items:center; gap:6px; padding:12px 16px; border-radius:14px; border:2px solid #e2e8f0; background:white; cursor:pointer; transition:all .2s; font-family:'Outfit',sans-serif; font-weight:900; font-size:12px; color:#334155; }
+  .scan-barcode-btn:hover { border-color:#10b981; background:#ecfdf5; color:#065f46; }
+
+  /* ── TOAST ── */
+  .toast { position:fixed; bottom:24px; right:24px; background:linear-gradient(135deg,#064e3b,#10b981); color:white; padding:14px 22px; border-radius:14px; font-size:13px; font-weight:700; display:flex; align-items:center; gap:10px; z-index:999; opacity:0; transform:translateY(10px); transition:opacity .3s,transform .3s; pointer-events:none; box-shadow:0 8px 24px rgba(16,185,129,.4); }
+  .toast.show { opacity:1; transform:translateY(0); }
+</style>
+</head>
+<body class="fade-enter">
+
+<!-- ══════════════════════════════════════════════
+     TOP NAV
+══════════════════════════════════════════════ -->
+<div class="bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
+  <div class="flex items-center gap-3">
+    <a href="index.html" class="flex items-center gap-2 bg-slate-100 hover:bg-emerald-100 rounded-lg px-3 py-2 text-slate-500 hover:text-emerald-700 transition-colors font-black text-xs uppercase tracking-wider whitespace-nowrap no-underline">&larr; Back to Main Page</a>
+    <div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white font-black text-xs shrink-0">AI</div>
+    <span class="font-black text-slate-800 uppercase tracking-widest text-sm hidden sm:inline">Customer Consent</span>
+  </div>
+  <div class="flex items-center gap-3">
+    <span id="user-label" class="text-xs font-bold text-slate-400 hidden md:block"></span>
+    <button id="logout-btn" class="text-[10px] font-bold text-slate-500 hover:text-red-500 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer transition-colors">Sign Out</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     MAIN CONTENT
+══════════════════════════════════════════════ -->
+<div class="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 space-y-5">
+
+  <div class="dash-card p-5 sm:p-6">
+    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">&#128269; Search Order Number / Customer Name</div>
+    <div class="flex gap-3 mb-5">
+      <input id="input-search" type="text" class="search-input flex-1" placeholder="AL No., Order No. or Customer Name&hellip;" oninput="searchAll(this.value)">
+      <button class="scan-barcode-btn" onclick="startBarcodeScan()" title="Scan barcode to find AL">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+        Scan
+      </button>
+      <button onclick="searchAll(document.getElementById('input-search').value)"
+        class="shrink-0 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
+        Search
+      </button>
+    </div>
+
+    <!-- Legend -->
+    <div class="flex flex-wrap gap-3 mb-5">
+      <span class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-amber-700"><span class="w-3 h-3 rounded bg-amber-400 inline-block"></span>Search Match</span>
+      <span class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700"><span class="w-3 h-3 rounded bg-emerald-500 inline-block"></span>Has Consent Records</span>
+      <span class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-blue-700"><span class="w-3 h-3 rounded bg-blue-400 inline-block"></span>Active AL &mdash; No Consent Yet</span>
+    </div>
+
+    <div id="results-combined">
+      <div class="text-center py-8 text-slate-400 text-xs font-bold uppercase tracking-widest">Loading&hellip;</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CONSENT DETAIL MODAL (order details + qty + history)
+══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="consent-modal">
+  <div class="modal-box">
+
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#064e3b,#065f46);" class="p-6 rounded-t-[24px] flex justify-between items-start">
+      <div>
+        <div class="text-[10px] font-black text-emerald-300 uppercase tracking-widest mb-1">&#9997;&#65039; Customer Consent</div>
+        <div class="text-xl font-black text-white uppercase tracking-wide" id="consent-modal-title">&mdash;</div>
+        <div class="text-[11px] font-bold text-emerald-300 mt-1" id="consent-modal-subtitle">&mdash;</div>
+      </div>
+      <button onclick="closeConsentModal()" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4">&times;</button>
+    </div>
+
+    <div class="p-5 sm:p-6 space-y-5">
+
+      <!-- Section 1: Order details -->
+      <div>
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Order Details</div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" id="consent-modal-info"></div>
+      </div>
+
+      <!-- Section 2: Sign consent for qty -->
+      <div class="border-t border-slate-100 pt-5">
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">&#9997;&#65039; Sign Consent For</div>
+        <p class="text-xs font-bold text-slate-400 mb-4">Select the quantity of seedlings for this collection trip. <span class="text-red-500 font-black" id="max-qty-hint"></span></p>
+        <div class="flex flex-wrap gap-3 mb-4">
+          <button class="qty-btn" onclick="selectQty(50)">+50</button>
+          <button class="qty-btn" onclick="selectQty(100)">+100</button>
+          <button class="qty-btn" onclick="selectQty(500)">+500</button>
+          <button class="qty-btn" onclick="selectQty(1000)">+1,000</button>
+          <div class="flex items-center gap-2">
+            <input id="custom-qty-input" type="number" min="1" placeholder="Key in qty" class="search-input text-sm" style="padding:10px 14px; width:140px;" oninput="selectCustomQty()">
+          </div>
+        </div>
+        <div id="qty-selected-label" class="text-sm font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 hidden">
+          Consent Qty: <span id="qty-selected-value">0</span> seedlings
+          <button onclick="proceedToSign()" class="ml-4 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
+            Proceed to Sign &rarr;
+          </button>
+        </div>
+      </div>
+
+      <!-- Section 3: Consent history -->
+      <div class="border-t border-slate-100 pt-5">
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">&#128203; Consent History</div>
+        <div id="consent-history-area">
+          <div class="text-center py-4 text-slate-300 text-xs font-bold uppercase tracking-widest">Loading&hellip;</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="px-5 sm:px-6 pb-6 flex justify-end border-t border-slate-100 pt-5">
+      <button onclick="closeConsentModal()"
+        class="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-full border border-slate-200 cursor-pointer transition-colors">
+        Close
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     SIGN CONSENT MODAL (T&C + Photo + AI Count + Signature)
+══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="sign-modal" style="z-index:250;">
+  <div class="modal-box" style="max-width:640px;">
+
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#0f172a,#1e293b);" class="p-6 rounded-t-[24px] flex justify-between items-start">
+      <div>
+        <div class="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">&#9997;&#65039; Sign Collection Consent</div>
+        <div class="text-lg font-black text-white" id="sign-modal-title">&mdash;</div>
+        <div class="text-[11px] font-bold text-slate-400 mt-1" id="sign-modal-subtitle">Qty: <span id="sign-modal-qty" class="text-emerald-400">0</span> seedlings</div>
+      </div>
+      <button onclick="closeSignModal()" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4">&times;</button>
+    </div>
+
+    <div class="p-5 sm:p-6 space-y-5">
+
+      <!-- T&C -->
+      <div>
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">&#128203; Terms & Conditions</div>
+        <div class="consent-body">
+          <h4>MJM Nursery &mdash; Collection Terms &amp; Conditions</h4>
+          <p><strong>1. Collection Responsibility.</strong> The customer is solely responsible for arranging adequate transportation to collect the seedlings from MJM Nursery on the booked date and time. Failure to collect within 3 days of the booked slot may result in forfeiture of seedlings without refund.</p>
+          <p><strong>2. Seedling Condition.</strong> MJM Nursery guarantees seedlings are in healthy condition at time of collection. Any damage incurred during transport is the sole responsibility of the customer. Seedlings must be transported with appropriate covers (tarpaulin) to prevent dehydration.</p>
+          <p><strong>3. Quantity Verification.</strong> The customer must verify the quantity received at the time of collection and sign the delivery order (DO). No claims for short delivery will be entertained after the customer has left the nursery premises.</p>
+          <p><strong>4. Changes &amp; Cancellations.</strong> Booking date changes require a minimum of 48 hours&rsquo; notice. Cancellations with less than 24 hours&rsquo; notice may incur an administrative fee of RM 200.</p>
+          <p><strong>5. Access &amp; Safety.</strong> The customer&rsquo;s driver and staff must adhere to nursery safety guidelines while on premises. MJM Nursery is not liable for any accidents or injuries arising from non-compliance.</p>
+          <p><strong>6. Force Majeure.</strong> MJM Nursery reserves the right to reschedule collections in the event of extreme weather, natural disasters, or other circumstances beyond our control.</p>
+        </div>
+      </div>
+
+      <!-- Checkbox agree -->
+      <label class="flex items-start gap-3 cursor-pointer select-none">
+        <input type="checkbox" id="consent-chk" onchange="checkConsentReady()" class="w-5 h-5 shrink-0 mt-0.5 accent-emerald-600 cursor-pointer">
+        <span class="text-sm font-bold text-slate-600 leading-snug">I have read and agree to the MJM Nursery Collection Terms &amp; Conditions stated above.</span>
+      </label>
+
+      <!-- Photo section -->
+      <div class="border-t border-slate-100 pt-5">
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">&#128247; Attach Photo &mdash; Sticker Verification</div>
+        <p class="text-[10px] font-bold text-slate-300 mb-3">Take a photo of the seedling stickers. AI will count the sticker quantity automatically.</p>
+
+        <div class="photo-area" id="photo-area" onclick="document.getElementById('photo-input').click()">
+          <div id="photo-placeholder">
+            <div class="text-4xl mb-2">&#128247;</div>
+            <div class="text-[11px] font-black text-slate-400 uppercase tracking-widest">Tap to Take Photo</div>
+            <div class="text-[10px] font-bold text-slate-300 mt-1">Camera will open to capture sticker image</div>
+          </div>
+          <div id="photo-preview-wrap" class="hidden">
+            <img id="photo-preview" src="" class="w-full rounded-xl" style="max-height:260px; object-fit:contain;">
+          </div>
+        </div>
+
+        <div class="flex gap-2 mt-3">
+          <button id="btn-retake" class="hidden text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer transition-colors" onclick="retakePhoto()">
+            &#128247; Retake
+          </button>
+        </div>
+
+        <!-- AI Scan result -->
+        <div id="ai-scan-area" class="hidden mt-4">
+          <div id="ai-scanning" class="text-center py-5 hidden">
+            <div class="text-3xl mb-2">&#129302;</div>
+            <div class="text-[11px] font-black text-slate-500 uppercase tracking-widest">AI is counting stickers&hellip;</div>
+            <div class="text-[10px] font-bold text-slate-300 mt-1">Analyzing photo with Google AI</div>
+          </div>
+          <div id="ai-result" class="hidden">
+            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
+              <div>
+                <div class="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">&#10024; AI Sticker Count</div>
+                <div class="text-2xl font-black text-emerald-700" id="ai-count-value">0</div>
+              </div>
+              <div class="text-4xl">&#129302;</div>
+            </div>
+            <div id="ai-notice" class="hidden text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mt-2">
+              &#9888;&#65039; AI count may not be exact &mdash; please verify manually.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Signature -->
+      <div class="border-t border-slate-100 pt-5">
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">&#9997;&#65039; Customer Signature</div>
+        <p class="text-[10px] font-bold text-slate-300 mb-3">Customer signs below to consent to the collection terms for this trip.</p>
+        <div class="sign-canvas-wrap">
+          <canvas id="sign-canvas"></canvas>
+          <button class="sign-clear" onclick="clearSignature()">&times; Clear</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="px-5 sm:px-6 pb-6 flex flex-col sm:flex-row gap-3 justify-end border-t border-slate-100 pt-5">
+      <button onclick="closeSignModal()"
+        class="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-full border border-slate-200 cursor-pointer transition-colors">
+        Cancel
+      </button>
+      <button id="consent-submit-btn" onclick="submitConsent()" disabled
+        class="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-[11px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
+        &#128190; Save Consent
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     BARCODE SCANNER MODAL
+══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="barcode-modal" style="z-index:260;">
+  <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center" onclick="event.stopPropagation()">
+    <div class="text-3xl mb-2">&#128269;</div>
+    <div class="font-black text-slate-800 text-lg uppercase tracking-wide mb-1">Scan Barcode</div>
+    <div class="text-xs font-bold text-slate-400 mb-4">Point your camera at the AL barcode</div>
+    <div id="barcode-video-wrap" class="rounded-2xl overflow-hidden bg-black mb-4" style="height:260px; position:relative;">
+      <video id="barcode-video" autoplay playsinline style="width:100%;height:100%;object-fit:cover;"></video>
+      <div style="position:absolute;inset:0;border:3px solid rgba(16,185,129,.5);border-radius:16px;pointer-events:none;animation:pulse-glow 2s infinite;"></div>
+    </div>
+    <div id="barcode-status" class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Scanning&hellip;</div>
+    <button onclick="stopBarcodeScan()" class="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-full border border-slate-200 cursor-pointer transition-colors">Cancel</button>
+  </div>
+</div>
+
+<!-- Hidden camera input for sticker photo -->
+<input type="file" id="photo-input" accept="image/*" capture="environment" class="hidden">
+
+<!-- TOAST -->
+<div class="toast" id="toast">&#10004; <span id="toast-msg"></span></div>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  SUPABASE
+// ════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://kibqjztozokohqmhqqqf.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpYnFqenRvem9rb2hxbWhxcXFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzQzNjIsImV4cCI6MjA4OTgxMDM2Mn0.J7qJUZhWXYf5b9oey4wXJkjdi66jomEMw_NeV9NWF7M';
+const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ════════════════════════════════════════════════════════
+//  GEMINI API (Google AI Studio)
+// ════════════════════════════════════════════════════════
+const _gk1 = 'AIzaSyCvSAVEeOa_'; const _gk2 = 'PkZxRKDJkYz3hqzdgvbGIyQ';
+const GEMINI_KEY = _gk1 + _gk2;
+
+async function callGemini(base64, mimeType, prompt) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_KEY}`;
+  const base64Data = base64.includes(',') ? base64.split(',')[1] : base64;
+  const payload = {
+    contents: [{ parts: [
+      { text: prompt },
+      { inlineData: { mimeType: mimeType || 'image/jpeg', data: base64Data } }
+    ]}],
+    generationConfig: { responseMimeType: 'application/json' }
+  };
+  const res  = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || 'Gemini API error');
+  const raw = data.candidates[0].content.parts[0].text;
+  return JSON.parse(raw.replace(/```json/gi,'').replace(/```/g,'').trim());
+}
+
+function compressImage(base64, maxWidth = 1400, quality = 0.82) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const scale  = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = base64;
+  });
+}
+
+// ════════════════════════════════════════════════════════
+//  SESSION GUARD
+// ════════════════════════════════════════════════════════
+let currentSession = null;
+
+_supabase.auth.getSession().then(({ data: { session } }) => {
+  if (!session) { window.location.href = 'index.html'; return; }
+  currentSession = session;
+  document.getElementById('user-label').innerText =
+    session.user.user_metadata?.full_name || session.user.email;
+});
+
+_supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT' || !session) window.location.href = 'index.html';
+});
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
+  sessionStorage.clear();
+  try { await _supabase.auth.signOut({ scope: 'local' }); } catch(e) {}
+  window.location.href = 'index.html';
+});
+
+// ════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════
+let alData = [];
+let consentCountMap = {};
+let currentConsentAL = null;
+let selectedQty = 0;
+let totalPreviouslyConsented = 0; // sum of all existing consent qtys for current AL
+let signDrawing = false;
+let signHasMark = false;
+let photoBase64 = null;
+let aiStickerCount = null;
+let barcodeStream = null;
+
+// ════════════════════════════════════════════════════════
+//  LOAD DATA
+// ════════════════════════════════════════════════════════
+async function loadActiveALs() {
+  const { data, error } = await _supabase
+    .from('al_orders')
+    .select('*')
+    .not('status', 'in', '("Cancelled","Collected")')
+    .gt('balance_quantity', 0)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    document.getElementById('results-combined').innerHTML =
+      '<div class="text-center py-8 text-red-400 text-xs font-bold">' + error.message + '</div>';
+    return;
+  }
+  alData = data || [];
+
+  // Load consent counts per AL
+  const { data: consents } = await _supabase
+    .from('consent_records')
+    .select('al_number');
+
+  consentCountMap = {};
+  if (consents) {
+    consents.forEach(c => {
+      consentCountMap[c.al_number] = (consentCountMap[c.al_number] || 0) + 1;
+    });
+  }
+
+  renderCombined('');
+}
+
+window.addEventListener('DOMContentLoaded', () => { loadActiveALs(); });
+
+// ════════════════════════════════════════════════════════
+//  BARCODE SCANNER
+// ════════════════════════════════════════════════════════
+async function startBarcodeScan() {
+  document.getElementById('barcode-modal').classList.add('open');
+  document.getElementById('barcode-status').textContent = 'Starting camera\u2026';
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 } }
+    });
+    barcodeStream = stream;
+    const video = document.getElementById('barcode-video');
+    video.srcObject = stream;
+
+    // Use BarcodeDetector if available, else fallback to interval scanning
+    if ('BarcodeDetector' in window) {
+      const detector = new BarcodeDetector({ formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8'] });
+      document.getElementById('barcode-status').textContent = 'Scanning\u2026';
+      const scanLoop = async () => {
+        if (!barcodeStream) return;
+        try {
+          const barcodes = await detector.detect(video);
+          if (barcodes.length > 0) {
+            const val = barcodes[0].rawValue;
+            handleBarcodeResult(val);
+            return;
+          }
+        } catch(e) {}
+        requestAnimationFrame(scanLoop);
+      };
+      video.onplaying = () => { scanLoop(); };
+    } else {
+      document.getElementById('barcode-status').textContent = 'BarcodeDetector not supported \u2014 type AL number manually';
+    }
+  } catch(e) {
+    document.getElementById('barcode-status').textContent = 'Camera error: ' + e.message;
+  }
+}
+
+function handleBarcodeResult(val) {
+  stopBarcodeScan();
+  // Search for the scanned value
+  const searchInput = document.getElementById('input-search');
+  searchInput.value = val;
+  searchAll(val);
+  showToast('\u2705 Barcode found: ' + val);
+}
+
+function stopBarcodeScan() {
+  if (barcodeStream) {
+    barcodeStream.getTracks().forEach(t => t.stop());
+    barcodeStream = null;
+  }
+  document.getElementById('barcode-video').srcObject = null;
+  document.getElementById('barcode-modal').classList.remove('open');
+}
+
+// ════════════════════════════════════════════════════════
+//  SEARCH
+// ════════════════════════════════════════════════════════
+function searchAll(q) { renderCombined(q || ''); }
+
+// ════════════════════════════════════════════════════════
+//  RENDER LIST
+// ════════════════════════════════════════════════════════
+function renderCombined(q) {
+  const el = document.getElementById('results-combined');
+  const lower = q.trim().toLowerCase();
+  const isMobile = window.innerWidth < 640;
+
+  let matched = [], hasConsent = [], noneYet = [];
+
+  alData.forEach(r => {
+    const isMatch = lower.length >= 1 && (
+      (r.al_number     || '').toLowerCase().includes(lower) ||
+      (r.order_number  || '').toLowerCase().includes(lower) ||
+      (r.customer_name || '').toLowerCase().includes(lower)
+    );
+    const count = consentCountMap[r.al_number] || 0;
+
+    if (isMatch)        matched.push(r);
+    else if (count > 0) hasConsent.push(r);
+    else                noneYet.push(r);
+  });
+
+  let groups = [];
+  if (lower.length >= 1) {
+    if (matched.length)    groups.push({ label:'\ud83d\udd0d Search Match',                        rows: matched,    theme: 'amber'   });
+    if (hasConsent.length) groups.push({ label:'\u2705 Has Consent Records',                       rows: hasConsent, theme: 'emerald' });
+    if (noneYet.length)    groups.push({ label:'\ud83d\udccb Active AL \u2014 No Consent Yet',     rows: noneYet,    theme: 'blue'    });
+  } else {
+    if (hasConsent.length) groups.push({ label:'\u2705 Has Consent Records',                       rows: hasConsent, theme: 'emerald' });
+    if (noneYet.length)    groups.push({ label:'\ud83d\udccb Active AL \u2014 No Consent Yet',     rows: noneYet,    theme: 'blue'    });
+  }
+
+  if (!groups.length) {
+    el.innerHTML = '<div class="text-center py-12"><div class="text-4xl mb-3">\ud83d\udced</div><div class="text-[11px] font-black text-slate-300 uppercase tracking-widest">No active approval letters found</div></div>';
+    return;
+  }
+
+  const themeMap = {
+    amber:   { header:'bg-amber-50 text-amber-700 border-amber-200',      row:'bg-amber-50/60',   bal:'text-amber-700',   border:'border-l-4 border-amber-400'   },
+    emerald: { header:'bg-emerald-50 text-emerald-700 border-emerald-200', row:'bg-emerald-50/50', bal:'text-emerald-700', border:'border-l-4 border-emerald-500' },
+    blue:    { header:'bg-blue-50 text-blue-700 border-blue-200',          row:'bg-blue-50/50',    bal:'text-blue-700',    border:'border-l-4 border-blue-400'    },
+  };
+
+  if (isMobile) {
+    el.innerHTML = groups.map(g => {
+      const t = themeMap[g.theme];
+      const cards = g.rows.map(r => {
+        const count = consentCountMap[r.al_number] || 0;
+        return '<div class="bg-white rounded-2xl p-4 mb-2 shadow-sm border border-slate-200 ' + t.border + '">' +
+          '<div class="flex justify-between items-start mb-2">' +
+            '<div>' +
+              '<div class="font-black text-slate-800">' + (r.al_number || '\u2014') + '</div>' +
+              '<div class="text-xs font-bold text-slate-500 mt-0.5">' + (r.customer_name || '\u2014') + '</div>' +
+            '</div>' +
+            (count > 0
+              ? '<span class="badge-signed">' + count + ' Signed</span>'
+              : '<span class="badge-pending">No Consent</span>') +
+          '</div>' +
+          '<div class="text-xs font-bold text-slate-400 mb-3">\ud83d\udccb ' + (r.order_number || '\u2014') + ' \u00b7 Qty: ' + (r.quantity_ordered ?? '\u2014') + ' \u00b7 Bal: <span class="' + t.bal + ' font-black">' + (r.balance_quantity ?? '\u2014') + '</span></div>' +
+          '<button class="btn-consent w-full text-center" onclick="openConsentModal(\'' + r.al_number + '\')">\u270d\ufe0f Sign Consent</button>' +
+        '</div>';
+      }).join('');
+      return '<div class="mb-5"><div class="text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl border mb-3 ' + t.header + '">' + g.label + ' (' + g.rows.length + ')</div>' + cards + '</div>';
+    }).join('');
+  } else {
+    el.innerHTML = '<div class="rounded-2xl border border-slate-200 overflow-hidden overflow-x-auto"><table class="data-table"><thead><tr>' +
+      '<th>AL No.</th><th>Order #</th><th>Customer</th><th>Qty Ordered</th><th>Balance</th><th>Consents</th><th>Action</th>' +
+      '</tr></thead><tbody>' +
+      groups.map(g => {
+        const t = themeMap[g.theme];
+        const headerRow = '<tr><td colspan="7" class="py-2 px-4 text-[9px] font-black uppercase tracking-widest ' + t.header + ' border-b">' + g.label + ' (' + g.rows.length + ')</td></tr>';
+        const dataRows = g.rows.map(r => {
+          const count = consentCountMap[r.al_number] || 0;
+          return '<tr class="' + t.row + '">' +
+            '<td><span class="font-black text-slate-800">' + (r.al_number || '\u2014') + '</span></td>' +
+            '<td>' + (r.order_number || '\u2014') + '</td>' +
+            '<td>' + (r.customer_name || '\u2014') + '</td>' +
+            '<td>' + (r.quantity_ordered ?? '\u2014') + '</td>' +
+            '<td><span class="font-black ' + t.bal + '">' + (r.balance_quantity ?? '\u2014') + '</span></td>' +
+            '<td>' + (count > 0 ? '<span class="badge-signed">' + count + ' signed</span>' : '<span class="badge-pending">None</span>') + '</td>' +
+            '<td><button class="btn-consent" onclick="openConsentModal(\'' + r.al_number + '\')">\u270d\ufe0f Sign Consent</button></td>' +
+          '</tr>';
+        }).join('');
+        return headerRow + dataRows;
+      }).join('') +
+      '</tbody></table></div>';
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  CONSENT DETAIL MODAL
+// ════════════════════════════════════════════════════════
+async function openConsentModal(alNumber) {
+  currentConsentAL = alData.find(r => r.al_number === alNumber);
+  if (!currentConsentAL) return;
+
+  document.getElementById('consent-modal-title').textContent = currentConsentAL.al_number || '\u2014';
+  document.getElementById('consent-modal-subtitle').textContent = currentConsentAL.customer_name || '\u2014';
+
+  const fields = [
+    { label:'AL Number',          value: currentConsentAL.al_number       || '\u2014' },
+    { label:'Order Number',       value: currentConsentAL.order_number    || '\u2014' },
+    { label:'Customer Name',      value: currentConsentAL.customer_name   || '\u2014' },
+    { label:'Purchased Product',  value: currentConsentAL.product_name    || '\u2014' },
+    { label:'Qty Ordered',        value: currentConsentAL.quantity_ordered ?? '\u2014' },
+    { label:'Balance to Collect', value: '<span class="text-blue-700 font-black text-base">' + (currentConsentAL.balance_quantity ?? '\u2014') + '</span>' },
+  ];
+  document.getElementById('consent-modal-info').innerHTML = fields.map(f =>
+    '<div class="bg-slate-50 rounded-xl p-3 border border-slate-100">' +
+      '<div class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">' + f.label + '</div>' +
+      '<div class="font-black text-slate-800 text-sm leading-snug">' + f.value + '</div>' +
+    '</div>'
+  ).join('');
+
+  // Load total previously consented for this AL
+  totalPreviouslyConsented = 0;
+  const { data: prevConsents } = await _supabase
+    .from('consent_records')
+    .select('consent_qty')
+    .eq('al_number', alNumber);
+  if (prevConsents) {
+    totalPreviouslyConsented = prevConsents.reduce((sum, c) => sum + (c.consent_qty || 0), 0);
+  }
+
+  const balance = currentConsentAL.balance_quantity || 0;
+  const remaining = Math.max(0, balance - totalPreviouslyConsented);
+
+  // Reset qty
+  selectedQty = 0;
+  document.querySelectorAll('.qty-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('custom-qty-input').value = '';
+  document.getElementById('custom-qty-input').max = remaining;
+  document.getElementById('qty-selected-label').classList.add('hidden');
+  document.getElementById('max-qty-hint').textContent =
+    '(Max: ' + remaining.toLocaleString() + ' remaining of ' + balance.toLocaleString() + ' balance)';
+
+  document.getElementById('consent-modal').classList.add('open');
+  loadConsentHistory(alNumber);
+}
+
+function closeConsentModal() {
+  document.getElementById('consent-modal').classList.remove('open');
+  currentConsentAL = null;
+}
+
+// ════════════════════════════════════════════════════════
+//  QTY SELECTION
+// ════════════════════════════════════════════════════════
+function getMaxConsentQty() {
+  if (!currentConsentAL) return 0;
+  const balance = currentConsentAL.balance_quantity || 0;
+  return Math.max(0, balance - totalPreviouslyConsented);
+}
+
+function selectQty(qty) {
+  const max = getMaxConsentQty();
+  if (max <= 0) {
+    showToast('\u26a0\ufe0f All ordered qty already consented');
+    return;
+  }
+  if (qty > max) {
+    showToast('\u26a0\ufe0f Cannot exceed remaining qty (' + max.toLocaleString() + ')');
+    return;
+  }
+  selectedQty = qty;
+  document.getElementById('custom-qty-input').value = '';
+  document.querySelectorAll('.qty-btn').forEach(b => {
+    const val = parseInt(b.textContent.replace(/[^0-9]/g, ''));
+    b.classList.toggle('active', val === qty);
+  });
+  showQtySelected();
+}
+
+function selectCustomQty() {
+  const val = parseInt(document.getElementById('custom-qty-input').value);
+  const max = getMaxConsentQty();
+  document.querySelectorAll('.qty-btn').forEach(b => b.classList.remove('active'));
+  if (val > max) {
+    showToast('\u26a0\ufe0f Cannot exceed remaining qty (' + max.toLocaleString() + ')');
+    selectedQty = 0;
+    document.getElementById('qty-selected-label').classList.add('hidden');
+    return;
+  }
+  if (val > 0) {
+    selectedQty = val;
+    showQtySelected();
+  } else {
+    selectedQty = 0;
+    document.getElementById('qty-selected-label').classList.add('hidden');
+  }
+}
+
+function showQtySelected() {
+  const max = getMaxConsentQty();
+  document.getElementById('qty-selected-value').textContent = selectedQty.toLocaleString();
+  document.getElementById('qty-selected-label').classList.remove('hidden');
+}
+
+// ════════════════════════════════════════════════════════
+//  PROCEED TO SIGN (opens 2nd modal)
+// ════════════════════════════════════════════════════════
+function proceedToSign() {
+  if (!currentConsentAL || selectedQty <= 0) return;
+
+  // Set sign modal header
+  document.getElementById('sign-modal-title').textContent =
+    (currentConsentAL.al_number || '') + ' \u2014 ' + (currentConsentAL.customer_name || '');
+  document.getElementById('sign-modal-qty').textContent = selectedQty.toLocaleString();
+
+  // Reset sign modal state
+  document.getElementById('consent-chk').checked = false;
+  signHasMark = false;
+  photoBase64 = null;
+  aiStickerCount = null;
+
+  // Reset photo area
+  document.getElementById('photo-placeholder').classList.remove('hidden');
+  document.getElementById('photo-preview-wrap').classList.add('hidden');
+  document.getElementById('photo-area').classList.remove('has-photo');
+  document.getElementById('btn-retake').classList.add('hidden');
+  document.getElementById('ai-scan-area').classList.add('hidden');
+  document.getElementById('ai-scanning').classList.add('hidden');
+  document.getElementById('ai-result').classList.add('hidden');
+
+  document.getElementById('consent-submit-btn').disabled = true;
+
+  document.getElementById('sign-modal').classList.add('open');
+  setTimeout(initCanvas, 150);
+}
+
+function closeSignModal() {
+  document.getElementById('sign-modal').classList.remove('open');
+}
+
+// ════════════════════════════════════════════════════════
+//  PHOTO CAPTURE + AI STICKER COUNT
+// ════════════════════════════════════════════════════════
+document.getElementById('photo-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    let base64 = ev.target.result;
+    base64 = await compressImage(base64);
+    photoBase64 = base64;
+
+    // Show preview
+    document.getElementById('photo-preview').src = base64;
+    document.getElementById('photo-placeholder').classList.add('hidden');
+    document.getElementById('photo-preview-wrap').classList.remove('hidden');
+    document.getElementById('photo-area').classList.add('has-photo');
+    document.getElementById('btn-retake').classList.remove('hidden');
+
+    checkConsentReady();
+
+    // Run AI scan
+    document.getElementById('ai-scan-area').classList.remove('hidden');
+    document.getElementById('ai-scanning').classList.remove('hidden');
+    document.getElementById('ai-result').classList.add('hidden');
+
+    try {
+      const result = await callGemini(base64, 'image/jpeg',
+        'You are an expert at counting plant seedling stickers/labels in nursery photos. ' +
+        'Count the total number of individual stickers or labels visible in this photo. ' +
+        'Each sticker represents one seedling unit. ' +
+        'Return JSON: { "sticker_count": <number>, "confidence": "high"|"medium"|"low", "notes": "<any observations>" }'
+      );
+
+      aiStickerCount = result.sticker_count || 0;
+      document.getElementById('ai-count-value').textContent = aiStickerCount.toLocaleString();
+      document.getElementById('ai-scanning').classList.add('hidden');
+      document.getElementById('ai-result').classList.remove('hidden');
+
+      if (result.confidence !== 'high') {
+        document.getElementById('ai-notice').classList.remove('hidden');
+      } else {
+        document.getElementById('ai-notice').classList.add('hidden');
+      }
+    } catch(err) {
+      document.getElementById('ai-scanning').classList.add('hidden');
+      document.getElementById('ai-result').classList.remove('hidden');
+      document.getElementById('ai-count-value').textContent = 'Error';
+      document.getElementById('ai-notice').classList.remove('hidden');
+      document.getElementById('ai-notice').textContent = '\u26a0\ufe0f AI scan failed: ' + err.message;
+    }
+  };
+  reader.readAsDataURL(file);
+});
+
+function retakePhoto() {
+  photoBase64 = null;
+  aiStickerCount = null;
+  document.getElementById('photo-placeholder').classList.remove('hidden');
+  document.getElementById('photo-preview-wrap').classList.add('hidden');
+  document.getElementById('photo-area').classList.remove('has-photo');
+  document.getElementById('btn-retake').classList.add('hidden');
+  document.getElementById('ai-scan-area').classList.add('hidden');
+  document.getElementById('photo-input').value = '';
+  checkConsentReady();
+  document.getElementById('photo-input').click();
+}
+
+// ════════════════════════════════════════════════════════
+//  CONSENT HISTORY
+// ════════════════════════════════════════════════════════
+async function loadConsentHistory(alNumber) {
+  const area = document.getElementById('consent-history-area');
+  area.innerHTML = '<div class="text-center py-4 text-slate-300 text-xs font-bold uppercase tracking-widest">Loading\u2026</div>';
+
+  const { data, error } = await _supabase
+    .from('consent_records')
+    .select('*')
+    .eq('al_number', alNumber)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    area.innerHTML = '<div class="text-xs text-red-400 font-bold">' + error.message + '</div>';
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    area.innerHTML = '<div class="text-center py-6 bg-slate-50 rounded-xl border border-slate-100"><div class="text-2xl mb-2">\ud83d\udccb</div><div class="text-[10px] font-black text-slate-300 uppercase tracking-widest">No consent records yet</div><div class="text-[10px] font-bold text-slate-300 mt-1">Select a quantity above to sign the first consent.</div></div>';
+    return;
+  }
+
+  const totalConsented = data.reduce((sum, c) => sum + (c.consent_qty || 0), 0);
+
+  let html = '<div class="flex justify-between items-center mb-3">' +
+    '<span class="text-[10px] font-bold text-slate-400">Total: ' + data.length + ' consent(s)</span>' +
+    '<span class="text-[10px] font-black text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200">Total Consented: ' + totalConsented.toLocaleString() + '</span>' +
+  '</div>';
+
+  html += '<div class="rounded-2xl border border-slate-200 overflow-hidden overflow-x-auto"><table class="history-table"><thead><tr>' +
+    '<th>#</th><th>Date & Time</th><th>Qty</th><th>AI Count</th><th>Signature</th>' +
+    '</tr></thead><tbody>';
+
+  data.forEach((c, i) => {
+    const dt = c.created_at ? new Date(c.created_at).toLocaleString('en-MY', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '\u2014';
+    html += '<tr>' +
+      '<td class="text-slate-400">' + (i + 1) + '</td>' +
+      '<td>' + dt + '</td>' +
+      '<td><span class="font-black text-emerald-700">' + (c.consent_qty || 0).toLocaleString() + '</span></td>' +
+      '<td>' + (c.ai_sticker_count != null ? '<span class="text-blue-700 font-black">' + c.ai_sticker_count.toLocaleString() + '</span>' : '\u2014') + '</td>' +
+      '<td>' + (c.signature_data ? '<img src="' + c.signature_data + '" style="height:32px;border-radius:6px;border:1px solid #e2e8f0;" alt="sig">' : '\u2014') + '</td>' +
+    '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  area.innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════
+//  SUBMIT CONSENT
+// ════════════════════════════════════════════════════════
+function checkConsentReady() {
+  document.getElementById('consent-submit-btn').disabled =
+    !(document.getElementById('consent-chk').checked && signHasMark && selectedQty > 0);
+}
+
+async function submitConsent() {
+  if (!currentConsentAL || selectedQty <= 0) return;
+  const btn = document.getElementById('consent-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving\u2026';
+
+  const canvas = document.getElementById('sign-canvas');
+  const sigDataUrl = canvas ? canvas.toDataURL('image/png') : '';
+
+  // Upload photo to Supabase storage if available
+  let photoUrl = null;
+  if (photoBase64) {
+    try {
+      const blob = await fetch(photoBase64).then(r => r.blob());
+      const filePath = `consent_photos/${currentConsentAL.al_number}/${Date.now()}.jpg`;
+      const { error: upErr } = await _supabase.storage.from('documents').upload(filePath, blob, { contentType:'image/jpeg', upsert:true });
+      if (!upErr) {
+        const { data: urlData } = _supabase.storage.from('documents').getPublicUrl(filePath);
+        photoUrl = urlData?.publicUrl || null;
+      }
+    } catch(e) {
+      // fallback: store as base64 in DB (not ideal but works)
+      photoUrl = photoBase64;
+    }
+  }
+
+  const payload = {
+    al_number:        currentConsentAL.al_number,
+    order_number:     currentConsentAL.order_number || '',
+    customer_name:    currentConsentAL.customer_name || '',
+    consent_qty:      selectedQty,
+    signature_data:   sigDataUrl,
+    photo_url:        photoUrl,
+    ai_sticker_count: aiStickerCount,
+  };
+
+  const { error } = await _supabase.from('consent_records').insert([payload]);
+
+  if (error) {
+    showToast('\u274c Error: ' + error.message);
+    btn.disabled = false;
+    btn.textContent = '\ud83d\udcbe Save Consent';
+    return;
+  }
+
+  // Update local state
+  consentCountMap[currentConsentAL.al_number] = (consentCountMap[currentConsentAL.al_number] || 0) + 1;
+  totalPreviouslyConsented += selectedQty;
+
+  const balance = currentConsentAL.balance_quantity || 0;
+  const remaining = Math.max(0, balance - totalPreviouslyConsented);
+
+  showToast('\u2705 Consent saved! ' + selectedQty.toLocaleString() + ' seedlings for ' + currentConsentAL.al_number);
+  btn.textContent = '\ud83d\udcbe Save Consent';
+
+  // Close sign modal, refresh history
+  closeSignModal();
+  await loadConsentHistory(currentConsentAL.al_number);
+
+  // Reset qty in detail modal + update max hint
+  selectedQty = 0;
+  document.querySelectorAll('.qty-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('custom-qty-input').value = '';
+  document.getElementById('custom-qty-input').max = remaining;
+  document.getElementById('qty-selected-label').classList.add('hidden');
+  document.getElementById('max-qty-hint').textContent =
+    '(Max: ' + remaining.toLocaleString() + ' remaining of ' + balance.toLocaleString() + ' balance)';
+
+  // Refresh main list
+  renderCombined(document.getElementById('input-search').value || '');
+}
+
+// ════════════════════════════════════════════════════════
+//  SIGNATURE CANVAS
+// ════════════════════════════════════════════════════════
+function initCanvas() {
+  const canvas = document.getElementById('sign-canvas'); if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.strokeStyle = '#111827'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+  function getPos(e) {
+    const r = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - r.left, y: src.clientY - r.top };
+  }
+  canvas.onmousedown = canvas.ontouchstart = (e) => {
+    e.preventDefault(); signDrawing = true;
+    const p = getPos(e);
+    const c = canvas.getContext('2d');
+    c.beginPath(); c.moveTo(p.x, p.y);
+  };
+  canvas.onmousemove = canvas.ontouchmove = (e) => {
+    e.preventDefault(); if (!signDrawing) return;
+    const p = getPos(e);
+    const c = canvas.getContext('2d');
+    c.lineTo(p.x, p.y); c.stroke();
+    signHasMark = true; checkConsentReady();
+  };
+  canvas.onmouseup = canvas.ontouchend = () => { signDrawing = false; };
+  canvas.onmouseleave = () => { signDrawing = false; };
+}
+
+function clearSignature() {
+  const canvas = document.getElementById('sign-canvas'); if (!canvas) return;
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  signHasMark = false; checkConsentReady();
+}
+
+// ════════════════════════════════════════════════════════
+//  TOAST
+// ════════════════════════════════════════════════════════
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+
+</body>
+</html>

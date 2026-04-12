@@ -1,0 +1,1665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MJM Nursery AI · Customer Collection Time Slot Booking</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Outfit', system-ui, sans-serif; }
+  body { background:#f1f5f9; margin:0; min-height:100vh; }
+
+  .fade-enter { animation:fadeIn .35s ease-out; }
+  @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes popIn{from{opacity:0;transform:scale(.95) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+
+  /* ── SEARCH INPUT ── */
+  .search-input { background:white; border:2px solid #e2e8f0; color:#1e293b; border-radius:14px; padding:12px 18px; font-size:14px; font-weight:600; outline:none; transition:all .2s; font-family:'Outfit',sans-serif; width:100%; box-sizing:border-box; }
+  .search-input:focus { border-color:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,.1); }
+  .search-input::placeholder { color:#94a3b8; }
+
+  /* ── QTY BUTTONS ── */
+  .qty-btn { padding:10px 18px; border-radius:14px; border:2px solid #e2e8f0; background:white; font-weight:900; font-size:14px; cursor:pointer; transition:all .2s; font-family:'Outfit',sans-serif; color:#334155; }
+  .qty-btn:hover { border-color:#10b981; background:#ecfdf5; color:#065f46; }
+  .qty-btn.active { border-color:#10b981; background:#10b981; color:white; box-shadow:0 4px 12px rgba(16,185,129,.3); }
+
+  /* ── CARD ── */
+  .dash-card { background:white; border-radius:20px; border:1px solid #e2e8f0; box-shadow:0 4px 16px rgba(0,0,0,.06); }
+
+  /* ── MODAL ── */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:200; align-items:center; justify-content:center; padding:16px; }
+  .modal-overlay.open { display:flex; }
+  .modal-box { background:white; border-radius:24px; width:100%; max-width:560px; max-height:93vh; overflow-y:auto; box-shadow:0 32px 80px rgba(0,0,0,.35); animation:popIn .25s ease both; }
+
+  /* ── TOAST ── */
+  /* ── ALLOCATION BOARD ── */
+  .alloc-board { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  @media(max-width:640px){ .alloc-board { grid-template-columns:1fr 1fr; } }
+  .alloc-col { background:#f8fafc; border:2px solid #e2e8f0; border-radius:16px; min-height:200px; padding:8px; transition:border-color .2s,background .2s; }
+  .alloc-col.drag-over { border-color:#10b981; background:#ecfdf5; }
+  .alloc-col-header { font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; padding:8px 10px; border-radius:10px; margin-bottom:8px; text-align:center; }
+  .alloc-col.pending .alloc-col-header { background:#fef3c7; color:#92400e; }
+  .alloc-col.nursery .alloc-col-header { background:#dbeafe; color:#1e40af; }
+  .alloc-card { background:white; border:1.5px solid #e2e8f0; border-radius:12px; padding:10px; margin-bottom:6px; cursor:grab; transition:all .15s; box-shadow:0 2px 6px rgba(0,0,0,.04); }
+  .alloc-card:hover { border-color:#10b981; box-shadow:0 4px 12px rgba(0,0,0,.08); }
+  .alloc-card.dragging { opacity:.4; transform:scale(.95); }
+  .alloc-card.status-pending { border-left:4px solid #f59e0b; }
+  .alloc-card.status-booked { border-left:4px solid #10b981; }
+  .alloc-card .card-name { font-size:12px; font-weight:900; color:#1e293b; }
+  .alloc-card .card-detail { font-size:10px; font-weight:600; color:#64748b; margin-top:2px; }
+  .alloc-card .card-qty { font-size:11px; font-weight:900; color:#065f46; }
+  .alloc-card .card-time { font-size:10px; font-weight:700; color:#3b82f6; }
+  .alloc-count { font-size:9px; font-weight:700; color:#94a3b8; margin-left:4px; }
+
+  .toast { position:fixed; bottom:24px; right:24px; background:linear-gradient(135deg,#064e3b,#10b981); color:white; padding:14px 22px; border-radius:14px; font-size:13px; font-weight:700; display:flex; align-items:center; gap:10px; z-index:999; opacity:0; transform:translateY(10px); transition:opacity .3s,transform .3s; pointer-events:none; box-shadow:0 8px 24px rgba(16,185,129,.4); }
+  .toast.show { opacity:1; transform:translateY(0); }
+
+  /* ── CALENDAR ── */
+  .cal-grid { display:grid; grid-template-columns: 70px repeat(var(--cols,6), 1fr); border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; background:white; }
+  .cal-header { background:#f8fafc; padding:10px 6px; text-align:center; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; color:#64748b; border-bottom:2px solid #e2e8f0; border-right:1px solid #e2e8f0; }
+  .cal-header.today { background:#ecfdf5; color:#065f46; border-bottom-color:#10b981; }
+  .cal-time { background:#fafbfc; padding:6px 8px; font-size:10px; font-weight:900; color:#94a3b8; text-align:right; border-bottom:1px solid #f1f5f9; border-right:1px solid #e2e8f0; display:flex; align-items:flex-start; justify-content:flex-end; min-height:60px; }
+  .cal-cell { border-bottom:1px solid #f1f5f9; border-right:1px solid #f1f5f9; padding:3px; min-height:60px; cursor:pointer; transition:background .15s; position:relative; }
+  .cal-cell:hover { background:#f0fdf4; }
+  .cal-cell.closed { background:#f8f8f8; cursor:default; }
+  .cal-cell.closed:hover { background:#f8f8f8; }
+  .cal-cell.today-col { background:#fafffe; }
+
+  .booking-pill { display:block; padding:4px 7px; border-radius:8px; font-size:10px; font-weight:700; margin-bottom:2px; cursor:pointer; transition:all .15s; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .booking-pill.booked { background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; }
+  .booking-pill.booked:hover { background:#10b981; color:white; }
+  .booking-pill.completed { background:#dbeafe; color:#1e40af; border:1px solid #bfdbfe; }
+  .booking-pill.cancelled { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; text-decoration:line-through; opacity:.6; }
+  .booking-pill.pending { background:#fef3c7; color:#92400e; border:1px solid #fde68a; animation:pulse-pending 2s infinite; }
+  @keyframes pulse-pending { 0%,100%{ box-shadow:none; } 50%{ box-shadow:0 0 8px rgba(251,191,36,.4); } }
+
+  /* ── MONTH VIEW ── */
+  .month-grid { display:grid; grid-template-columns:repeat(7,1fr); border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; background:white; }
+  .month-header { background:#f8fafc; padding:8px; text-align:center; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; color:#64748b; border-bottom:2px solid #e2e8f0; border-right:1px solid #e2e8f0; }
+  .month-header:last-child { border-right:none; }
+  .month-cell { min-height:80px; border-bottom:1px solid #f1f5f9; border-right:1px solid #f1f5f9; padding:4px 6px; cursor:pointer; transition:background .15s; position:relative; }
+  .month-cell:nth-child(7n) { border-right:none; }
+  .month-cell:hover { background:#f0fdf4; }
+  .month-cell.other-month { background:#fafafa; opacity:.4; }
+  .month-cell.today { background:#ecfdf5; }
+  .month-cell.past { opacity:.5; }
+  .month-cell.closed { background:#f8f8f8; cursor:default; }
+  .month-cell.closed:hover { background:#f8f8f8; }
+  .month-day-num { font-size:11px; font-weight:900; color:#334155; margin-bottom:2px; }
+  .month-cell.today .month-day-num { color:#065f46; background:#10b981; color:white; display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:11px; }
+
+  .cal-header.holiday { background:#fef2f2; color:#dc2626; border-bottom-color:#fca5a5; }
+  .cal-cell.holiday-col { background:#fffbfb; }
+  .holiday-tag { display:inline-block; background:#fee2e2; color:#dc2626; font-size:8px; font-weight:900; padding:1px 5px; border-radius:6px; text-transform:uppercase; letter-spacing:.03em; margin-top:2px; line-height:1.3; }
+  .month-cell.holiday { background:#fef2f2; }
+  .month-holiday-tag { display:block; font-size:8px; font-weight:700; color:#dc2626; line-height:1.2; margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .day-count { display:inline-flex; align-items:center; justify-content:center; background:#10b981; color:white; font-size:9px; font-weight:900; min-width:18px; height:18px; border-radius:9px; padding:0 5px; margin-left:4px; }
+
+  /* ── MOBILE DAY VIEW ── */
+  .tab-row { display:flex; gap:4px; background:#e2e8f0; border-radius:14px; padding:4px; overflow-x:auto; }
+  .tab-btn { flex:1; padding:9px 6px; border:none; background:none; border-radius:10px; font-size:10px; font-weight:900; cursor:pointer; font-family:'Outfit',sans-serif; color:#64748b; text-transform:uppercase; letter-spacing:.06em; transition:all .2s; white-space:nowrap; min-width:44px; }
+  .tab-btn.active { background:white; color:#065f46; box-shadow:0 2px 8px rgba(0,0,0,.08); }
+
+  .mobile-slot { display:flex; align-items:flex-start; gap:12px; padding:12px; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:background .15s; }
+  .mobile-slot:hover { background:#f0fdf4; }
+  .mobile-slot:last-child { border-bottom:none; }
+  .mobile-slot.closed { opacity:.4; cursor:default; }
+  .mobile-slot.closed:hover { background:transparent; }
+
+  /* ── AL SEARCH DROPDOWN ── */
+  .al-dropdown { position:absolute; left:0; right:0; top:100%; background:white; border:2px solid #e2e8f0; border-top:none; border-radius:0 0 14px 14px; max-height:200px; overflow-y:auto; z-index:10; box-shadow:0 8px 24px rgba(0,0,0,.1); }
+  .al-dropdown-item { padding:10px 14px; cursor:pointer; font-size:13px; font-weight:600; transition:background .1s; }
+  .al-dropdown-item:hover { background:#ecfdf5; }
+  .al-dropdown-item .al-num { font-weight:900; color:#065f46; }
+  .al-dropdown-item .al-cust { color:#64748b; font-size:12px; }
+</style>
+</head>
+<body class="fade-enter">
+
+<!-- ══════════════════════════════════════════════
+     TOP NAV
+══════════════════════════════════════════════ -->
+<div class="bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
+  <div class="flex items-center gap-3">
+    <a href="index.html" class="flex items-center gap-2 bg-slate-100 hover:bg-emerald-100 rounded-lg px-3 py-2 text-slate-500 hover:text-emerald-700 transition-colors font-black text-xs uppercase tracking-wider whitespace-nowrap no-underline">&larr; Back to Main Page</a>
+    <div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white font-black text-xs shrink-0">AI</div>
+    <span class="font-black text-slate-800 uppercase tracking-widest text-xs hidden sm:inline">Collection Time Slot Booking</span>
+  </div>
+  <div class="flex items-center gap-3">
+    <span id="user-label" class="text-xs font-bold text-slate-400 hidden md:block"></span>
+    <button id="logout-btn" class="text-[10px] font-bold text-slate-500 hover:text-red-500 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer transition-colors">Sign Out</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     MAIN CONTENT
+══════════════════════════════════════════════ -->
+<div class="max-w-[1200px] mx-auto px-4 sm:px-6 py-6 space-y-4">
+
+  <!-- Nav bar -->
+  <div class="dash-card p-4 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <button onclick="changePeriod(-1)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-emerald-100 flex items-center justify-center text-slate-500 hover:text-emerald-700 font-black text-lg cursor-pointer transition-colors border-none">&lsaquo;</button>
+      <div class="text-sm font-black text-slate-800 uppercase tracking-wide" id="period-label">&mdash;</div>
+      <button onclick="changePeriod(1)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-emerald-100 flex items-center justify-center text-slate-500 hover:text-emerald-700 font-black text-lg cursor-pointer transition-colors border-none">&rsaquo;</button>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="tab-row" style="padding:3px;">
+        <button class="tab-btn active" id="tab-week" onclick="switchView('week')" style="padding:7px 14px;">Week</button>
+        <button class="tab-btn" id="tab-month" onclick="switchView('month')" style="padding:7px 14px;">Month</button>
+      </div>
+      <button onclick="goToday()" class="text-[10px] font-black text-emerald-700 uppercase tracking-widest bg-emerald-50 hover:bg-emerald-100 px-4 py-2 rounded-xl border border-emerald-200 cursor-pointer transition-colors">Today</button>
+    </div>
+  </div>
+
+  <!-- Week View -->
+  <div class="dash-card p-0 overflow-x-auto" id="desktop-cal" style="display:block;">
+    <div class="cal-grid" id="cal-grid"></div>
+  </div>
+
+  <!-- Month View -->
+  <div class="dash-card p-0 overflow-x-auto" id="month-cal" style="display:none;">
+    <div id="month-grid"></div>
+  </div>
+
+  <!-- Mobile Day View -->
+  <div class="sm:hidden space-y-3" id="mobile-cal">
+    <div class="tab-row" id="mobile-day-tabs"></div>
+    <div class="dash-card overflow-hidden" id="mobile-day-slots"></div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════
+     BOOKING MODAL — New / Edit
+══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="booking-modal">
+  <div class="modal-box">
+
+    <div style="background:linear-gradient(135deg,#064e3b,#065f46);" class="p-6 rounded-t-[24px] flex justify-between items-start">
+      <div>
+        <div class="text-base font-black text-emerald-300 uppercase tracking-widest mb-1">&#128197; Collection Time Slot Booking</div>
+      </div>
+      <button onclick="closeBookingModal()" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4">&times;</button>
+    </div>
+
+    <div class="p-5 sm:p-6 space-y-4">
+
+      <!-- Date & Time (pre-filled) -->
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Date</label>
+          <input id="bk-date" type="date" class="search-input text-sm" style="padding:10px 14px;" onchange="onBookingDateChange()">
+        </div>
+        <div>
+          <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Time Slot</label>
+          <select id="bk-time" class="search-input text-sm" style="padding:10px 14px;"></select>
+        </div>
+      </div>
+
+      <!-- AL Search -->
+      <div>
+        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Search Order</label>
+        <div class="relative" id="al-search-wrap">
+          <input id="bk-al-search" type="text" class="search-input text-sm" style="padding:10px 14px;" placeholder="Search order number, AL number or customer name..." autocomplete="off" oninput="searchAL(this.value)" onfocus="searchAL(this.value)">
+          <div class="al-dropdown hidden" id="al-dropdown"></div>
+        </div>
+      </div>
+
+      <!-- Selected AL info (shown after selection) — order/product/qty only -->
+      <div id="bk-al-info" class="hidden">
+        <div class="grid grid-cols-2 gap-3" id="bk-al-details"></div>
+      </div>
+
+      <!-- Collection Qty with preset buttons -->
+      <div id="bk-qty-wrap" class="hidden">
+        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Collection Quantity</label>
+        <div class="flex flex-wrap gap-2 mb-3">
+          <button class="qty-btn bk-qty-btn" onclick="selectBkQty(50)">+50</button>
+          <button class="qty-btn bk-qty-btn" onclick="selectBkQty(100)">+100</button>
+          <button class="qty-btn bk-qty-btn" onclick="selectBkQty(500)">+500</button>
+          <button class="qty-btn bk-qty-btn" onclick="selectBkQty(1000)">+1,000</button>
+          <input id="bk-qty" type="number" min="1" class="search-input text-sm" style="padding:10px 14px; width:130px;" placeholder="Custom qty" oninput="selectBkCustomQty()">
+        </div>
+        <div id="bk-qty-selected" class="text-sm font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 hidden">
+          Booking Qty: <span id="bk-qty-value">0</span> seedlings
+        </div>
+        <div class="text-[10px] font-bold text-slate-400 mt-1" id="bk-qty-hint"></div>
+      </div>
+
+      <!-- Nursery & Plot -->
+      <div id="bk-nursery-wrap" class="hidden">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Collect From Nursery</label>
+            <select id="bk-nursery" class="search-input text-sm" style="padding:10px 14px;" onchange="filterPlots('bk-nursery','bk-plot')"></select>
+          </div>
+          <div>
+            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Plot</label>
+            <select id="bk-plot" class="search-input text-sm" style="padding:10px 14px;"></select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div id="bk-notes-wrap" class="hidden">
+        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Notes (Optional)</label>
+        <input id="bk-notes" type="text" class="search-input text-sm" style="padding:10px 14px;" placeholder="e.g. Customer will send lorry">
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="px-5 sm:px-6 pb-6 flex flex-col sm:flex-row gap-3 justify-end border-t border-slate-100 pt-5">
+      <button onclick="closeBookingModal()"
+        class="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-full border border-slate-200 cursor-pointer transition-colors">
+        Cancel
+      </button>
+      <button id="bk-submit-btn" onclick="submitBooking()" disabled
+        class="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-[11px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
+        &#128197; Confirm Booking
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     BOOKING EDIT MODAL — View / Edit / Cancel / Complete
+══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="detail-modal" style="z-index:250;">
+  <div class="modal-box" style="max-width:560px;">
+
+    <div style="background:linear-gradient(135deg,#1e3a8a,#1d4ed8);" class="p-6 rounded-t-[24px] flex justify-between items-start">
+      <div>
+        <div class="text-[10px] font-black text-blue-300 uppercase tracking-widest mb-1">&#128197; Edit Booking</div>
+        <div class="text-lg font-black text-white" id="det-subtitle">&mdash;</div>
+      </div>
+      <button onclick="closeDetailModal()" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4">&times;</button>
+    </div>
+
+    <div class="p-5 sm:p-6 space-y-4">
+      <!-- Info row -->
+      <div class="grid grid-cols-2 gap-3" id="det-info"></div>
+
+      <!-- Editable fields -->
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Date</label>
+          <input id="det-date" type="date" class="search-input text-sm" style="padding:10px 14px;">
+        </div>
+        <div>
+          <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Time Slot</label>
+          <select id="det-time" class="search-input text-sm" style="padding:10px 14px;"></select>
+        </div>
+      </div>
+
+      <div>
+        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Collection Qty</label>
+        <input id="det-qty" type="number" min="1" class="search-input text-sm" style="padding:10px 14px;">
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Nursery</label>
+          <select id="det-nursery" class="search-input text-sm" style="padding:10px 14px;" onchange="filterPlots('det-nursery','det-plot')"></select>
+        </div>
+        <div>
+          <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Plot</label>
+          <select id="det-plot" class="search-input text-sm" style="padding:10px 14px;"></select>
+        </div>
+      </div>
+
+      <div>
+        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Notes</label>
+        <input id="det-notes" type="text" class="search-input text-sm" style="padding:10px 14px;" placeholder="Optional notes">
+      </div>
+
+      <!-- Pending confirmation section (only for pending bookings) -->
+      <div id="det-pending-section" class="hidden border-t border-amber-200 pt-4">
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-3">
+          <div class="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-2">&#9888;&#65039; Pending Customer Booking — Match with AL</div>
+          <p class="text-xs font-bold text-amber-600 mb-3">Customer entered: <span class="text-slate-800 font-black" id="det-customer-input"></span>. Match to an existing AL before confirming.</p>
+          <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Link to AL Number</label>
+          <div class="relative" id="det-al-search-wrap">
+            <input id="det-al-search" type="text" class="search-input text-sm" style="padding:10px 14px;" placeholder="Search AL number..." autocomplete="off" oninput="searchALForConfirm(this.value)" onfocus="searchALForConfirm(this.value)">
+            <div class="al-dropdown hidden" id="det-al-dropdown"></div>
+          </div>
+          <div id="det-al-matched" class="hidden mt-2 text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="px-5 sm:px-6 pb-6 flex flex-col sm:flex-row gap-3 justify-end border-t border-slate-100 pt-5">
+      <button id="det-cancel-btn" onclick="cancelBooking()"
+        class="text-[10px] font-black text-red-600 hover:text-white hover:bg-red-600 uppercase tracking-widest bg-red-50 px-5 py-3 rounded-xl border border-red-200 cursor-pointer transition-colors">
+        &#10060; Cancel Booking
+      </button>
+      <button onclick="closeDetailModal()"
+        class="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-5 py-3 rounded-full border border-slate-200 cursor-pointer transition-colors">
+        Close
+      </button>
+      <button id="det-save-btn" onclick="saveBookingEdit()"
+        class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
+        &#128190; Save Changes
+      </button>
+      <button id="det-confirm-btn" onclick="confirmPendingBooking()"
+        class="hidden px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
+        &#9989; Confirm Booking
+      </button>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     DAY DETAIL MODAL — Nursery Allocation Board
+══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="day-modal" style="z-index:240;">
+  <div class="modal-box" style="max-width:900px;">
+    <div style="background:linear-gradient(135deg,#0f172a,#1e293b);" class="p-6 rounded-t-[24px] flex justify-between items-start">
+      <div>
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">&#128197; Day View &mdash; Nursery Allocation</div>
+        <div class="text-lg font-black text-white" id="day-modal-title">&mdash;</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="openNewBookingFromDay()" class="text-[9px] font-black text-white uppercase tracking-widest bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-xl border-none cursor-pointer transition-colors">+ New Booking</button>
+        <button onclick="closeDayModal()" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0">&times;</button>
+      </div>
+    </div>
+    <div class="p-4 sm:p-5" id="day-board-area">
+      <div class="text-center py-8 text-slate-300 text-xs font-bold uppercase tracking-widest">Loading&hellip;</div>
+    </div>
+    <div class="px-5 sm:px-6 pb-5 flex justify-end border-t border-slate-100 pt-4">
+      <button onclick="closeDayModal()" class="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-full border border-slate-200 cursor-pointer transition-colors">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">&#10004; <span id="toast-msg"></span></div>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  SUPABASE
+// ════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://kibqjztozokohqmhqqqf.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpYnFqenRvem9rb2hxbWhxcXFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzQzNjIsImV4cCI6MjA4OTgxMDM2Mn0.J7qJUZhWXYf5b9oey4wXJkjdi66jomEMw_NeV9NWF7M';
+const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ════════════════════════════════════════════════════════
+//  SESSION GUARD
+// ════════════════════════════════════════════════════════
+let currentSession = null;
+_supabase.auth.getSession().then(({ data: { session } }) => {
+  if (!session) { window.location.href = 'index.html'; return; }
+  currentSession = session;
+  document.getElementById('user-label').innerText =
+    session.user.user_metadata?.full_name || session.user.email;
+});
+_supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT' || !session) window.location.href = 'index.html';
+});
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
+  sessionStorage.clear();
+  try { await _supabase.auth.signOut({ scope: 'local' }); } catch(e) {}
+  window.location.href = 'index.html';
+});
+
+// ════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════
+let currentWeekStart = getMonday(new Date());
+let currentMonth = new Date().getMonth();
+let currentYear = new Date().getFullYear();
+let calView = 'week'; // 'week' or 'month'
+let bookings = [];
+let monthBookings = []; // for month view
+let alData = [];
+let selectedAL = null;
+let selectedBooking = null;
+let mobileSelectedDay = 0; // 0=Mon
+
+// ════════════════════════════════════════════════════════
+//  MALAYSIA PUBLIC HOLIDAYS 2026
+// ════════════════════════════════════════════════════════
+const MY_HOLIDAYS = {
+  '2026-01-01': 'New Year\'s Day',
+  '2026-01-14': 'Nuzul Al-Quran',
+  '2026-01-29': 'Thaipusam',
+  '2026-02-01': 'Federal Territory Day',
+  '2026-02-17': 'Chinese New Year',
+  '2026-02-18': 'Chinese New Year (2nd Day)',
+  '2026-03-28': 'Hari Raya Aidilfitri',
+  '2026-03-29': 'Hari Raya Aidilfitri (2nd Day)',
+  '2026-05-01': 'Labour Day',
+  '2026-05-11': 'Vesak Day',
+  '2026-06-01': 'Agong Birthday',
+  '2026-06-04': 'Hari Raya Haji',
+  '2026-06-05': 'Hari Raya Haji (2nd Day)',
+  '2026-06-25': 'Awal Muharram',
+  '2026-08-31': 'Merdeka Day',
+  '2026-09-03': 'Maulidur Rasul',
+  '2026-09-16': 'Malaysia Day',
+  '2026-10-20': 'Deepavali',
+  '2026-12-25': 'Christmas Day',
+  // 2025 holidays (in case viewing past)
+  '2025-01-01': 'New Year\'s Day',
+  '2025-01-27': 'Thaipusam',
+  '2025-01-29': 'Chinese New Year',
+  '2025-01-30': 'Chinese New Year (2nd Day)',
+  '2025-02-01': 'Federal Territory Day',
+  '2025-03-13': 'Nuzul Al-Quran',
+  '2025-03-30': 'Hari Raya Aidilfitri',
+  '2025-03-31': 'Hari Raya Aidilfitri (2nd Day)',
+  '2025-05-01': 'Labour Day',
+  '2025-05-12': 'Vesak Day',
+  '2025-06-02': 'Agong Birthday',
+  '2025-06-06': 'Hari Raya Haji',
+  '2025-06-07': 'Hari Raya Haji (2nd Day)',
+  '2025-06-27': 'Awal Muharram',
+  '2025-08-31': 'Merdeka Day',
+  '2025-09-05': 'Maulidur Rasul',
+  '2025-09-16': 'Malaysia Day',
+  '2025-10-20': 'Deepavali',
+  '2025-12-25': 'Christmas Day',
+};
+
+function getHoliday(dateStr) {
+  return MY_HOLIDAYS[dateStr] || null;
+}
+
+const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat'];
+const DAY_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const HOURS_WEEKDAY = [8,9,10,11,12,13,14,15,16]; // 8am-4pm (slot = 8-9, 9-10, ... 4-5)
+const HOURS_SAT = [8,9,10,11]; // 8am-11am (slot = 8-9, 9-10, 10-11, 11-12)
+
+function getMonday(d) {
+  const dt = new Date(d);
+  const day = dt.getDay();
+  const diff = dt.getDate() - day + (day === 0 ? -6 : 1);
+  dt.setDate(diff);
+  dt.setHours(0,0,0,0);
+  return dt;
+}
+
+function formatDate(d) {
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
+function formatDateDisplay(d) {
+  return d.toLocaleDateString('en-MY', { day:'2-digit', month:'short' });
+}
+
+function formatHour(h) {
+  if (h === 0) return '12 AM';
+  if (h < 12) return h + ' AM';
+  if (h === 12) return '12 PM';
+  return (h - 12) + ' PM';
+}
+
+function timeSlotLabel(h) {
+  return formatHour(h) + ' - ' + formatHour(h + 1);
+}
+
+function isToday(d) {
+  const today = new Date();
+  return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+}
+
+// ════════════════════════════════════════════════════════
+//  DATA LOADING
+// ════════════════════════════════════════════════════════
+let plotsData = [];
+
+async function loadALData() {
+  try {
+    var results = await Promise.all([
+      _supabase.from('al_orders').select('*').not('status', 'in', '("Cancelled","Collected")').gt('balance_quantity', 0).order('customer_name', { ascending: true }),
+      _supabase.from('plots').select('plot_name, nursery_name'),
+    ]);
+    alData = (results[0] && results[0].data) || [];
+    plotsData = (results[1] && results[1].data) || [];
+  } catch(e) {
+    console.error('loadALData error:', e);
+    alData = [];
+    plotsData = [];
+  }
+  populateNurseryPlotSelects();
+}
+
+async function loadBookings() {
+  const weekEnd = new Date(currentWeekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+
+  const { data, error } = await _supabase
+    .from('collection_bookings')
+    .select('*')
+    .gte('booking_date', formatDate(currentWeekStart))
+    .lte('booking_date', formatDate(weekEnd))
+    .order('start_time', { ascending: true });
+
+  if (error) { showToast('\u274c ' + error.message); return; }
+  bookings = data || [];
+}
+
+async function loadMonthBookings() {
+  const first = new Date(currentYear, currentMonth, 1);
+  const last = new Date(currentYear, currentMonth + 1, 0);
+
+  const { data, error } = await _supabase
+    .from('collection_bookings')
+    .select('*')
+    .gte('booking_date', formatDate(first))
+    .lte('booking_date', formatDate(last))
+    .order('start_time', { ascending: true });
+
+  if (error) { showToast('\u274c ' + error.message); return; }
+  monthBookings = data || [];
+}
+
+async function loadAll() {
+  try {
+    await Promise.all([loadALData(), calView === 'month' ? loadMonthBookings() : loadBookings()]);
+    renderCalendar();
+  } catch(err) {
+    console.error('loadAll error:', err);
+    document.getElementById('period-label').textContent = 'Error loading - check console';
+  }
+}
+
+window.addEventListener('DOMContentLoaded', function() { loadAll(); });
+
+// ════════════════════════════════════════════════════════
+//  VIEW SWITCHING
+// ════════════════════════════════════════════════════════
+function switchView(view) {
+  calView = view;
+  document.getElementById('tab-week').classList.toggle('active', view === 'week');
+  document.getElementById('tab-month').classList.toggle('active', view === 'month');
+
+  document.getElementById('desktop-cal').style.display = view === 'week' ? 'block' : 'none';
+  document.getElementById('month-cal').style.display = view === 'month' ? 'block' : 'none';
+  document.getElementById('mobile-cal').style.display = view === 'week' ? '' : 'none';
+
+  if (view === 'month') {
+    loadMonthBookings().then(renderCalendar);
+  } else {
+    loadBookings().then(renderCalendar);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  NAV
+// ════════════════════════════════════════════════════════
+function changePeriod(dir) {
+  if (calView === 'month') {
+    currentMonth += dir;
+    if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+    if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+    loadMonthBookings().then(renderCalendar);
+  } else {
+    currentWeekStart.setDate(currentWeekStart.getDate() + dir * 7);
+    loadBookings().then(renderCalendar);
+  }
+}
+
+function goToday() {
+  const now = new Date();
+  currentWeekStart = getMonday(now);
+  currentMonth = now.getMonth();
+  currentYear = now.getFullYear();
+  mobileSelectedDay = now.getDay() - 1;
+  if (mobileSelectedDay < 0) mobileSelectedDay = 0;
+  if (mobileSelectedDay > 5) mobileSelectedDay = 5;
+
+  if (calView === 'month') {
+    loadMonthBookings().then(renderCalendar);
+  } else {
+    loadBookings().then(renderCalendar);
+  }
+}
+
+function updatePeriodLabel() {
+  if (calView === 'month') {
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    document.getElementById('period-label').textContent = monthNames[currentMonth] + ' ' + currentYear;
+  } else {
+    const end = new Date(currentWeekStart);
+    end.setDate(end.getDate() + 5);
+    document.getElementById('period-label').textContent =
+      formatDateDisplay(currentWeekStart) + ' \u2014 ' + formatDateDisplay(end) + ' ' + currentWeekStart.getFullYear();
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  RENDER
+// ════════════════════════════════════════════════════════
+function renderCalendar() {
+  updatePeriodLabel();
+  if (calView === 'month') {
+    renderMonth();
+  } else {
+    renderDesktop();
+  }
+  renderMobile();
+}
+
+function isPast(d) {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const check = new Date(d);
+  check.setHours(0,0,0,0);
+  return check < today;
+}
+
+// ═══════════════════════════════════════
+//  CAPACITY CONFIG
+// ═══════════════════════════════════════
+var RATE = 350;              // seedlings processed per hour per booking
+var MAX_LOAD_PER_HOUR = 600; // max total seedling load per hour
+
+function hoursNeeded(qty) { return Math.ceil(qty / RATE); }
+function hourlyLoad(qty) { var hrs = hoursNeeded(qty); return qty / hrs; }
+
+function getBookingsFor(date, hour) {
+  const ds = formatDate(date);
+  return bookings.filter(b => {
+    if ((b.booking_date || '').substring(0, 10) !== ds || b.status === 'cancelled') return false;
+    var startH = parseInt((b.start_time || '00').split(':')[0]);
+    var endH = parseInt((b.end_time || '00').split(':')[0]);
+    if (endH <= startH) endH = startH + 1;
+    return hour >= startH && hour < endH;
+  });
+}
+
+function getHourLoad(date, hour) {
+  var bks = getBookingsFor(date, hour);
+  var total = 0;
+  bks.forEach(b => { total += hourlyLoad(b.collection_qty || 0); });
+  return total;
+}
+
+function isSlotFull(date, hour) {
+  return getHourLoad(date, hour) >= MAX_LOAD_PER_HOUR;
+}
+
+function getDayBookedSlotCount(date) {
+  const ds = formatDate(date);
+  const dow = date.getDay();
+  const hours = dow === 6 ? HOURS_SAT : HOURS_WEEKDAY;
+  var count = 0;
+  hours.forEach(h => { if (getBookingsFor(date, h).length > 0) count++; });
+  return count;
+}
+
+function renderDesktop() {
+  const grid = document.getElementById('cal-grid');
+  let html = '';
+
+  html += '<div class="cal-header" style="border-right:1px solid #e2e8f0;">Time</div>';
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(currentWeekStart);
+    d.setDate(d.getDate() + i);
+    const holiday = getHoliday(formatDate(d));
+    const todayCls = isToday(d) ? ' today' : '';
+    const holidayCls = holiday ? ' holiday' : '';
+    const count = getDayBookedSlotCount(d);
+    const countBadge = count > 0 ? '<span class="day-count">' + count + 'hr</span>' : '';
+    const holidayTag = holiday ? '<br><span class="holiday-tag">' + holiday + '</span>' : '';
+    html += '<div class="cal-header' + todayCls + holidayCls + '" style="cursor:pointer;" onclick="openDayModal(\'' + formatDate(d) + '\')">' + DAYS[i] + '<br>' + formatDateDisplay(d) + countBadge + holidayTag + '</div>';
+  }
+
+  const allHours = HOURS_WEEKDAY;
+  allHours.forEach(h => {
+    html += '<div class="cal-time">' + formatHour(h) + '</div>';
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(currentWeekStart);
+      d.setDate(d.getDate() + i);
+      const isSat = i === 5;
+      const isClosed = isSat && h >= 12;
+      const todayCls = isToday(d) ? ' today-col' : '';
+      const holidayColCls = getHoliday(formatDate(d)) ? ' holiday-col' : '';
+      const past = isPast(d);
+
+      if (isClosed) {
+        html += '<div class="cal-cell closed' + todayCls + '"><span class="text-[9px] font-bold text-slate-300">Closed</span></div>';
+      } else {
+        const cellBookings = getBookingsFor(d, h);
+        const pills = cellBookings.map(b => {
+          const cls = b.status === 'completed' ? 'completed' : b.status === 'cancelled' ? 'cancelled' : b.status === 'pending' ? 'pending' : 'booked';
+          const pendingIcon = b.status === 'pending' ? '\u23f3 ' : '';
+          const displayName = (b.customer_name || b.order_number || '\u2014');
+          const plotTag = b.plot_name ? ' \u00b7 ' + b.plot_name : '';
+          return '<div class="booking-pill ' + cls + '" onclick="event.stopPropagation();viewBooking(\'' + b.id + '\')" title="' + displayName + ' - ' + (b.al_number || '') + '" style="white-space:normal;line-height:1.3;">' +
+            pendingIcon + displayName + ' (' + (b.collection_qty || 0) + ')' + plotTag +
+          '</div>';
+        }).join('');
+        const clickAction = past ? '' : ' onclick="openNewBooking(\'' + formatDate(d) + '\',' + h + ')"';
+        const pastCls = past ? ' opacity-50 cursor-default' : '';
+        html += '<div class="cal-cell' + todayCls + holidayColCls + pastCls + '"' + clickAction + '>' + pills + '</div>';
+      }
+    }
+  });
+
+  grid.innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════
+//  MONTH VIEW
+// ════════════════════════════════════════════════════════
+function getMonthBookingsFor(dateStr) {
+  return monthBookings.filter(b => (b.booking_date || '').substring(0, 10) === dateStr && b.status !== 'cancelled');
+}
+
+function renderMonth() {
+  const container = document.getElementById('month-grid');
+  const firstDay = new Date(currentYear, currentMonth, 1);
+  const lastDay = new Date(currentYear, currentMonth + 1, 0);
+  let startDow = firstDay.getDay(); // 0=Sun
+  if (startDow === 0) startDow = 7; // Mon=1
+
+  let html = '<div class="month-grid">';
+  // Headers: Mon-Sun
+  var dayHeaders = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  dayHeaders.forEach(function(d) {
+    html += '<div class="month-header">' + d + '</div>';
+  });
+
+  // Fill cells
+  var cellDate = new Date(firstDay);
+  cellDate.setDate(cellDate.getDate() - (startDow - 1)); // go back to Monday
+
+  for (var row = 0; row < 6; row++) {
+    var hasContent = false;
+    for (var col = 0; col < 7; col++) {
+      var isThisMonth = cellDate.getMonth() === currentMonth;
+      var isTodayCls = isToday(cellDate) ? ' today' : '';
+      var pastCls = isPast(cellDate) ? ' past' : '';
+      var otherCls = !isThisMonth ? ' other-month' : '';
+      var dow = cellDate.getDay();
+      var isSunday = dow === 0;
+      var closedCls = isSunday ? ' closed' : '';
+
+      if (isThisMonth) hasContent = true;
+
+      var ds = formatDate(cellDate);
+      var bks = isThisMonth ? getMonthBookingsFor(ds) : [];
+      var dayNum = cellDate.getDate();
+      var holiday = getHoliday(ds);
+      var holidayCls = holiday ? ' holiday' : '';
+
+      var pillsHtml = '';
+      if (holiday) {
+        pillsHtml += '<div class="month-holiday-tag">' + holiday + '</div>';
+      }
+      bks.slice(0, 2).forEach(function(b) {
+        var cls = b.status === 'completed' ? 'completed' : b.status === 'pending' ? 'pending' : 'booked';
+        pillsHtml += '<div class="booking-pill ' + cls + '" style="font-size:9px;padding:2px 5px;" onclick="event.stopPropagation();openDayModal(\'' + ds + '\')">' +
+          (b.customer_name || '').substring(0, 10) + ' (' + (b.collection_qty || 0) + ')</div>';
+      });
+      if (bks.length > 2) {
+        pillsHtml += '<div class="text-[9px] font-bold text-slate-400 cursor-pointer" onclick="event.stopPropagation();openDayModal(\'' + ds + '\')">+' + (bks.length - 2) + ' more</div>';
+      }
+
+      var clickAction = '';
+      if (isThisMonth && !isSunday && !isPast(cellDate)) {
+        clickAction = ' onclick="openDayModal(\'' + ds + '\')"';
+      }
+
+      html += '<div class="month-cell' + isTodayCls + pastCls + otherCls + closedCls + holidayCls + '"' + clickAction + '>' +
+        '<div class="month-day-num">' + dayNum + '</div>' +
+        pillsHtml +
+      '</div>';
+
+      cellDate.setDate(cellDate.getDate() + 1);
+    }
+    if (!hasContent && row > 4) break;
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function renderMobile() {
+  // Day tabs
+  let tabs = '';
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(currentWeekStart);
+    d.setDate(d.getDate() + i);
+    const count = getDayBookedSlotCount(d);
+    const badge = count > 0 ? ' (' + count + ')' : '';
+    const active = i === mobileSelectedDay ? ' active' : '';
+    tabs += '<button class="tab-btn' + active + '" onclick="mobileSelectDay(' + i + ')">' + DAYS[i] + badge + '</button>';
+  }
+  document.getElementById('mobile-day-tabs').innerHTML = tabs;
+
+  // Slots
+  const d = new Date(currentWeekStart);
+  d.setDate(d.getDate() + mobileSelectedDay);
+  const isSat = mobileSelectedDay === 5;
+  const hours = isSat ? HOURS_SAT : HOURS_WEEKDAY;
+
+  const mobileHoliday = getHoliday(formatDate(d));
+  const holidayBanner = mobileHoliday ? '<div class="text-[9px] font-black text-red-600 mt-1">\ud83c\uddf2\ud83c\uddfe ' + mobileHoliday + '</div>' : '';
+  let html = '<div class="p-3 bg-slate-50 border-b border-slate-200">' +
+    '<div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">' + DAY_FULL[mobileSelectedDay] + ', ' + formatDateDisplay(d) + '</div>' + holidayBanner +
+  '</div>';
+
+  const past = isPast(d);
+  hours.forEach(h => {
+    const cellBookings = getBookingsFor(d, h);
+    const pillsHtml = cellBookings.map(b => {
+      const cls = b.status === 'completed' ? 'completed' : b.status === 'cancelled' ? 'cancelled' : b.status === 'pending' ? 'pending' : 'booked';
+      const pendingIcon = b.status === 'pending' ? '\u23f3 ' : '';
+      const displayName = (b.customer_name || b.order_number || '\u2014');
+      const plotTag = b.plot_name ? ' \u00b7 ' + b.plot_name : '';
+      return '<div class="booking-pill ' + cls + '" onclick="event.stopPropagation();viewBooking(\'' + b.id + '\')">' +
+        pendingIcon + displayName + ' \u00b7 ' + (b.collection_qty || 0) + ' pcs' + plotTag +
+      '</div>';
+    }).join('');
+
+    const clickAction = past ? '' : ' onclick="openNewBooking(\'' + formatDate(d) + '\',' + h + ')"';
+    const pastCls = past ? ' closed' : '';
+    html += '<div class="mobile-slot' + pastCls + '"' + clickAction + '>' +
+      '<div class="text-[10px] font-black text-slate-400 w-16 shrink-0 pt-0.5">' + formatHour(h) + '</div>' +
+      '<div class="flex-1">' + (pillsHtml || '<span class="text-[10px] font-bold text-slate-300">' + (past ? 'Past' : 'Available') + '</span>') + '</div>' +
+    '</div>';
+  });
+
+  document.getElementById('mobile-day-slots').innerHTML = html;
+}
+
+function mobileSelectDay(i) {
+  mobileSelectedDay = i;
+  renderMobile();
+}
+
+// ════════════════════════════════════════════════════════
+//  NEW BOOKING MODAL
+// ════════════════════════════════════════════════════════
+let bookingQty = 0;
+
+function openNewBooking(dateStr, hour) {
+  // Block past dates
+  const checkDate = new Date(dateStr + 'T00:00:00');
+  if (isPast(checkDate)) {
+    showToast('\u26a0\ufe0f Cannot book on past dates');
+    return;
+  }
+
+  selectedAL = null;
+  bookingQty = 0;
+
+  // Date
+  document.getElementById('bk-date').value = dateStr;
+  // Set min date to today
+  document.getElementById('bk-date').min = formatDate(new Date());
+
+  // Time select with booking info
+  const dayIdx = checkDate.getDay();
+  const isSat = dayIdx === 6;
+  const hours = isSat ? HOURS_SAT : HOURS_WEEKDAY;
+  const timeSelect = document.getElementById('bk-time');
+
+  // Get all bookings for this date to show in dropdown
+  const ds = dateStr;
+  const dayBookings = bookings.filter(b => (b.booking_date || '').substring(0, 10) === ds && b.status !== 'cancelled');
+
+  timeSelect.innerHTML = hours.map(h => {
+    const timeStr = String(h).padStart(2,'0') + ':00';
+    const slotBookings = dayBookings.filter(b => (b.start_time || '').substring(0, 5) === timeStr);
+    var label = timeSlotLabel(h);
+    if (slotBookings.length > 0) {
+      var names = slotBookings.map(b => (b.customer_name || '').substring(0, 15)).join(', ');
+      label += ' \u2014 ' + slotBookings.length + ' booked (' + names + ')';
+    }
+    return '<option value="' + timeStr + '"' + (h === hour ? ' selected' : '') + '>' + label + '</option>';
+  }).join('');
+
+  // Reset
+  document.getElementById('bk-al-search').value = '';
+  document.getElementById('al-dropdown').classList.add('hidden');
+  document.getElementById('bk-al-info').classList.add('hidden');
+  document.getElementById('bk-qty-wrap').classList.add('hidden');
+  document.getElementById('bk-notes-wrap').classList.add('hidden');
+  document.getElementById('bk-qty').value = '';
+  document.getElementById('bk-qty-selected').classList.add('hidden');
+  document.getElementById('bk-notes').value = '';
+  document.getElementById('bk-submit-btn').disabled = true;
+  document.querySelectorAll('.bk-qty-btn').forEach(b => b.classList.remove('active'));
+
+  document.getElementById('booking-modal').classList.add('open');
+}
+
+async function onBookingDateChange() {
+  const dateStr = document.getElementById('bk-date').value;
+  if (!dateStr) return;
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isPast(d)) {
+    showToast('\u26a0\ufe0f Cannot book on past dates');
+    document.getElementById('bk-date').value = formatDate(new Date());
+    return;
+  }
+  // Reload bookings for that date's week to populate dropdown
+  const weekStart = getMonday(d);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  const { data } = await _supabase.from('collection_bookings').select('*')
+    .gte('booking_date', formatDate(weekStart)).lte('booking_date', formatDate(weekEnd))
+    .order('start_time', { ascending: true });
+  const dateBks = (data || []).filter(b => (b.booking_date || '').substring(0, 10) === dateStr && b.status !== 'cancelled');
+
+  const dow = d.getDay();
+  if (dow === 0) { showToast('\u26a0\ufe0f Sunday is closed'); document.getElementById('bk-date').value = formatDate(new Date()); return; }
+  const isSat = dow === 6;
+  const hours = isSat ? HOURS_SAT : HOURS_WEEKDAY;
+  const timeSelect = document.getElementById('bk-time');
+  timeSelect.innerHTML = hours.map(h => {
+    const timeStr = String(h).padStart(2,'0') + ':00';
+    const slotBks = dateBks.filter(b => (b.start_time || '').substring(0, 5) === timeStr);
+    var label = timeSlotLabel(h);
+    if (slotBks.length > 0) {
+      var names = slotBks.map(b => (b.customer_name || '').substring(0, 15)).join(', ');
+      label += ' \u2014 ' + slotBks.length + ' booked (' + names + ')';
+    }
+    return '<option value="' + timeStr + '">' + label + '</option>';
+  }).join('');
+}
+
+function closeBookingModal() {
+  document.getElementById('booking-modal').classList.remove('open');
+  document.getElementById('al-dropdown').classList.add('hidden');
+}
+
+// ════════════════════════════════════════════════════════
+//  AL SEARCH DROPDOWN
+// ════════════════════════════════════════════════════════
+function searchAL(q) {
+  const dropdown = document.getElementById('al-dropdown');
+  const lower = q.trim().toLowerCase();
+  if (lower.length < 1) { dropdown.classList.add('hidden'); return; }
+
+  const results = alData.filter(r =>
+    (r.al_number || '').toLowerCase().includes(lower) ||
+    (r.customer_name || '').toLowerCase().includes(lower) ||
+    (r.order_number || '').toLowerCase().includes(lower)
+  ).slice(0, 8);
+
+  if (results.length === 0) {
+    dropdown.innerHTML = '<div class="al-dropdown-item text-slate-400 text-xs">No matching order found</div>';
+  } else {
+    dropdown.innerHTML = results.map(r =>
+      '<div class="al-dropdown-item" onclick="selectAL(\'' + r.al_number + '\')">' +
+        '<span class="al-num">' + (r.al_number || '') + '</span> &mdash; <span class="al-cust">' + (r.customer_name || '') + '</span>' +
+        '<div class="text-[10px] text-slate-400">' + (r.order_number || '') + ' \u00b7 Bal: ' + (r.balance_quantity ?? 0) + '</div>' +
+      '</div>'
+    ).join('');
+  }
+  dropdown.classList.remove('hidden');
+}
+
+function selectAL(alNumber) {
+  selectedAL = alData.find(r => r.al_number === alNumber);
+  if (!selectedAL) return;
+
+  document.getElementById('al-dropdown').classList.add('hidden');
+  document.getElementById('bk-al-search').value = selectedAL.al_number + ' \u2014 ' + (selectedAL.customer_name || '');
+
+  // Show details — only order, product, qty ordered, balance
+  const fields = [
+    { label:'Order Number', value: selectedAL.order_number || '\u2014' },
+    { label:'Product',      value: selectedAL.product_name || '\u2014' },
+    { label:'Qty Ordered',  value: selectedAL.quantity_ordered ?? '\u2014' },
+    { label:'Balance',      value: '<span class="text-blue-700 font-black">' + (selectedAL.balance_quantity ?? '\u2014') + '</span>' },
+  ];
+  document.getElementById('bk-al-details').innerHTML = fields.map(f =>
+    '<div class="bg-slate-50 rounded-xl p-3 border border-slate-100">' +
+      '<div class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">' + f.label + '</div>' +
+      '<div class="font-black text-slate-800 text-sm leading-snug">' + f.value + '</div>' +
+    '</div>'
+  ).join('');
+
+  document.getElementById('bk-al-info').classList.remove('hidden');
+  document.getElementById('bk-qty-wrap').classList.remove('hidden');
+  document.getElementById('bk-nursery-wrap').classList.remove('hidden');
+  document.getElementById('bk-notes-wrap').classList.remove('hidden');
+  document.getElementById('bk-nursery').value = '';
+  document.getElementById('bk-plot').value = '';
+  document.getElementById('bk-qty-hint').textContent = 'Max: ' + (selectedAL.balance_quantity || 0).toLocaleString() + ' (balance to collect)';
+  document.getElementById('bk-qty').max = selectedAL.balance_quantity || 0;
+
+  // Reset qty
+  bookingQty = 0;
+  document.getElementById('bk-qty').value = '';
+  document.getElementById('bk-qty-selected').classList.add('hidden');
+  document.querySelectorAll('.bk-qty-btn').forEach(b => b.classList.remove('active'));
+
+  checkBookingReady();
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  if (!document.getElementById('al-search-wrap').contains(e.target)) {
+    document.getElementById('al-dropdown').classList.add('hidden');
+  }
+});
+
+// ════════════════════════════════════════════════════════
+//  SUBMIT BOOKING
+// ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
+//  QTY PRESET BUTTONS
+// ════════════════════════════════════════════════════════
+function selectBkQty(qty) {
+  const max = selectedAL?.balance_quantity || 0;
+  if (qty > max) {
+    showToast('\u26a0\ufe0f Cannot exceed balance (' + max.toLocaleString() + ')');
+    return;
+  }
+  bookingQty = qty;
+  document.getElementById('bk-qty').value = '';
+  document.querySelectorAll('.bk-qty-btn').forEach(b => {
+    const val = parseInt(b.textContent.replace(/[^0-9]/g, ''));
+    b.classList.toggle('active', val === qty);
+  });
+  document.getElementById('bk-qty-value').textContent = qty.toLocaleString();
+  document.getElementById('bk-qty-selected').classList.remove('hidden');
+  checkBookingReady();
+}
+
+function selectBkCustomQty() {
+  const val = parseInt(document.getElementById('bk-qty').value) || 0;
+  const max = selectedAL?.balance_quantity || 0;
+  document.querySelectorAll('.bk-qty-btn').forEach(b => b.classList.remove('active'));
+  if (val > max) {
+    showToast('\u26a0\ufe0f Cannot exceed balance (' + max.toLocaleString() + ')');
+    bookingQty = 0;
+    document.getElementById('bk-qty-selected').classList.add('hidden');
+    checkBookingReady();
+    return;
+  }
+  if (val > 0) {
+    bookingQty = val;
+    document.getElementById('bk-qty-value').textContent = val.toLocaleString();
+    document.getElementById('bk-qty-selected').classList.remove('hidden');
+  } else {
+    bookingQty = 0;
+    document.getElementById('bk-qty-selected').classList.add('hidden');
+  }
+  checkBookingReady();
+}
+
+function checkBookingReady() {
+  const hasAL = !!selectedAL;
+  const hasQty = bookingQty > 0 && bookingQty <= (selectedAL?.balance_quantity || 0);
+  document.getElementById('bk-submit-btn').disabled = !(hasAL && hasQty);
+}
+
+async function submitBooking() {
+  if (!selectedAL || bookingQty <= 0) return;
+  const btn = document.getElementById('bk-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving\u2026';
+
+  if (bookingQty > (selectedAL.balance_quantity || 0)) {
+    showToast('\u26a0\ufe0f Qty exceeds balance');
+    btn.disabled = false;
+    btn.textContent = '\ud83d\udcc5 Confirm Booking';
+    return;
+  }
+
+  const timeVal = document.getElementById('bk-time').value; // e.g. "09:00"
+  const startH = parseInt(timeVal.split(':')[0]);
+
+  const hrs = hoursNeeded(bookingQty);
+  const endH = startH + hrs;
+
+  const payload = {
+    al_number:      selectedAL.al_number,
+    order_number:   selectedAL.order_number || '',
+    customer_name:  selectedAL.customer_name || '',
+    collection_qty: bookingQty,
+    booking_date:   document.getElementById('bk-date').value,
+    start_time:     timeVal,
+    end_time:       String(endH).padStart(2,'0') + ':00',
+    status:         'booked',
+    nursery_name:   document.getElementById('bk-nursery').value.trim() || null,
+    plot_name:      document.getElementById('bk-plot').value.trim() || null,
+    notes:          document.getElementById('bk-notes').value.trim() || null,
+  };
+
+  const { error } = await _supabase.from('collection_bookings').insert([payload]);
+  if (error) {
+    showToast('\u274c ' + error.message);
+    btn.disabled = false;
+    btn.textContent = '\ud83d\udcc5 Confirm Booking';
+    return;
+  }
+
+  showToast('\u2705 Booking confirmed for ' + selectedAL.customer_name);
+  btn.textContent = '\ud83d\udcc5 Confirm Booking';
+  closeBookingModal();
+  await reloadCurrentView();
+}
+
+// ════════════════════════════════════════════════════════
+//  RELOAD HELPER
+// ════════════════════════════════════════════════════════
+function populateNurseryPlotSelects() {
+  var nurseryHtml = '<option value="">— Select Nursery —</option>';
+  var plotHtml = '<option value="">— Select Plot —</option>';
+  var seenNursery = {};
+  var sortedNurseries = [];
+  plotsData.forEach(function(p) {
+    if (p.nursery_name && !seenNursery[p.nursery_name]) {
+      seenNursery[p.nursery_name] = true;
+      sortedNurseries.push(p.nursery_name);
+    }
+  });
+  sortedNurseries.sort(function(a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }); });
+  sortedNurseries.forEach(function(n) {
+    nurseryHtml += '<option value="' + n + '">' + n + '</option>';
+  });
+  var sortedPlots = plotsData.filter(function(p) { return !!p.plot_name; })
+    .sort(function(a, b) { return a.plot_name.localeCompare(b.plot_name, undefined, { numeric: true, sensitivity: 'base' }); });
+  sortedPlots.forEach(function(p) {
+    plotHtml += '<option value="' + p.plot_name + '">' + p.plot_name + '</option>';
+  });
+  // Apply to both new booking and edit modal selects
+  ['bk-nursery', 'det-nursery'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = nurseryHtml;
+  });
+  ['bk-plot', 'det-plot'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = plotHtml;
+  });
+}
+
+function filterPlots(nurserySelectId, plotSelectId) {
+  var selectedNursery = document.getElementById(nurserySelectId).value;
+  var plotEl = document.getElementById(plotSelectId);
+  var html = '<option value="">\u2014 Select Plot \u2014</option>';
+  var filtered = plotsData.filter(function(p) {
+    return p.plot_name && (!selectedNursery || p.nursery_name === selectedNursery);
+  }).sort(function(a, b) {
+    return a.plot_name.localeCompare(b.plot_name, undefined, { numeric: true, sensitivity: 'base' });
+  });
+  filtered.forEach(function(p) {
+    html += '<option value="' + p.plot_name + '">' + p.plot_name + '</option>';
+  });
+  plotEl.innerHTML = html;
+}
+
+async function reloadCurrentView() {
+  if (calView === 'month') {
+    await loadMonthBookings();
+  } else {
+    await loadBookings();
+  }
+  renderCalendar();
+  // Also refresh day board if open
+  if (dayModalDate && document.getElementById('day-modal').classList.contains('open')) {
+    var { data } = await _supabase.from('collection_bookings').select('*')
+      .eq('booking_date', dayModalDate).neq('status', 'cancelled').order('start_time', { ascending: true });
+    dayBookings = data || [];
+    renderBoard();
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  VIEW / EDIT BOOKING
+// ════════════════════════════════════════════════════════
+function viewBooking(id) {
+  selectedBooking = bookings.find(b => b.id === id);
+  if (!selectedBooking) selectedBooking = monthBookings.find(b => b.id === id);
+  if (!selectedBooking) selectedBooking = dayBookings.find(b => b.id === id);
+  if (!selectedBooking) return;
+
+  var b = selectedBooking;
+  document.getElementById('det-subtitle').textContent = b.customer_name || '\u2014';
+
+  var statusMap = { booked: '\ud83d\udfe2 Booked', completed: '\ud83d\udfe6 Collected', cancelled: '\ud83d\udfe5 Cancelled' };
+  var fields = [
+    { label:'AL Number',  value: b.al_number || '\u2014' },
+    { label:'Order #',    value: b.order_number || '\u2014' },
+    { label:'Customer',   value: b.customer_name || '\u2014' },
+    { label:'Status',     value: statusMap[b.status] || b.status },
+  ];
+  document.getElementById('det-info').innerHTML = fields.map(function(f) {
+    return '<div class="bg-slate-50 rounded-xl p-3 border border-slate-100">' +
+      '<div class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">' + f.label + '</div>' +
+      '<div class="font-black text-slate-800 text-sm leading-snug">' + f.value + '</div>' +
+    '</div>';
+  }).join('');
+
+  // Fill editable fields
+  document.getElementById('det-date').value = b.booking_date || '';
+  document.getElementById('det-qty').value = b.collection_qty || '';
+  document.getElementById('det-notes').value = b.notes || '';
+
+  // Set nursery/plot selects
+  document.getElementById('det-nursery').value = b.nursery_name || '';
+  document.getElementById('det-plot').value = b.plot_name || '';
+
+  // Time dropdown
+  var d = new Date((b.booking_date || '') + 'T00:00:00');
+  var dow = d.getDay();
+  var isSat = dow === 6;
+  var hours = isSat ? HOURS_SAT : HOURS_WEEKDAY;
+  var startH = b.start_time ? parseInt(b.start_time.split(':')[0]) : 8;
+  document.getElementById('det-time').innerHTML = hours.map(function(h) {
+    return '<option value="' + String(h).padStart(2,'0') + ':00"' + (h === startH ? ' selected' : '') + '>' + timeSlotLabel(h) + '</option>';
+  }).join('');
+
+  // Show/hide action buttons based on status
+  var isDone = b.status === 'completed' || b.status === 'cancelled';
+  var isPending = b.status === 'pending';
+  document.getElementById('det-cancel-btn').style.display = isDone ? 'none' : '';
+  document.getElementById('det-save-btn').style.display = isDone ? 'none' : '';
+
+  // Pending section
+  var pendingSection = document.getElementById('det-pending-section');
+  var confirmBtn = document.getElementById('det-confirm-btn');
+  if (isPending) {
+    pendingSection.classList.remove('hidden');
+    document.getElementById('det-customer-input').textContent = b.customer_name || '\u2014';
+    document.getElementById('det-al-search').value = '';
+    document.getElementById('det-al-matched').classList.add('hidden');
+    document.getElementById('det-al-dropdown').classList.add('hidden');
+    confirmBtn.classList.remove('hidden');
+    confirmBtn.disabled = true;
+    confirmBtn.style.opacity = '0.4';
+    matchedALForConfirm = null;
+  } else {
+    pendingSection.classList.add('hidden');
+    confirmBtn.classList.add('hidden');
+  }
+
+  document.getElementById('detail-modal').classList.add('open');
+}
+
+function closeDetailModal() {
+  document.getElementById('detail-modal').classList.remove('open');
+  selectedBooking = null;
+}
+
+async function saveBookingEdit() {
+  if (!selectedBooking) return;
+  var btn = document.getElementById('det-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving\u2026';
+
+  var timeVal = document.getElementById('det-time').value;
+  var startH = parseInt(timeVal.split(':')[0]);
+
+  var editQty = parseInt(document.getElementById('det-qty').value) || selectedBooking.collection_qty;
+  var editEndH = startH + hoursNeeded(editQty);
+
+  var updates = {
+    booking_date:   document.getElementById('det-date').value,
+    start_time:     timeVal,
+    end_time:       String(editEndH).padStart(2,'0') + ':00',
+    collection_qty: editQty,
+    nursery_name:   document.getElementById('det-nursery').value.trim() || null,
+    plot_name:      document.getElementById('det-plot').value.trim() || null,
+    notes:          document.getElementById('det-notes').value.trim() || null,
+  };
+
+  var { error } = await _supabase.from('collection_bookings').update(updates).eq('id', selectedBooking.id);
+  if (error) {
+    showToast('\u274c ' + error.message);
+    btn.disabled = false;
+    btn.textContent = '\ud83d\udcbe Save Changes';
+    return;
+  }
+
+  showToast('\u2705 Booking updated');
+  btn.disabled = false;
+  btn.textContent = '\ud83d\udcbe Save Changes';
+  closeDetailModal();
+  await reloadCurrentView();
+}
+
+async function cancelBooking() {
+  if (!selectedBooking) return;
+  var { error } = await _supabase.from('collection_bookings').update({ status: 'cancelled' }).eq('id', selectedBooking.id);
+  if (error) { showToast('\u274c ' + error.message); return; }
+  showToast('\u274c Booking cancelled');
+  closeDetailModal();
+  await reloadCurrentView();
+}
+
+
+// ════════════════════════════════════════════════════════
+//  PENDING BOOKING — AL MATCH & CONFIRM
+// ════════════════════════════════════════════════════════
+var matchedALForConfirm = null;
+
+function searchALForConfirm(q) {
+  var dropdown = document.getElementById('det-al-dropdown');
+  var lower = q.trim().toLowerCase();
+  if (lower.length < 1) { dropdown.classList.add('hidden'); return; }
+
+  var results = alData.filter(function(r) {
+    return (r.al_number || '').toLowerCase().includes(lower) ||
+      (r.customer_name || '').toLowerCase().includes(lower) ||
+      (r.order_number || '').toLowerCase().includes(lower);
+  }).slice(0, 8);
+
+  if (results.length === 0) {
+    dropdown.innerHTML = '<div class="al-dropdown-item text-slate-400 text-xs">No matching order found</div>';
+  } else {
+    dropdown.innerHTML = results.map(function(r) {
+      return '<div class="al-dropdown-item" onclick="selectALForConfirm(\'' + r.al_number + '\')">' +
+        '<span class="al-num">' + (r.al_number || '') + '</span> \u2014 <span class="al-cust">' + (r.customer_name || '') + '</span>' +
+        '<div class="text-[10px] text-slate-400">' + (r.order_number || '') + ' \u00b7 Bal: ' + (r.balance_quantity ?? 0) + '</div>' +
+      '</div>';
+    }).join('');
+  }
+  dropdown.classList.remove('hidden');
+}
+
+function selectALForConfirm(alNumber) {
+  matchedALForConfirm = alData.find(function(r) { return r.al_number === alNumber; });
+  if (!matchedALForConfirm) return;
+
+  document.getElementById('det-al-dropdown').classList.add('hidden');
+  document.getElementById('det-al-search').value = matchedALForConfirm.al_number + ' \u2014 ' + (matchedALForConfirm.customer_name || '');
+
+  document.getElementById('det-al-matched').classList.remove('hidden');
+  document.getElementById('det-al-matched').innerHTML =
+    '\u2705 Matched: <strong>' + matchedALForConfirm.al_number + '</strong> \u2014 ' + (matchedALForConfirm.customer_name || '') +
+    ' (Order: ' + (matchedALForConfirm.order_number || '\u2014') + ', Balance: ' + (matchedALForConfirm.balance_quantity || 0) + ')';
+
+  // Enable confirm button
+  var btn = document.getElementById('det-confirm-btn');
+  btn.disabled = false;
+  btn.style.opacity = '1';
+}
+
+// Close AL dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('det-al-search-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('det-al-dropdown').classList.add('hidden');
+  }
+});
+
+async function confirmPendingBooking() {
+  if (!selectedBooking || !matchedALForConfirm) return;
+  var btn = document.getElementById('det-confirm-btn');
+  btn.disabled = true;
+  btn.textContent = 'Confirming\u2026';
+
+  var updates = {
+    status:       'booked',
+    al_number:    matchedALForConfirm.al_number,
+    order_number: matchedALForConfirm.order_number || '',
+    customer_name: matchedALForConfirm.customer_name || selectedBooking.customer_name,
+  };
+
+  var { error } = await _supabase.from('collection_bookings').update(updates).eq('id', selectedBooking.id);
+  if (error) {
+    showToast('\u274c ' + error.message);
+    btn.disabled = false;
+    btn.textContent = '\u2705 Confirm Booking';
+    return;
+  }
+
+  showToast('\u2705 Booking confirmed \u2014 ' + matchedALForConfirm.customer_name);
+  btn.textContent = '\u2705 Confirm Booking';
+  closeDetailModal();
+  await reloadCurrentView();
+}
+
+// ════════════════════════════════════════════════════════
+//  DAY DETAIL MODAL — NURSERY ALLOCATION BOARD
+// ════════════════════════════════════════════════════════
+var dayModalDate = null;
+var dayBookings = [];
+
+async function openDayModal(ds) {
+  dayModalDate = ds;
+  var d = new Date(ds + 'T00:00:00');
+  var dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  document.getElementById('day-modal-title').textContent =
+    dayNames[d.getDay()] + ', ' + d.toLocaleDateString('en-MY', { day:'2-digit', month:'short', year:'numeric' });
+
+  document.getElementById('day-board-area').innerHTML =
+    '<div class="text-center py-8 text-slate-300 text-xs font-bold uppercase tracking-widest">Loading\u2026</div>';
+  document.getElementById('day-modal').classList.add('open');
+
+  // Load all bookings for this day
+  var { data } = await _supabase.from('collection_bookings').select('*')
+    .eq('booking_date', ds).neq('status', 'cancelled').order('start_time', { ascending: true });
+  dayBookings = data || [];
+  renderBoard();
+}
+
+function closeDayModal() {
+  document.getElementById('day-modal').classList.remove('open');
+  dayModalDate = null;
+}
+
+function openNewBookingFromDay() {
+  var ds = dayModalDate;
+  closeDayModal();
+  openNewBooking(ds, 8);
+}
+
+function getNurseryList() {
+  var names = [];
+  var seen = {};
+  plotsData.forEach(function(p) {
+    if (p.nursery_name && !seen[p.nursery_name]) {
+      seen[p.nursery_name] = true;
+      names.push(p.nursery_name);
+    }
+  });
+  return names.slice(0, 3); // max 3 nurseries
+}
+
+function renderBoard() {
+  var area = document.getElementById('day-board-area');
+  var nurseries = getNurseryList();
+
+  var columns = [{ id: 'pending', label: '\u23f3 Pending', type: 'pending' }];
+  nurseries.forEach(function(n) {
+    columns.push({ id: 'nursery-' + n.replace(/[^a-zA-Z0-9]/g, '_'), label: '\ud83c\udf31 ' + n, type: 'nursery', nurseryName: n });
+  });
+
+  var html = '<div class="alloc-board">';
+  columns.forEach(function(col) {
+    var colBookings = dayBookings.filter(function(b) {
+      if (col.type === 'pending') return !b.nursery_name || b.nursery_name === '' || b.nursery_name === 'PENDING';
+      return b.nursery_name === col.nurseryName;
+    });
+
+    // Sort by start_time
+    colBookings.sort(function(a, b) {
+      return (a.start_time || '').localeCompare(b.start_time || '');
+    });
+
+    // Cumulative qty
+    var totalQty = colBookings.reduce(function(sum, b) { return sum + (b.collection_qty || 0); }, 0);
+
+    var colCls = col.type === 'pending' ? 'pending' : 'nursery';
+    html += '<div class="alloc-col ' + colCls + '" id="col-' + col.id + '" ' +
+      'ondragover="boardDragOver(event)" ondragleave="boardDragLeave(event)" ' +
+      'ondrop="boardDrop(event,\'' + (col.nurseryName || '') + '\')">';
+    html += '<div class="alloc-col-header">' + col.label + '<span class="alloc-count">(' + colBookings.length + ')</span></div>';
+    if (totalQty > 0) {
+      html += '<div class="text-center font-black mb-2 px-3 py-2 rounded-lg ' +
+        (col.type === 'pending' ? 'text-amber-700 bg-amber-50' : 'text-blue-700 bg-blue-50') +
+        '"><div class="text-lg">' + totalQty.toLocaleString() + '</div><div class="text-[9px] uppercase tracking-widest">seedlings</div></div>';
+    }
+
+    // Group by time for visual sequence
+    var lastTimeLabel = '';
+    colBookings.forEach(function(b) {
+      var startH = parseInt((b.start_time || '08').split(':')[0]);
+      var endH = parseInt((b.end_time || '09').split(':')[0]);
+      var timeLabel = formatHour(startH) + ' \u2013 ' + formatHour(endH);
+
+      // Time separator
+      if (timeLabel !== lastTimeLabel) {
+        html += '<div class="text-[8px] font-black text-slate-400 uppercase tracking-widest px-2 py-1 mt-1 bg-slate-100 rounded-md">\u23f0 ' + timeLabel + '</div>';
+        lastTimeLabel = timeLabel;
+      }
+
+      var statusCls = b.status === 'pending' ? 'status-pending' : 'status-booked';
+      // Get plots for this nursery column (or all plots for pending)
+      var plotOptions = '<option value="">\u2014 Assign Plot \u2014</option>';
+      var filterNursery = col.type === 'nursery' ? col.nurseryName : null;
+      var filteredPlots = plotsData.filter(function(p) {
+        return p.plot_name && (!filterNursery || p.nursery_name === filterNursery);
+      }).sort(function(a, b) {
+        return a.plot_name.localeCompare(b.plot_name, undefined, { numeric: true, sensitivity: 'base' });
+      });
+      filteredPlots.forEach(function(p) {
+          var sel = (b.plot_name === p.plot_name) ? ' selected' : '';
+          plotOptions += '<option value="' + p.plot_name + '"' + sel + '>' + p.plot_name + '</option>';
+      });
+
+      html += '<div class="alloc-card ' + statusCls + '" draggable="true" ' +
+        'ondragstart="boardDragStart(event,\'' + b.id + '\')" ' +
+        'id="card-' + b.id + '" style="position:relative;">';
+      html += '<button onclick="event.stopPropagation();cancelFromBoard(\'' + b.id + '\')" style="position:absolute;top:6px;right:6px;width:18px;height:18px;border-radius:9px;border:none;background:#fee2e2;color:#dc2626;font-size:11px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s;" onmouseover="this.style.background=\'#dc2626\';this.style.color=\'#fff\'" onmouseout="this.style.background=\'#fee2e2\';this.style.color=\'#dc2626\'">&times;</button>';
+      html += '<div class="card-name" style="padding-right:22px;cursor:pointer;" onclick="viewBooking(\'' + b.id + '\')">' + (b.customer_name || '\u2014') + '</div>';
+      html += '<div class="flex justify-between items-center mt-1">';
+      html += '<span class="card-qty">' + (b.collection_qty || 0).toLocaleString() + ' seedlings</span>';
+      html += '<span class="card-detail">' + (b.al_number && b.al_number !== 'PENDING' ? b.al_number : '') + '</span>';
+      html += '</div>';
+      // Plot dropdown — editable inline
+      html += '<div class="mt-2" onclick="event.stopPropagation();">';
+      html += '<select onchange="updatePlotFromBoard(\'' + b.id + '\',this.value)" ' +
+        'style="width:100%;padding:5px 8px;font-size:10px;font-weight:700;font-family:Outfit,sans-serif;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#334155;cursor:pointer;outline:none;" ' +
+        'onfocus="this.style.borderColor=\'#10b981\'" onblur="this.style.borderColor=\'#e2e8f0\'">' +
+        plotOptions + '</select>';
+      html += '</div>';
+      if (b.plot_name) {
+        html += '<div class="text-[9px] font-bold text-emerald-600 mt-1">\ud83d\udccd ' + b.plot_name + '</div>';
+      }
+      if (b.status === 'pending') {
+        html += '<div class="text-[9px] font-black text-amber-600 mt-1">\u26a0\ufe0f Awaiting confirmation</div>';
+      }
+      html += '</div>';
+    });
+
+    if (colBookings.length === 0) {
+      html += '<div class="text-center py-6 text-slate-300 text-[10px] font-bold uppercase tracking-widest">Drop here</div>';
+    }
+
+    html += '</div>';
+  });
+  html += '</div>';
+
+  area.innerHTML = html;
+}
+
+// ── Update plot from board ──
+async function updatePlotFromBoard(id, plotName) {
+  var { error } = await _supabase.from('collection_bookings').update({ plot_name: plotName || null }).eq('id', id);
+  if (error) { showToast('\u274c ' + error.message); return; }
+  // Update local
+  var bk = dayBookings.find(function(b) { return b.id === id; });
+  if (bk) bk.plot_name = plotName || null;
+  showToast('\u2705 Plot updated' + (plotName ? ': ' + plotName : ''));
+  renderBoard();
+}
+
+// ── Cancel from board ──
+async function cancelFromBoard(id) {
+  if (!confirm('Cancel this booking?')) return;
+  var { error } = await _supabase.from('collection_bookings').update({ status: 'cancelled' }).eq('id', id);
+  if (error) { showToast('\u274c ' + error.message); return; }
+  // Remove from local data
+  dayBookings = dayBookings.filter(function(b) { return b.id !== id; });
+  showToast('\u274c Booking cancelled');
+  renderBoard();
+  await reloadCurrentView();
+}
+
+// ── Drag & Drop ──
+var dragBookingId = null;
+
+function boardDragStart(e, id) {
+  dragBookingId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', id);
+  setTimeout(function() {
+    var card = document.getElementById('card-' + id);
+    if (card) card.classList.add('dragging');
+  }, 0);
+}
+
+function boardDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+}
+
+function boardDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+async function boardDrop(e, nurseryName) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  var id = e.dataTransfer.getData('text/plain') || dragBookingId;
+  if (!id) return;
+
+  var card = document.getElementById('card-' + id);
+  if (card) card.classList.remove('dragging');
+
+  // Update nursery_name + clear plot when switching
+  var bk = dayBookings.find(function(b) { return b.id === id; });
+  var oldNursery = bk ? bk.nursery_name : null;
+  var switchedNursery = nurseryName !== oldNursery;
+
+  var updates = { nursery_name: nurseryName || null };
+  // Clear plot when moving to a different nursery or back to pending
+  if (switchedNursery) updates.plot_name = null;
+  // If moving from pending to a nursery, also confirm the booking
+  if (nurseryName && bk && bk.status === 'pending') {
+    updates.status = 'booked';
+  }
+
+  var { error } = await _supabase.from('collection_bookings').update(updates).eq('id', id);
+  if (error) { showToast('\u274c ' + error.message); return; }
+
+  // Update local data
+  if (bk) {
+    bk.nursery_name = nurseryName || null;
+    if (switchedNursery) bk.plot_name = null;
+    if (updates.status) bk.status = updates.status;
+  }
+
+  showToast('\u2705 Moved to ' + (nurseryName || 'Pending'));
+  renderBoard();
+  await reloadCurrentView();
+}
+
+// ════════════════════════════════════════════════════════
+//  TOAST
+// ════════════════════════════════════════════════════════
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+
+</body>
+</html>
