@@ -315,7 +315,7 @@ async function handlePostLogin(session) {
 
   // Check role in profiles table
   var { data: profile } = await _supabase
-    .from('profiles')
+    .from('shared_profiles')
     .select('role')
     .eq('id', session.user.id)
     .single();

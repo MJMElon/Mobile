@@ -417,7 +417,7 @@ let barcodeStream = null;
 // ════════════════════════════════════════════════════════
 async function loadActiveALs() {
   const { data, error } = await _supabase
-    .from('al_orders')
+    .from('shared_al_orders')
     .select('*')
     .not('status', 'in', '("Cancelled","Collected")')
     .gt('balance_quantity', 0)
@@ -432,7 +432,7 @@ async function loadActiveALs() {
 
   // Load consent counts per AL
   const { data: consents } = await _supabase
-    .from('consent_records')
+    .from('mobile_consent_records')
     .select('al_number');
 
   consentCountMap = {};
@@ -628,7 +628,7 @@ async function openConsentModal(alNumber) {
   // Load total previously consented for this AL
   totalPreviouslyConsented = 0;
   const { data: prevConsents } = await _supabase
-    .from('consent_records')
+    .from('mobile_consent_records')
     .select('consent_qty')
     .eq('al_number', alNumber);
   if (prevConsents) {
@@ -821,7 +821,7 @@ async function loadConsentHistory(alNumber) {
   area.innerHTML = '<div class="text-center py-4 text-slate-300 text-xs font-bold uppercase tracking-widest">Loading\u2026</div>';
 
   const { data, error } = await _supabase
-    .from('consent_records')
+    .from('mobile_consent_records')
     .select('*')
     .eq('al_number', alNumber)
     .order('created_at', { ascending: false });
@@ -906,7 +906,7 @@ async function submitConsent() {
     ai_sticker_count: aiStickerCount,
   };
 
-  const { error } = await _supabase.from('consent_records').insert([payload]);
+  const { error } = await _supabase.from('mobile_consent_records').insert([payload]);
 
   if (error) {
     showToast('\u274c Error: ' + error.message);

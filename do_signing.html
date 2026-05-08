@@ -556,8 +556,8 @@ let breedsData = [];
 
 async function loadDropdownData() {
   const [{ data: plots }, { data: breeds }] = await Promise.all([
-    _supabase.from('plots').select('plot_name, nursery_name'),
-    _supabase.from('breeds').select('name'),
+    _supabase.from('shared_plots').select('plot_name, nursery_name'),
+    _supabase.from('shared_breeds').select('name'),
   ]);
   plotsData  = plots  || [];
   breedsData = breeds || [];
@@ -589,7 +589,7 @@ let consentALSet = new Set(); // AL numbers that have at least 1 consent record
 
 async function loadActiveALs() {
   const { data, error } = await _supabase
-    .from('al_orders')
+    .from('shared_al_orders')
     .select('*')
     .not('status', 'in', '("Cancelled","Collected")')
     .gt('balance_quantity', 0)
@@ -603,7 +603,7 @@ async function loadActiveALs() {
 
   // Load which ALs have consent records (deduplicated — 1 per AL)
   const { data: consents } = await _supabase
-    .from('consent_records')
+    .from('mobile_consent_records')
     .select('al_number');
   consentALSet = new Set();
   if (consents) consents.forEach(c => consentALSet.add(c.al_number));
@@ -783,7 +783,7 @@ async function loadDOsForAL(alNumber) {
   tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">Loading…</td></tr>`;
 
   const { data, error } = await _supabase
-    .from('do_records').select('*').eq('al_number', alNumber).order('delivery_date', { ascending: false });
+    .from('shared_do_records').select('*').eq('al_number', alNumber).order('delivery_date', { ascending: false });
 
   if (error) {
     tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-red-400 text-xs font-bold">${error.message}</td></tr>`;
@@ -878,7 +878,7 @@ async function loadConsentsForAL(alNumber) {
   area.innerHTML = '<div class="text-center py-4 text-slate-300 text-xs font-bold uppercase tracking-widest">Loading\u2026</div>';
 
   const { data, error } = await _supabase
-    .from('consent_records')
+    .from('mobile_consent_records')
     .select('*')
     .eq('al_number', alNumber)
     .order('created_at', { ascending: false });
@@ -996,7 +996,7 @@ async function saveNewDO() {
     status:        'Delivered',
   };
 
-  const { error: insertErr } = await _supabase.from('do_records').insert([payload]);
+  const { error: insertErr } = await _supabase.from('shared_do_records').insert([payload]);
   if (insertErr) {
     alert('Error saving DO: ' + insertErr.message);
     btn.textContent = '💾 Save DO'; btn.disabled = false;
@@ -1005,7 +1005,7 @@ async function saveNewDO() {
 
   // Deduct balance on AL
   const newBalance = (activeAL.balance_quantity ?? 0) - doQty;
-  await _supabase.from('al_orders').update({ balance_quantity: newBalance }).eq('id', activeAL.id);
+  await _supabase.from('shared_al_orders').update({ balance_quantity: newBalance }).eq('id', activeAL.id);
   activeAL.balance_quantity = newBalance;
 
   // Update cached alData too
@@ -1105,7 +1105,7 @@ async function generateDONumber() {
   const year   = new Date().getFullYear();
   const prefix = `DO-${year}-`;
   const { data } = await _supabase
-    .from('do_records')
+    .from('shared_do_records')
     .select('do_number')
     .ilike('do_number', `${prefix}%`)
     .order('do_number', { ascending: false })
@@ -1436,7 +1436,7 @@ async function saveScanDO() {
     payload[`qty_${n}`]   = it.qty   || null;
   });
 
-  const { error: insertErr } = await _supabase.from('do_records').insert([payload]);
+  const { error: insertErr } = await _supabase.from('shared_do_records').insert([payload]);
   if (insertErr) {
     alert('Error saving DO: ' + insertErr.message);
     btn.textContent = '💾 Save DO'; btn.disabled = false;
@@ -1445,7 +1445,7 @@ async function saveScanDO() {
 
   // Deduct AL balance
   const newBalance = (activeAL.balance_quantity ?? 0) - totalQty;
-  await _supabase.from('al_orders').update({ balance_quantity: newBalance }).eq('id', activeAL.id);
+  await _supabase.from('shared_al_orders').update({ balance_quantity: newBalance }).eq('id', activeAL.id);
   activeAL.balance_quantity = newBalance;
   const idx = alData.findIndex(r => r.id === activeAL.id);
   if (idx > -1) alData[idx].balance_quantity = newBalance;

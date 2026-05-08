@@ -523,8 +523,8 @@ let plotsData = [];
 async function loadALData() {
   try {
     var results = await Promise.all([
-      _supabase.from('al_orders').select('*').not('status', 'in', '("Cancelled","Collected")').gt('balance_quantity', 0).order('customer_name', { ascending: true }),
-      _supabase.from('plots').select('plot_name, nursery_name'),
+      _supabase.from('shared_al_orders').select('*').not('status', 'in', '("Cancelled","Collected")').gt('balance_quantity', 0).order('customer_name', { ascending: true }),
+      _supabase.from('shared_plots').select('plot_name, nursery_name'),
     ]);
     alData = (results[0] && results[0].data) || [];
     plotsData = (results[1] && results[1].data) || [];
@@ -541,7 +541,7 @@ async function loadBookings() {
   weekEnd.setDate(weekEnd.getDate() + 6);
 
   const { data, error } = await _supabase
-    .from('collection_bookings')
+    .from('shared_collection_bookings')
     .select('*')
     .gte('booking_date', formatDate(currentWeekStart))
     .lte('booking_date', formatDate(weekEnd))
@@ -556,7 +556,7 @@ async function loadMonthBookings() {
   const last = new Date(currentYear, currentMonth + 1, 0);
 
   const { data, error } = await _supabase
-    .from('collection_bookings')
+    .from('shared_collection_bookings')
     .select('*')
     .gte('booking_date', formatDate(first))
     .lte('booking_date', formatDate(last))
@@ -953,7 +953,7 @@ async function onBookingDateChange() {
   const weekStart = getMonday(d);
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 6);
-  const { data } = await _supabase.from('collection_bookings').select('*')
+  const { data } = await _supabase.from('shared_collection_bookings').select('*')
     .gte('booking_date', formatDate(weekStart)).lte('booking_date', formatDate(weekEnd))
     .order('start_time', { ascending: true });
   const dateBks = (data || []).filter(b => (b.booking_date || '').substring(0, 10) === dateStr && b.status !== 'cancelled');
@@ -1137,7 +1137,7 @@ async function submitBooking() {
     notes:          document.getElementById('bk-notes').value.trim() || null,
   };
 
-  const { error } = await _supabase.from('collection_bookings').insert([payload]);
+  const { error } = await _supabase.from('shared_collection_bookings').insert([payload]);
   if (error) {
     showToast('\u274c ' + error.message);
     btn.disabled = false;
@@ -1209,7 +1209,7 @@ async function reloadCurrentView() {
   renderCalendar();
   // Also refresh day board if open
   if (dayModalDate && document.getElementById('day-modal').classList.contains('open')) {
-    var { data } = await _supabase.from('collection_bookings').select('*')
+    var { data } = await _supabase.from('shared_collection_bookings').select('*')
       .eq('booking_date', dayModalDate).neq('status', 'cancelled').order('start_time', { ascending: true });
     dayBookings = data || [];
     renderBoard();
@@ -1315,7 +1315,7 @@ async function saveBookingEdit() {
     notes:          document.getElementById('det-notes').value.trim() || null,
   };
 
-  var { error } = await _supabase.from('collection_bookings').update(updates).eq('id', selectedBooking.id);
+  var { error } = await _supabase.from('shared_collection_bookings').update(updates).eq('id', selectedBooking.id);
   if (error) {
     showToast('\u274c ' + error.message);
     btn.disabled = false;
@@ -1332,7 +1332,7 @@ async function saveBookingEdit() {
 
 async function cancelBooking() {
   if (!selectedBooking) return;
-  var { error } = await _supabase.from('collection_bookings').update({ status: 'cancelled' }).eq('id', selectedBooking.id);
+  var { error } = await _supabase.from('shared_collection_bookings').update({ status: 'cancelled' }).eq('id', selectedBooking.id);
   if (error) { showToast('\u274c ' + error.message); return; }
   showToast('\u274c Booking cancelled');
   closeDetailModal();
@@ -1408,7 +1408,7 @@ async function confirmPendingBooking() {
     customer_name: matchedALForConfirm.customer_name || selectedBooking.customer_name,
   };
 
-  var { error } = await _supabase.from('collection_bookings').update(updates).eq('id', selectedBooking.id);
+  var { error } = await _supabase.from('shared_collection_bookings').update(updates).eq('id', selectedBooking.id);
   if (error) {
     showToast('\u274c ' + error.message);
     btn.disabled = false;
@@ -1440,7 +1440,7 @@ async function openDayModal(ds) {
   document.getElementById('day-modal').classList.add('open');
 
   // Load all bookings for this day
-  var { data } = await _supabase.from('collection_bookings').select('*')
+  var { data } = await _supabase.from('shared_collection_bookings').select('*')
     .eq('booking_date', ds).neq('status', 'cancelled').order('start_time', { ascending: true });
   dayBookings = data || [];
   renderBoard();
@@ -1569,7 +1569,7 @@ function renderBoard() {
 
 // ── Update plot from board ──
 async function updatePlotFromBoard(id, plotName) {
-  var { error } = await _supabase.from('collection_bookings').update({ plot_name: plotName || null }).eq('id', id);
+  var { error } = await _supabase.from('shared_collection_bookings').update({ plot_name: plotName || null }).eq('id', id);
   if (error) { showToast('\u274c ' + error.message); return; }
   // Update local
   var bk = dayBookings.find(function(b) { return b.id === id; });
@@ -1581,7 +1581,7 @@ async function updatePlotFromBoard(id, plotName) {
 // ── Cancel from board ──
 async function cancelFromBoard(id) {
   if (!confirm('Cancel this booking?')) return;
-  var { error } = await _supabase.from('collection_bookings').update({ status: 'cancelled' }).eq('id', id);
+  var { error } = await _supabase.from('shared_collection_bookings').update({ status: 'cancelled' }).eq('id', id);
   if (error) { showToast('\u274c ' + error.message); return; }
   // Remove from local data
   dayBookings = dayBookings.filter(function(b) { return b.id !== id; });
@@ -1635,7 +1635,7 @@ async function boardDrop(e, nurseryName) {
     updates.status = 'booked';
   }
 
-  var { error } = await _supabase.from('collection_bookings').update(updates).eq('id', id);
+  var { error } = await _supabase.from('shared_collection_bookings').update(updates).eq('id', id);
   if (error) { showToast('\u274c ' + error.message); return; }
 
   // Update local data
