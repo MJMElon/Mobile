@@ -109,6 +109,23 @@
   .mobile-slot.closed { opacity:.4; cursor:default; }
   .mobile-slot.closed:hover { background:transparent; }
 
+  /* ── TIME SLOT PICKER (booking modal) ── */
+  .time-slot-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:14px 16px; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:background .15s; background:white; }
+  .time-slot-row:hover { background:#f0fdf4; }
+  .time-slot-row:last-child { border-bottom:none; }
+  .time-slot-row.full-slot { background:#fef2f2; cursor:default; opacity:.55; }
+  .time-slot-row.full-slot:hover { background:#fef2f2; }
+  .time-slot-row.selected { background:#10b981; color:white; }
+  .time-slot-row.selected .ts-meta { color:#d1fae5; }
+  .ts-time { font-size:14px; font-weight:900; color:#1e293b; }
+  .time-slot-row.selected .ts-time { color:white; }
+  .ts-meta { font-size:11px; font-weight:700; color:#64748b; }
+  .slot-full { background:#fee2e2; color:#991b1b; font-size:10px; font-weight:700; padding:2px 8px; border-radius:8px; display:inline-block; }
+  .slot-busy { background:#ecfdf5; color:#065f46; font-size:10px; font-weight:600; padding:2px 8px; border-radius:8px; display:inline-block; }
+  .slot-available { color:#10b981; font-size:11px; font-weight:700; }
+  .est-box { background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:14px; padding:12px 16px; }
+  .est-box.warn { background:#fef2f2; border-color:#fecaca; }
+
   /* ── AL SEARCH DROPDOWN ── */
   .al-dropdown { position:absolute; left:0; right:0; top:100%; background:white; border:2px solid #e2e8f0; border-top:none; border-radius:0 0 14px 14px; max-height:200px; overflow-y:auto; z-index:10; box-shadow:0 8px 24px rgba(0,0,0,.1); }
   .al-dropdown-item { padding:10px 14px; cursor:pointer; font-size:13px; font-weight:600; transition:background .1s; }
@@ -173,35 +190,34 @@
 
     <div class="p-5 sm:p-6 space-y-4">
 
-      <!-- Date & Time (pre-filled) -->
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Date</label>
-          <input id="bk-date" type="date" class="search-input text-sm" style="padding:10px 14px;" onchange="onBookingDateChange()">
-        </div>
-        <div>
-          <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Time Slot</label>
-          <select id="bk-time" class="search-input text-sm" style="padding:10px 14px;"></select>
-        </div>
-      </div>
+      <!-- Date (pre-filled, hidden — set from clicked day cell) -->
+      <input id="bk-date" type="hidden">
+      <div id="bk-date-label" class="text-sm font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">&mdash;</div>
 
-      <!-- AL Search -->
+      <!-- STEP 1 — AL Search -->
       <div>
-        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Search Order</label>
+        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Step 1 &mdash; Search customer / order *</label>
         <div class="relative" id="al-search-wrap">
           <input id="bk-al-search" type="text" class="search-input text-sm" style="padding:10px 14px;" placeholder="Search order number, AL number or customer name..." autocomplete="off" oninput="searchAL(this.value)" onfocus="searchAL(this.value)">
           <div class="al-dropdown hidden" id="al-dropdown"></div>
         </div>
       </div>
 
-      <!-- Selected AL info (shown after selection) — order/product/qty only -->
+      <!-- Selected AL info (shown after selection) -->
       <div id="bk-al-info" class="hidden">
         <div class="grid grid-cols-2 gap-3" id="bk-al-details"></div>
       </div>
 
-      <!-- Collection Qty with preset buttons -->
+      <!-- STEP 2 — Time slot list (revealed after AL selected) -->
+      <div id="bk-time-wrap" class="hidden">
+        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">Step 2 &mdash; Pick a time slot *</label>
+        <div class="rounded-xl border border-slate-200 overflow-hidden" id="bk-time-slots-list"></div>
+        <input id="bk-time" type="hidden">
+      </div>
+
+      <!-- STEP 3 — Quantity + capacity analysis (revealed after time picked) -->
       <div id="bk-qty-wrap" class="hidden">
-        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Collection Quantity</label>
+        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Step 3 &mdash; Collection quantity *</label>
         <div class="flex flex-wrap gap-2 mb-3">
           <button class="qty-btn bk-qty-btn" onclick="selectBkQty(50)">+50</button>
           <button class="qty-btn bk-qty-btn" onclick="selectBkQty(100)">+100</button>
@@ -213,18 +229,20 @@
           Booking Qty: <span id="bk-qty-value">0</span> seedlings
         </div>
         <div class="text-[10px] font-bold text-slate-400 mt-1" id="bk-qty-hint"></div>
+        <div id="bk-analysis" class="hidden mt-3"></div>
       </div>
 
-      <!-- Nursery & Plot -->
+      <!-- STEP 4 — Nursery & Plot (revealed after qty fits) -->
       <div id="bk-nursery-wrap" class="hidden">
+        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Step 4 &mdash; Allocate nursery &amp; plot *</label>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Collect From Nursery</label>
-            <select id="bk-nursery" class="search-input text-sm" style="padding:10px 14px;" onchange="filterPlots('bk-nursery','bk-plot')"></select>
+            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Nursery</label>
+            <select id="bk-nursery" class="search-input text-sm" style="padding:10px 14px;" onchange="onBkNurseryChange()"></select>
           </div>
           <div>
             <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Plot</label>
-            <select id="bk-plot" class="search-input text-sm" style="padding:10px 14px;"></select>
+            <select id="bk-plot" class="search-input text-sm" style="padding:10px 14px;" onchange="checkBookingReady()"></select>
           </div>
         </div>
       </div>
@@ -856,52 +874,50 @@ function mobileSelectDay(i) {
 //  NEW BOOKING MODAL
 // ════════════════════════════════════════════════════════
 let bookingQty = 0;
+let bookingTime = null;
+let bookingDayBookings = [];
 
-function openNewBooking(dateStr, hour) {
-  // Block past dates
+function closingHour(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay();
+  if (dow === 0) return 0;
+  return dow === 6 ? 12 : 17;
+}
+
+function bkCanFit(dateStr, startH, qty) {
+  return (startH + hoursNeeded(qty)) <= closingHour(dateStr);
+}
+
+async function openNewBooking(dateStr) {
   const checkDate = new Date(dateStr + 'T00:00:00');
-  if (isPast(checkDate)) {
-    showToast('\u26a0\ufe0f Cannot book on past dates');
-    return;
-  }
+  if (isPast(checkDate)) { showToast('\u26a0\ufe0f Cannot book on past dates'); return; }
+  if (checkDate.getDay() === 0) { showToast('\u26a0\ufe0f Sunday is closed'); return; }
+  if (getHoliday(dateStr)) { showToast('\u26a0\ufe0f ' + getHoliday(dateStr) + ' \u2014 closed'); return; }
 
   selectedAL = null;
   bookingQty = 0;
+  bookingTime = null;
 
-  // Date
   document.getElementById('bk-date').value = dateStr;
-  // Set min date to today
-  document.getElementById('bk-date').min = formatDate(new Date());
+  document.getElementById('bk-date-label').textContent = '\ud83d\udcc5 ' + checkDate.toLocaleDateString('en-MY', { weekday:'long', day:'2-digit', month:'short', year:'numeric' });
 
-  // Time select with booking info
-  const dayIdx = checkDate.getDay();
-  const isSat = dayIdx === 6;
-  const hours = isSat ? HOURS_SAT : HOURS_WEEKDAY;
-  const timeSelect = document.getElementById('bk-time');
+  try {
+    const { data } = await _supabase.from('shared_collection_bookings').select('*')
+      .eq('booking_date', dateStr)
+      .neq('status', 'cancelled');
+    bookingDayBookings = data || [];
+  } catch(e) { bookingDayBookings = []; }
 
-  // Get all bookings for this date to show in dropdown
-  const ds = dateStr;
-  const dayBookings = bookings.filter(b => (b.booking_date || '').substring(0, 10) === ds && b.status !== 'cancelled');
-
-  timeSelect.innerHTML = hours.map(h => {
-    const timeStr = String(h).padStart(2,'0') + ':00';
-    const slotBookings = dayBookings.filter(b => (b.start_time || '').substring(0, 5) === timeStr);
-    var label = timeSlotLabel(h);
-    if (slotBookings.length > 0) {
-      var names = slotBookings.map(b => (b.customer_name || '').substring(0, 15)).join(', ');
-      label += ' \u2014 ' + slotBookings.length + ' booked (' + names + ')';
-    }
-    return '<option value="' + timeStr + '"' + (h === hour ? ' selected' : '') + '>' + label + '</option>';
-  }).join('');
-
-  // Reset
   document.getElementById('bk-al-search').value = '';
   document.getElementById('al-dropdown').classList.add('hidden');
   document.getElementById('bk-al-info').classList.add('hidden');
+  document.getElementById('bk-time-wrap').classList.add('hidden');
   document.getElementById('bk-qty-wrap').classList.add('hidden');
+  document.getElementById('bk-nursery-wrap').classList.add('hidden');
   document.getElementById('bk-notes-wrap').classList.add('hidden');
   document.getElementById('bk-qty').value = '';
   document.getElementById('bk-qty-selected').classList.add('hidden');
+  document.getElementById('bk-analysis').classList.add('hidden');
   document.getElementById('bk-notes').value = '';
   document.getElementById('bk-submit-btn').disabled = true;
   document.querySelectorAll('.bk-qty-btn').forEach(b => b.classList.remove('active'));
@@ -909,39 +925,91 @@ function openNewBooking(dateStr, hour) {
   document.getElementById('booking-modal').classList.add('open');
 }
 
-async function onBookingDateChange() {
+function renderBkTimeSlots() {
   const dateStr = document.getElementById('bk-date').value;
   if (!dateStr) return;
   const d = new Date(dateStr + 'T00:00:00');
-  if (isPast(d)) {
-    showToast('\u26a0\ufe0f Cannot book on past dates');
-    document.getElementById('bk-date').value = formatDate(new Date());
-    return;
-  }
-  // Reload bookings for that date's week to populate dropdown
-  const weekStart = getMonday(d);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 6);
-  const { data } = await _supabase.from('shared_collection_bookings').select('*')
-    .gte('booking_date', formatDate(weekStart)).lte('booking_date', formatDate(weekEnd))
-    .order('start_time', { ascending: true });
-  const dateBks = (data || []).filter(b => (b.booking_date || '').substring(0, 10) === dateStr && b.status !== 'cancelled');
-
-  const dow = d.getDay();
-  if (dow === 0) { showToast('\u26a0\ufe0f Sunday is closed'); document.getElementById('bk-date').value = formatDate(new Date()); return; }
-  const isSat = dow === 6;
+  const isSat = d.getDay() === 6;
   const hours = isSat ? HOURS_SAT : HOURS_WEEKDAY;
-  const timeSelect = document.getElementById('bk-time');
-  timeSelect.innerHTML = hours.map(h => {
+  const cl = closingHour(dateStr);
+  const isToday = dateStr === formatDate(new Date());
+  const nowH = isToday ? new Date().getHours() : -1;
+
+  const list = document.getElementById('bk-time-slots-list');
+  list.innerHTML = hours.map(h => {
     const timeStr = String(h).padStart(2,'0') + ':00';
-    const slotBks = dateBks.filter(b => (b.start_time || '').substring(0, 5) === timeStr);
-    var label = timeSlotLabel(h);
-    if (slotBks.length > 0) {
-      var names = slotBks.map(b => (b.customer_name || '').substring(0, 15)).join(', ');
-      label += ' \u2014 ' + slotBks.length + ' booked (' + names + ')';
-    }
-    return '<option value="' + timeStr + '">' + label + '</option>';
+    const slotBks = bookingDayBookings.filter(b => {
+      const sH = parseInt((b.start_time || '00').substring(0,2));
+      const eH = parseInt((b.end_time   || '00').substring(0,2));
+      return h >= sH && h < eH;
+    });
+    const past = h <= nowH;
+    const closed = (h >= cl);
+    const full = past || closed;
+    const meta = past ? 'Past hour'
+               : closed ? 'After closing'
+               : slotBks.length === 0 ? '<span class="slot-available">Open</span>'
+               : '<span class="slot-busy">' + slotBks.length + ' booked</span>';
+    const click = full ? '' : ' onclick="selectBkTimeSlot(\'' + timeStr + '\')"';
+    return '<div class="time-slot-row' + (full ? ' full-slot' : '') + '" data-time="' + timeStr + '"' + click + '>' +
+             '<div><div class="ts-time">' + timeSlotLabel(h) + '</div></div>' +
+             '<div class="ts-meta">' + meta + '</div>' +
+           '</div>';
   }).join('');
+}
+
+function selectBkTimeSlot(timeStr) {
+  bookingTime = timeStr;
+  document.getElementById('bk-time').value = timeStr;
+  document.querySelectorAll('#bk-time-slots-list .time-slot-row').forEach(r => {
+    r.classList.toggle('selected', r.getAttribute('data-time') === timeStr);
+  });
+  document.getElementById('bk-qty-wrap').classList.remove('hidden');
+  document.getElementById('bk-nursery-wrap').classList.add('hidden');
+  document.getElementById('bk-notes-wrap').classList.add('hidden');
+  bookingQty = 0;
+  document.getElementById('bk-qty').value = '';
+  document.getElementById('bk-qty-selected').classList.add('hidden');
+  document.getElementById('bk-analysis').classList.add('hidden');
+  document.querySelectorAll('.bk-qty-btn').forEach(b => b.classList.remove('active'));
+  checkBookingReady();
+}
+
+function updateBkAnalysis() {
+  const wrap = document.getElementById('bk-analysis');
+  if (!bookingQty || !bookingTime) { wrap.classList.add('hidden'); return; }
+  const dateStr = document.getElementById('bk-date').value;
+  const startH = parseInt(bookingTime.split(':')[0]);
+  const hrs = hoursNeeded(bookingQty);
+  const endH = startH + hrs;
+  const cl = closingHour(dateStr);
+  const fits = endH <= cl;
+
+  let html;
+  if (fits) {
+    html = '<div class="est-box">' +
+           '<div class="text-[9px] font-black text-blue-700 uppercase tracking-widest mb-1">\u23f1 Estimated collection time</div>' +
+           '<div class="text-sm font-black text-blue-800">' + bookingQty.toLocaleString() + ' seedlings \u2192 ' + hrs + ' hr (\u2248 ' + RATE.toLocaleString() + '/hr)</div>' +
+           '<div class="text-[11px] font-bold text-blue-700 mt-1">' + formatHour(startH) + ' \u2192 ' + formatHour(endH) + ' \u2014 closes at ' + formatHour(cl) + '</div>' +
+           '</div>';
+  } else {
+    const overflowHrs = endH - cl;
+    html = '<div class="est-box warn">' +
+           '<div class="text-[9px] font-black text-red-700 uppercase tracking-widest mb-1">\u26a0\ufe0f Quantity exceeds slot</div>' +
+           '<div class="text-sm font-black text-red-800">' + bookingQty.toLocaleString() + ' seedlings need ' + hrs + ' hr (' + overflowHrs + ' hr past closing)</div>' +
+           '<div class="text-[11px] font-bold text-red-700 mt-1">Pick an earlier time, reduce qty, or split the booking.</div>' +
+           '</div>';
+  }
+  wrap.innerHTML = html;
+  wrap.classList.remove('hidden');
+
+  document.getElementById('bk-nursery-wrap').classList.toggle('hidden', !fits);
+  document.getElementById('bk-notes-wrap').classList.toggle('hidden', !fits);
+}
+
+function onBkNurseryChange() {
+  filterPlots('bk-nursery', 'bk-plot');
+  checkBookingReady();
 }
 
 function closeBookingModal() {
@@ -998,19 +1066,25 @@ function selectAL(alNumber) {
   ).join('');
 
   document.getElementById('bk-al-info').classList.remove('hidden');
-  document.getElementById('bk-qty-wrap').classList.remove('hidden');
-  document.getElementById('bk-nursery-wrap').classList.remove('hidden');
-  document.getElementById('bk-notes-wrap').classList.remove('hidden');
-  document.getElementById('bk-nursery').value = '';
-  document.getElementById('bk-plot').value = '';
   document.getElementById('bk-qty-hint').textContent = 'Max: ' + (selectedAL.balance_quantity || 0).toLocaleString() + ' (balance to collect)';
   document.getElementById('bk-qty').max = selectedAL.balance_quantity || 0;
 
-  // Reset qty
+  // Reset later steps
+  bookingTime = null;
   bookingQty = 0;
   document.getElementById('bk-qty').value = '';
   document.getElementById('bk-qty-selected').classList.add('hidden');
+  document.getElementById('bk-analysis').classList.add('hidden');
+  document.getElementById('bk-qty-wrap').classList.add('hidden');
+  document.getElementById('bk-nursery-wrap').classList.add('hidden');
+  document.getElementById('bk-notes-wrap').classList.add('hidden');
+  document.getElementById('bk-nursery').value = '';
+  document.getElementById('bk-plot').value = '';
   document.querySelectorAll('.bk-qty-btn').forEach(b => b.classList.remove('active'));
+
+  // Reveal step 2 — time slot list
+  renderBkTimeSlots();
+  document.getElementById('bk-time-wrap').classList.remove('hidden');
 
   checkBookingReady();
 }
@@ -1042,6 +1116,7 @@ function selectBkQty(qty) {
   });
   document.getElementById('bk-qty-value').textContent = qty.toLocaleString();
   document.getElementById('bk-qty-selected').classList.remove('hidden');
+  updateBkAnalysis();
   checkBookingReady();
 }
 
@@ -1053,6 +1128,7 @@ function selectBkCustomQty() {
     showToast('\u26a0\ufe0f Cannot exceed balance (' + max.toLocaleString() + ')');
     bookingQty = 0;
     document.getElementById('bk-qty-selected').classList.add('hidden');
+    updateBkAnalysis();
     checkBookingReady();
     return;
   }
@@ -1064,13 +1140,19 @@ function selectBkCustomQty() {
     bookingQty = 0;
     document.getElementById('bk-qty-selected').classList.add('hidden');
   }
+  updateBkAnalysis();
   checkBookingReady();
 }
 
 function checkBookingReady() {
+  const dateStr = document.getElementById('bk-date').value;
   const hasAL = !!selectedAL;
+  const hasTime = !!bookingTime;
   const hasQty = bookingQty > 0 && bookingQty <= (selectedAL?.balance_quantity || 0);
-  document.getElementById('bk-submit-btn').disabled = !(hasAL && hasQty);
+  const fits = hasTime && hasQty && bkCanFit(dateStr, parseInt(bookingTime.split(':')[0]), bookingQty);
+  const hasNursery = !!document.getElementById('bk-nursery').value;
+  const hasPlot = !!document.getElementById('bk-plot').value;
+  document.getElementById('bk-submit-btn').disabled = !(hasAL && hasTime && hasQty && fits && hasNursery && hasPlot);
 }
 
 async function submitBooking() {
@@ -1086,7 +1168,13 @@ async function submitBooking() {
     return;
   }
 
-  const timeVal = document.getElementById('bk-time').value; // e.g. "09:00"
+  const timeVal = bookingTime || document.getElementById('bk-time').value; // 'HH:MM'
+  if (!timeVal) {
+    showToast('⚠️ Please pick a time slot');
+    btn.disabled = false;
+    btn.textContent = '📅 Confirm Booking';
+    return;
+  }
   const startH = parseInt(timeVal.split(':')[0]);
 
   const hrs = hoursNeeded(bookingQty);
