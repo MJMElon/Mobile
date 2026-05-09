@@ -147,28 +147,13 @@
       <button onclick="changePeriod(1)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-emerald-100 flex items-center justify-center text-slate-500 hover:text-emerald-700 font-black text-lg cursor-pointer transition-colors border-none">&rsaquo;</button>
     </div>
     <div class="flex items-center gap-2">
-      <div class="tab-row" style="padding:3px;">
-        <button class="tab-btn active" id="tab-week" onclick="switchView('week')" style="padding:7px 14px;">Week</button>
-        <button class="tab-btn" id="tab-month" onclick="switchView('month')" style="padding:7px 14px;">Month</button>
-      </div>
       <button onclick="goToday()" class="text-[10px] font-black text-emerald-700 uppercase tracking-widest bg-emerald-50 hover:bg-emerald-100 px-4 py-2 rounded-xl border border-emerald-200 cursor-pointer transition-colors">Today</button>
     </div>
   </div>
 
-  <!-- Week View -->
-  <div class="dash-card p-0 overflow-x-auto" id="desktop-cal" style="display:block;">
-    <div class="cal-grid" id="cal-grid"></div>
-  </div>
-
   <!-- Month View -->
-  <div class="dash-card p-0 overflow-x-auto" id="month-cal" style="display:none;">
+  <div class="dash-card p-0 overflow-x-auto" id="month-cal" style="display:block;">
     <div id="month-grid"></div>
-  </div>
-
-  <!-- Mobile Day View -->
-  <div class="sm:hidden space-y-3" id="mobile-cal">
-    <div class="tab-row" id="mobile-day-tabs"></div>
-    <div class="dash-card overflow-hidden" id="mobile-day-slots"></div>
   </div>
 
 </div>
@@ -417,7 +402,7 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
 let currentWeekStart = getMonday(new Date());
 let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
-let calView = 'week'; // 'week' or 'month'
+let calView = 'month'; // month-only view
 let bookings = [];
 let monthBookings = []; // for month view
 let alData = [];
@@ -579,22 +564,11 @@ async function loadAll() {
 window.addEventListener('DOMContentLoaded', function() { loadAll(); });
 
 // ════════════════════════════════════════════════════════
-//  VIEW SWITCHING
+//  VIEW SWITCHING (month-only)
 // ════════════════════════════════════════════════════════
 function switchView(view) {
-  calView = view;
-  document.getElementById('tab-week').classList.toggle('active', view === 'week');
-  document.getElementById('tab-month').classList.toggle('active', view === 'month');
-
-  document.getElementById('desktop-cal').style.display = view === 'week' ? 'block' : 'none';
-  document.getElementById('month-cal').style.display = view === 'month' ? 'block' : 'none';
-  document.getElementById('mobile-cal').style.display = view === 'week' ? '' : 'none';
-
-  if (view === 'month') {
-    loadMonthBookings().then(renderCalendar);
-  } else {
-    loadBookings().then(renderCalendar);
-  }
+  calView = 'month';
+  loadMonthBookings().then(renderCalendar);
 }
 
 // ════════════════════════════════════════════════════════
@@ -645,12 +619,7 @@ function updatePeriodLabel() {
 // ════════════════════════════════════════════════════════
 function renderCalendar() {
   updatePeriodLabel();
-  if (calView === 'month') {
-    renderMonth();
-  } else {
-    renderDesktop();
-  }
-  renderMobile();
+  renderMonth();
 }
 
 function isPast(d) {

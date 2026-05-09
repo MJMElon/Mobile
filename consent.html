@@ -117,6 +117,14 @@
       </button>
     </div>
 
+    <!-- Manual Consent (when AL not found in system) -->
+    <div class="flex justify-end mb-4">
+      <button onclick="openManualConsent()"
+        class="text-[11px] font-black text-amber-700 uppercase tracking-widest bg-amber-50 hover:bg-amber-100 px-5 py-2.5 rounded-xl border border-amber-200 cursor-pointer transition-colors">
+        &#43; Manual Consent (No AL in System)
+      </button>
+    </div>
+
     <!-- Legend -->
     <div class="flex flex-wrap gap-3 mb-5">
       <span class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-amber-700"><span class="w-3 h-3 rounded bg-amber-400 inline-block"></span>Search Match</span>
@@ -149,8 +157,31 @@
 
     <div class="p-5 sm:p-6 space-y-5">
 
-      <!-- Section 1: Order details -->
-      <div>
+      <!-- Manual entry fields (shown only in manual mode) -->
+      <div id="manual-entry-section" class="hidden">
+        <div class="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-3">&#9888;&#65039; Manual Entry &mdash; AL Not Found in System</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Customer Name <span class="text-red-500">*</span></label>
+            <input id="manual-customer-name" type="text" class="search-input text-sm w-full" style="padding:10px 14px;" placeholder="Enter customer name" oninput="onManualCustomerNameInput()">
+          </div>
+          <div>
+            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">AL Number (optional)</label>
+            <input id="manual-al-number" type="text" class="search-input text-sm w-full" style="padding:10px 14px;" placeholder="e.g. AL-2026-XXXX">
+          </div>
+          <div>
+            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Order Number (optional)</label>
+            <input id="manual-order-number" type="text" class="search-input text-sm w-full" style="padding:10px 14px;" placeholder="e.g. ORD-XXXX">
+          </div>
+          <div>
+            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Notes (optional)</label>
+            <input id="manual-notes" type="text" class="search-input text-sm w-full" style="padding:10px 14px;" placeholder="Any additional info">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 1: Order details (hidden in manual mode) -->
+      <div id="order-details-section">
         <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Order Details</div>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" id="consent-modal-info"></div>
       </div>
@@ -411,6 +442,7 @@ let signHasMark = false;
 let photoBase64 = null;
 let aiStickerCount = null;
 let barcodeStream = null;
+let isManualMode = false;
 
 // ════════════════════════════════════════════════════════
 //  LOAD DATA
@@ -607,6 +639,10 @@ async function openConsentModal(alNumber) {
   currentConsentAL = alData.find(r => r.al_number === alNumber);
   if (!currentConsentAL) return;
 
+  isManualMode = false;
+  document.getElementById('manual-entry-section').classList.add('hidden');
+  document.getElementById('order-details-section').classList.remove('hidden');
+
   document.getElementById('consent-modal-title').textContent = currentConsentAL.al_number || '\u2014';
   document.getElementById('consent-modal-subtitle').textContent = currentConsentAL.customer_name || '\u2014';
 
@@ -651,15 +687,58 @@ async function openConsentModal(alNumber) {
   loadConsentHistory(alNumber);
 }
 
+// ════════════════════════════════════════════════════════
+//  MANUAL CONSENT (no AL in system)
+// ════════════════════════════════════════════════════════
+function openManualConsent() {
+  isManualMode = true;
+  currentConsentAL = null;
+
+  document.getElementById('manual-entry-section').classList.remove('hidden');
+  document.getElementById('order-details-section').classList.add('hidden');
+
+  document.getElementById('consent-modal-title').textContent = 'Manual Consent';
+  document.getElementById('consent-modal-subtitle').textContent = 'Enter customer details below';
+
+  // Reset manual fields
+  document.getElementById('manual-customer-name').value = '';
+  document.getElementById('manual-al-number').value = '';
+  document.getElementById('manual-order-number').value = '';
+  document.getElementById('manual-notes').value = '';
+
+  totalPreviouslyConsented = 0;
+
+  // Reset qty
+  selectedQty = 0;
+  document.querySelectorAll('.qty-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('custom-qty-input').value = '';
+  document.getElementById('custom-qty-input').removeAttribute('max');
+  document.getElementById('qty-selected-label').classList.add('hidden');
+  document.getElementById('max-qty-hint').textContent = '(Manual entry — enter any quantity)';
+
+  // No history to load for new manual consent
+  document.getElementById('consent-history-area').innerHTML =
+    '<div class="text-center py-6 bg-slate-50 rounded-xl border border-slate-100"><div class="text-2xl mb-2">✍️</div><div class="text-[10px] font-black text-slate-300 uppercase tracking-widest">Manual consent — no prior history</div></div>';
+
+  document.getElementById('consent-modal').classList.add('open');
+}
+
+function onManualCustomerNameInput() {
+  const name = document.getElementById('manual-customer-name').value.trim();
+  document.getElementById('consent-modal-subtitle').textContent = name || 'Enter customer details below';
+}
+
 function closeConsentModal() {
   document.getElementById('consent-modal').classList.remove('open');
   currentConsentAL = null;
+  isManualMode = false;
 }
 
 // ════════════════════════════════════════════════════════
 //  QTY SELECTION
 // ════════════════════════════════════════════════════════
 function getMaxConsentQty() {
+  if (isManualMode) return Infinity;
   if (!currentConsentAL) return 0;
   const balance = currentConsentAL.balance_quantity || 0;
   return Math.max(0, balance - totalPreviouslyConsented);
@@ -667,11 +746,11 @@ function getMaxConsentQty() {
 
 function selectQty(qty) {
   const max = getMaxConsentQty();
-  if (max <= 0) {
+  if (!isManualMode && max <= 0) {
     showToast('\u26a0\ufe0f All ordered qty already consented');
     return;
   }
-  if (qty > max) {
+  if (!isManualMode && qty > max) {
     showToast('\u26a0\ufe0f Cannot exceed remaining qty (' + max.toLocaleString() + ')');
     return;
   }
@@ -688,7 +767,7 @@ function selectCustomQty() {
   const val = parseInt(document.getElementById('custom-qty-input').value);
   const max = getMaxConsentQty();
   document.querySelectorAll('.qty-btn').forEach(b => b.classList.remove('active'));
-  if (val > max) {
+  if (!isManualMode && val > max) {
     showToast('\u26a0\ufe0f Cannot exceed remaining qty (' + max.toLocaleString() + ')');
     selectedQty = 0;
     document.getElementById('qty-selected-label').classList.add('hidden');
@@ -704,7 +783,6 @@ function selectCustomQty() {
 }
 
 function showQtySelected() {
-  const max = getMaxConsentQty();
   document.getElementById('qty-selected-value').textContent = selectedQty.toLocaleString();
   document.getElementById('qty-selected-label').classList.remove('hidden');
 }
@@ -713,11 +791,24 @@ function showQtySelected() {
 //  PROCEED TO SIGN (opens 2nd modal)
 // ════════════════════════════════════════════════════════
 function proceedToSign() {
-  if (!currentConsentAL || selectedQty <= 0) return;
+  if (selectedQty <= 0) return;
+
+  let titleText;
+  if (isManualMode) {
+    const name = document.getElementById('manual-customer-name').value.trim();
+    if (!name) {
+      showToast('\u26a0\ufe0f Please enter customer name');
+      return;
+    }
+    const manualAL = document.getElementById('manual-al-number').value.trim();
+    titleText = (manualAL ? manualAL + ' \u2014 ' : '') + name + ' (Manual)';
+  } else {
+    if (!currentConsentAL) return;
+    titleText = (currentConsentAL.al_number || '') + ' \u2014 ' + (currentConsentAL.customer_name || '');
+  }
 
   // Set sign modal header
-  document.getElementById('sign-modal-title').textContent =
-    (currentConsentAL.al_number || '') + ' \u2014 ' + (currentConsentAL.customer_name || '');
+  document.getElementById('sign-modal-title').textContent = titleText;
   document.getElementById('sign-modal-qty').textContent = selectedQty.toLocaleString();
 
   // Reset sign modal state
@@ -871,7 +962,9 @@ function checkConsentReady() {
 }
 
 async function submitConsent() {
-  if (!currentConsentAL || selectedQty <= 0) return;
+  if (selectedQty <= 0) return;
+  if (!isManualMode && !currentConsentAL) return;
+
   const btn = document.getElementById('consent-submit-btn');
   btn.disabled = true;
   btn.textContent = 'Saving\u2026';
@@ -879,27 +972,45 @@ async function submitConsent() {
   const canvas = document.getElementById('sign-canvas');
   const sigDataUrl = canvas ? canvas.toDataURL('image/png') : '';
 
+  // Build identifying fields based on mode
+  let alNumber, orderNumber, customerName;
+  if (isManualMode) {
+    customerName = document.getElementById('manual-customer-name').value.trim();
+    if (!customerName) {
+      showToast('\u26a0\ufe0f Customer name is required');
+      btn.disabled = false;
+      btn.textContent = '\ud83d\udcbe Save Consent';
+      return;
+    }
+    const manualAL = document.getElementById('manual-al-number').value.trim();
+    alNumber = manualAL || ('MANUAL-' + Date.now());
+    orderNumber = document.getElementById('manual-order-number').value.trim();
+  } else {
+    alNumber = currentConsentAL.al_number;
+    orderNumber = currentConsentAL.order_number || '';
+    customerName = currentConsentAL.customer_name || '';
+  }
+
   // Upload photo to Supabase storage if available
   let photoUrl = null;
   if (photoBase64) {
     try {
       const blob = await fetch(photoBase64).then(r => r.blob());
-      const filePath = `consent_photos/${currentConsentAL.al_number}/${Date.now()}.jpg`;
+      const filePath = `consent_photos/${alNumber}/${Date.now()}.jpg`;
       const { error: upErr } = await _supabase.storage.from('documents').upload(filePath, blob, { contentType:'image/jpeg', upsert:true });
       if (!upErr) {
         const { data: urlData } = _supabase.storage.from('documents').getPublicUrl(filePath);
         photoUrl = urlData?.publicUrl || null;
       }
     } catch(e) {
-      // fallback: store as base64 in DB (not ideal but works)
       photoUrl = photoBase64;
     }
   }
 
   const payload = {
-    al_number:        currentConsentAL.al_number,
-    order_number:     currentConsentAL.order_number || '',
-    customer_name:    currentConsentAL.customer_name || '',
+    al_number:        alNumber,
+    order_number:     orderNumber,
+    customer_name:    customerName,
     consent_qty:      selectedQty,
     signature_data:   sigDataUrl,
     photo_url:        photoUrl,
@@ -915,28 +1026,33 @@ async function submitConsent() {
     return;
   }
 
-  // Update local state
-  consentCountMap[currentConsentAL.al_number] = (consentCountMap[currentConsentAL.al_number] || 0) + 1;
-  totalPreviouslyConsented += selectedQty;
-
-  const balance = currentConsentAL.balance_quantity || 0;
-  const remaining = Math.max(0, balance - totalPreviouslyConsented);
-
-  showToast('\u2705 Consent saved! ' + selectedQty.toLocaleString() + ' seedlings for ' + currentConsentAL.al_number);
+  showToast('\u2705 Consent saved! ' + selectedQty.toLocaleString() + ' seedlings for ' + customerName);
   btn.textContent = '\ud83d\udcbe Save Consent';
 
-  // Close sign modal, refresh history
+  // Close sign modal
   closeSignModal();
-  await loadConsentHistory(currentConsentAL.al_number);
 
-  // Reset qty in detail modal + update max hint
-  selectedQty = 0;
-  document.querySelectorAll('.qty-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('custom-qty-input').value = '';
-  document.getElementById('custom-qty-input').max = remaining;
-  document.getElementById('qty-selected-label').classList.add('hidden');
-  document.getElementById('max-qty-hint').textContent =
-    '(Max: ' + remaining.toLocaleString() + ' remaining of ' + balance.toLocaleString() + ' balance)';
+  if (isManualMode) {
+    // Manual entry \u2014 just close everything
+    closeConsentModal();
+  } else {
+    // Update local state for the existing AL
+    consentCountMap[currentConsentAL.al_number] = (consentCountMap[currentConsentAL.al_number] || 0) + 1;
+    totalPreviouslyConsented += selectedQty;
+
+    const balance = currentConsentAL.balance_quantity || 0;
+    const remaining = Math.max(0, balance - totalPreviouslyConsented);
+
+    await loadConsentHistory(currentConsentAL.al_number);
+
+    selectedQty = 0;
+    document.querySelectorAll('.qty-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('custom-qty-input').value = '';
+    document.getElementById('custom-qty-input').max = remaining;
+    document.getElementById('qty-selected-label').classList.add('hidden');
+    document.getElementById('max-qty-hint').textContent =
+      '(Max: ' + remaining.toLocaleString() + ' remaining of ' + balance.toLocaleString() + ' balance)';
+  }
 
   // Refresh main list
   renderCombined(document.getElementById('input-search').value || '');
