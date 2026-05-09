@@ -115,6 +115,19 @@
   .al-dropdown-item:hover { background:#ecfdf5; }
   .al-dropdown-item .al-num { font-weight:900; color:#065f46; }
   .al-dropdown-item .al-cust { color:#64748b; font-size:12px; }
+
+  /* WEATHER STRIP (7-Day Forecast) */
+  .weather-strip { display:flex; gap:6px; overflow-x:auto; padding:2px 0; scrollbar-width:none; }
+  .weather-strip::-webkit-scrollbar { display:none; }
+  .weather-day { flex:1 1 0; min-width:74px; background:white; border:1.5px solid #e2e8f0; border-radius:12px; padding:8px 6px; text-align:center; transition:all .2s; }
+  .weather-day.today { border-color:#10b981; background:#ecfdf5; }
+  .weather-day-name { font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; }
+  .weather-day.today .weather-day-name { color:#065f46; }
+  .weather-day-icon { font-size:1.4rem; margin:3px 0 1px; line-height:1; }
+  .weather-day-temp { font-size:11px; font-weight:900; color:#1e293b; }
+  .weather-day-rain { font-size:9px; font-weight:700; color:#3b82f6; margin-top:1px; }
+  .weather-day-rain.high { color:#ef4444; }
+  .weather-day-desc { font-size:8px; font-weight:700; color:#94a3b8; margin-top:1px; line-height:1.2; }
 </style>
 </head>
 <body class="fade-enter">
@@ -138,6 +151,15 @@
      MAIN CONTENT
 ══════════════════════════════════════════════ -->
 <div class="max-w-[1200px] mx-auto px-4 sm:px-6 py-6 space-y-4">
+
+  <!-- Weather Forecast (7-Day, Miri) -->
+  <div class="dash-card p-4" id="weather-card" style="display:none;">
+    <div class="flex items-center gap-2 mb-2">
+      <svg class="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 0 0 4 4h9a5 5 0 1 0-.1-9.999 5.002 5.002 0 1 0-9.78 2.096A4.001 4.001 0 0 0 3 15z"/></svg>
+      <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Miri 7-Day Weather Forecast</span>
+    </div>
+    <div class="weather-strip" id="weather-strip"></div>
+  </div>
 
   <!-- Nav bar -->
   <div class="dash-card p-4 flex flex-wrap items-center justify-between gap-3">
@@ -532,7 +554,7 @@ async function loadBookings() {
     .lte('booking_date', formatDate(weekEnd))
     .order('start_time', { ascending: true });
 
-  if (error) { showToast('\u274c ' + error.message); return; }
+  if (error) { showToast('❌ ' + error.message); return; }
   bookings = data || [];
 }
 
@@ -547,7 +569,7 @@ async function loadMonthBookings() {
     .lte('booking_date', formatDate(last))
     .order('start_time', { ascending: true });
 
-  if (error) { showToast('\u274c ' + error.message); return; }
+  if (error) { showToast('❌ ' + error.message); return; }
   monthBookings = data || [];
 }
 
@@ -561,7 +583,7 @@ async function loadAll() {
   }
 }
 
-window.addEventListener('DOMContentLoaded', function() { loadAll(); });
+window.addEventListener('DOMContentLoaded', function() { loadAll(); loadWeather(); });
 
 // ════════════════════════════════════════════════════════
 //  VIEW SWITCHING (month-only)
@@ -610,7 +632,7 @@ function updatePeriodLabel() {
     const end = new Date(currentWeekStart);
     end.setDate(end.getDate() + 5);
     document.getElementById('period-label').textContent =
-      formatDateDisplay(currentWeekStart) + ' \u2014 ' + formatDateDisplay(end) + ' ' + currentWeekStart.getFullYear();
+      formatDateDisplay(currentWeekStart) + ' — ' + formatDateDisplay(end) + ' ' + currentWeekStart.getFullYear();
   }
 }
 
@@ -705,9 +727,9 @@ function renderDesktop() {
         const cellBookings = getBookingsFor(d, h);
         const pills = cellBookings.map(b => {
           const cls = b.status === 'completed' ? 'completed' : b.status === 'cancelled' ? 'cancelled' : b.status === 'pending' ? 'pending' : 'booked';
-          const pendingIcon = b.status === 'pending' ? '\u23f3 ' : '';
-          const displayName = (b.customer_name || b.order_number || '\u2014');
-          const plotTag = b.plot_name ? ' \u00b7 ' + b.plot_name : '';
+          const pendingIcon = b.status === 'pending' ? '⏳ ' : '';
+          const displayName = (b.customer_name || b.order_number || '—');
+          const plotTag = b.plot_name ? ' · ' + b.plot_name : '';
           return '<div class="booking-pill ' + cls + '" onclick="event.stopPropagation();viewBooking(\'' + b.id + '\')" title="' + displayName + ' - ' + (b.al_number || '') + '" style="white-space:normal;line-height:1.3;">' +
             pendingIcon + displayName + ' (' + (b.collection_qty || 0) + ')' + plotTag +
           '</div>';
@@ -818,7 +840,7 @@ function renderMobile() {
   const hours = isSat ? HOURS_SAT : HOURS_WEEKDAY;
 
   const mobileHoliday = getHoliday(formatDate(d));
-  const holidayBanner = mobileHoliday ? '<div class="text-[9px] font-black text-red-600 mt-1">\ud83c\uddf2\ud83c\uddfe ' + mobileHoliday + '</div>' : '';
+  const holidayBanner = mobileHoliday ? '<div class="text-[9px] font-black text-red-600 mt-1">🇲🇾 ' + mobileHoliday + '</div>' : '';
   let html = '<div class="p-3 bg-slate-50 border-b border-slate-200">' +
     '<div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">' + DAY_FULL[mobileSelectedDay] + ', ' + formatDateDisplay(d) + '</div>' + holidayBanner +
   '</div>';
@@ -828,11 +850,11 @@ function renderMobile() {
     const cellBookings = getBookingsFor(d, h);
     const pillsHtml = cellBookings.map(b => {
       const cls = b.status === 'completed' ? 'completed' : b.status === 'cancelled' ? 'cancelled' : b.status === 'pending' ? 'pending' : 'booked';
-      const pendingIcon = b.status === 'pending' ? '\u23f3 ' : '';
-      const displayName = (b.customer_name || b.order_number || '\u2014');
-      const plotTag = b.plot_name ? ' \u00b7 ' + b.plot_name : '';
+      const pendingIcon = b.status === 'pending' ? '⏳ ' : '';
+      const displayName = (b.customer_name || b.order_number || '—');
+      const plotTag = b.plot_name ? ' · ' + b.plot_name : '';
       return '<div class="booking-pill ' + cls + '" onclick="event.stopPropagation();viewBooking(\'' + b.id + '\')">' +
-        pendingIcon + displayName + ' \u00b7 ' + (b.collection_qty || 0) + ' pcs' + plotTag +
+        pendingIcon + displayName + ' · ' + (b.collection_qty || 0) + ' pcs' + plotTag +
       '</div>';
     }).join('');
 
@@ -861,7 +883,7 @@ function openNewBooking(dateStr, hour) {
   // Block past dates
   const checkDate = new Date(dateStr + 'T00:00:00');
   if (isPast(checkDate)) {
-    showToast('\u26a0\ufe0f Cannot book on past dates');
+    showToast('⚠️ Cannot book on past dates');
     return;
   }
 
@@ -889,7 +911,7 @@ function openNewBooking(dateStr, hour) {
     var label = timeSlotLabel(h);
     if (slotBookings.length > 0) {
       var names = slotBookings.map(b => (b.customer_name || '').substring(0, 15)).join(', ');
-      label += ' \u2014 ' + slotBookings.length + ' booked (' + names + ')';
+      label += ' — ' + slotBookings.length + ' booked (' + names + ')';
     }
     return '<option value="' + timeStr + '"' + (h === hour ? ' selected' : '') + '>' + label + '</option>';
   }).join('');
@@ -914,7 +936,7 @@ async function onBookingDateChange() {
   if (!dateStr) return;
   const d = new Date(dateStr + 'T00:00:00');
   if (isPast(d)) {
-    showToast('\u26a0\ufe0f Cannot book on past dates');
+    showToast('⚠️ Cannot book on past dates');
     document.getElementById('bk-date').value = formatDate(new Date());
     return;
   }
@@ -928,7 +950,7 @@ async function onBookingDateChange() {
   const dateBks = (data || []).filter(b => (b.booking_date || '').substring(0, 10) === dateStr && b.status !== 'cancelled');
 
   const dow = d.getDay();
-  if (dow === 0) { showToast('\u26a0\ufe0f Sunday is closed'); document.getElementById('bk-date').value = formatDate(new Date()); return; }
+  if (dow === 0) { showToast('⚠️ Sunday is closed'); document.getElementById('bk-date').value = formatDate(new Date()); return; }
   const isSat = dow === 6;
   const hours = isSat ? HOURS_SAT : HOURS_WEEKDAY;
   const timeSelect = document.getElementById('bk-time');
@@ -938,7 +960,7 @@ async function onBookingDateChange() {
     var label = timeSlotLabel(h);
     if (slotBks.length > 0) {
       var names = slotBks.map(b => (b.customer_name || '').substring(0, 15)).join(', ');
-      label += ' \u2014 ' + slotBks.length + ' booked (' + names + ')';
+      label += ' — ' + slotBks.length + ' booked (' + names + ')';
     }
     return '<option value="' + timeStr + '">' + label + '</option>';
   }).join('');
@@ -969,7 +991,7 @@ function searchAL(q) {
     dropdown.innerHTML = results.map(r =>
       '<div class="al-dropdown-item" onclick="selectAL(\'' + r.al_number + '\')">' +
         '<span class="al-num">' + (r.al_number || '') + '</span> &mdash; <span class="al-cust">' + (r.customer_name || '') + '</span>' +
-        '<div class="text-[10px] text-slate-400">' + (r.order_number || '') + ' \u00b7 Bal: ' + (r.balance_quantity ?? 0) + '</div>' +
+        '<div class="text-[10px] text-slate-400">' + (r.order_number || '') + ' · Bal: ' + (r.balance_quantity ?? 0) + '</div>' +
       '</div>'
     ).join('');
   }
@@ -981,14 +1003,14 @@ function selectAL(alNumber) {
   if (!selectedAL) return;
 
   document.getElementById('al-dropdown').classList.add('hidden');
-  document.getElementById('bk-al-search').value = selectedAL.al_number + ' \u2014 ' + (selectedAL.customer_name || '');
+  document.getElementById('bk-al-search').value = selectedAL.al_number + ' — ' + (selectedAL.customer_name || '');
 
   // Show details — only order, product, qty ordered, balance
   const fields = [
-    { label:'Order Number', value: selectedAL.order_number || '\u2014' },
-    { label:'Product',      value: selectedAL.product_name || '\u2014' },
-    { label:'Qty Ordered',  value: selectedAL.quantity_ordered ?? '\u2014' },
-    { label:'Balance',      value: '<span class="text-blue-700 font-black">' + (selectedAL.balance_quantity ?? '\u2014') + '</span>' },
+    { label:'Order Number', value: selectedAL.order_number || '—' },
+    { label:'Product',      value: selectedAL.product_name || '—' },
+    { label:'Qty Ordered',  value: selectedAL.quantity_ordered ?? '—' },
+    { label:'Balance',      value: '<span class="text-blue-700 font-black">' + (selectedAL.balance_quantity ?? '—') + '</span>' },
   ];
   document.getElementById('bk-al-details').innerHTML = fields.map(f =>
     '<div class="bg-slate-50 rounded-xl p-3 border border-slate-100">' +
@@ -1031,7 +1053,7 @@ document.addEventListener('click', (e) => {
 function selectBkQty(qty) {
   const max = selectedAL?.balance_quantity || 0;
   if (qty > max) {
-    showToast('\u26a0\ufe0f Cannot exceed balance (' + max.toLocaleString() + ')');
+    showToast('⚠️ Cannot exceed balance (' + max.toLocaleString() + ')');
     return;
   }
   bookingQty = qty;
@@ -1050,7 +1072,7 @@ function selectBkCustomQty() {
   const max = selectedAL?.balance_quantity || 0;
   document.querySelectorAll('.bk-qty-btn').forEach(b => b.classList.remove('active'));
   if (val > max) {
-    showToast('\u26a0\ufe0f Cannot exceed balance (' + max.toLocaleString() + ')');
+    showToast('⚠️ Cannot exceed balance (' + max.toLocaleString() + ')');
     bookingQty = 0;
     document.getElementById('bk-qty-selected').classList.add('hidden');
     checkBookingReady();
@@ -1077,12 +1099,12 @@ async function submitBooking() {
   if (!selectedAL || bookingQty <= 0) return;
   const btn = document.getElementById('bk-submit-btn');
   btn.disabled = true;
-  btn.textContent = 'Saving\u2026';
+  btn.textContent = 'Saving…';
 
   if (bookingQty > (selectedAL.balance_quantity || 0)) {
-    showToast('\u26a0\ufe0f Qty exceeds balance');
+    showToast('⚠️ Qty exceeds balance');
     btn.disabled = false;
-    btn.textContent = '\ud83d\udcc5 Confirm Booking';
+    btn.textContent = '📅 Confirm Booking';
     return;
   }
 
@@ -1108,14 +1130,14 @@ async function submitBooking() {
 
   const { error } = await _supabase.from('shared_collection_bookings').insert([payload]);
   if (error) {
-    showToast('\u274c ' + error.message);
+    showToast('❌ ' + error.message);
     btn.disabled = false;
-    btn.textContent = '\ud83d\udcc5 Confirm Booking';
+    btn.textContent = '📅 Confirm Booking';
     return;
   }
 
-  showToast('\u2705 Booking confirmed for ' + selectedAL.customer_name);
-  btn.textContent = '\ud83d\udcc5 Confirm Booking';
+  showToast('✅ Booking confirmed for ' + selectedAL.customer_name);
+  btn.textContent = '📅 Confirm Booking';
   closeBookingModal();
   await reloadCurrentView();
 }
@@ -1157,7 +1179,7 @@ function populateNurseryPlotSelects() {
 function filterPlots(nurserySelectId, plotSelectId) {
   var selectedNursery = document.getElementById(nurserySelectId).value;
   var plotEl = document.getElementById(plotSelectId);
-  var html = '<option value="">\u2014 Select Plot \u2014</option>';
+  var html = '<option value="">— Select Plot —</option>';
   var filtered = plotsData.filter(function(p) {
     return p.plot_name && (!selectedNursery || p.nursery_name === selectedNursery);
   }).sort(function(a, b) {
@@ -1195,13 +1217,13 @@ function viewBooking(id) {
   if (!selectedBooking) return;
 
   var b = selectedBooking;
-  document.getElementById('det-subtitle').textContent = b.customer_name || '\u2014';
+  document.getElementById('det-subtitle').textContent = b.customer_name || '—';
 
-  var statusMap = { booked: '\ud83d\udfe2 Booked', completed: '\ud83d\udfe6 Collected', cancelled: '\ud83d\udfe5 Cancelled' };
+  var statusMap = { booked: '🟢 Booked', completed: '🟦 Collected', cancelled: '🟥 Cancelled' };
   var fields = [
-    { label:'AL Number',  value: b.al_number || '\u2014' },
-    { label:'Order #',    value: b.order_number || '\u2014' },
-    { label:'Customer',   value: b.customer_name || '\u2014' },
+    { label:'AL Number',  value: b.al_number || '—' },
+    { label:'Order #',    value: b.order_number || '—' },
+    { label:'Customer',   value: b.customer_name || '—' },
     { label:'Status',     value: statusMap[b.status] || b.status },
   ];
   document.getElementById('det-info').innerHTML = fields.map(function(f) {
@@ -1241,7 +1263,7 @@ function viewBooking(id) {
   var confirmBtn = document.getElementById('det-confirm-btn');
   if (isPending) {
     pendingSection.classList.remove('hidden');
-    document.getElementById('det-customer-input').textContent = b.customer_name || '\u2014';
+    document.getElementById('det-customer-input').textContent = b.customer_name || '—';
     document.getElementById('det-al-search').value = '';
     document.getElementById('det-al-matched').classList.add('hidden');
     document.getElementById('det-al-dropdown').classList.add('hidden');
@@ -1266,7 +1288,7 @@ async function saveBookingEdit() {
   if (!selectedBooking) return;
   var btn = document.getElementById('det-save-btn');
   btn.disabled = true;
-  btn.textContent = 'Saving\u2026';
+  btn.textContent = 'Saving…';
 
   var timeVal = document.getElementById('det-time').value;
   var startH = parseInt(timeVal.split(':')[0]);
@@ -1286,15 +1308,15 @@ async function saveBookingEdit() {
 
   var { error } = await _supabase.from('shared_collection_bookings').update(updates).eq('id', selectedBooking.id);
   if (error) {
-    showToast('\u274c ' + error.message);
+    showToast('❌ ' + error.message);
     btn.disabled = false;
-    btn.textContent = '\ud83d\udcbe Save Changes';
+    btn.textContent = '💾 Save Changes';
     return;
   }
 
-  showToast('\u2705 Booking updated');
+  showToast('✅ Booking updated');
   btn.disabled = false;
-  btn.textContent = '\ud83d\udcbe Save Changes';
+  btn.textContent = '💾 Save Changes';
   closeDetailModal();
   await reloadCurrentView();
 }
@@ -1302,8 +1324,8 @@ async function saveBookingEdit() {
 async function cancelBooking() {
   if (!selectedBooking) return;
   var { error } = await _supabase.from('shared_collection_bookings').update({ status: 'cancelled' }).eq('id', selectedBooking.id);
-  if (error) { showToast('\u274c ' + error.message); return; }
-  showToast('\u274c Booking cancelled');
+  if (error) { showToast('❌ ' + error.message); return; }
+  showToast('❌ Booking cancelled');
   closeDetailModal();
   await reloadCurrentView();
 }
@@ -1330,8 +1352,8 @@ function searchALForConfirm(q) {
   } else {
     dropdown.innerHTML = results.map(function(r) {
       return '<div class="al-dropdown-item" onclick="selectALForConfirm(\'' + r.al_number + '\')">' +
-        '<span class="al-num">' + (r.al_number || '') + '</span> \u2014 <span class="al-cust">' + (r.customer_name || '') + '</span>' +
-        '<div class="text-[10px] text-slate-400">' + (r.order_number || '') + ' \u00b7 Bal: ' + (r.balance_quantity ?? 0) + '</div>' +
+        '<span class="al-num">' + (r.al_number || '') + '</span> — <span class="al-cust">' + (r.customer_name || '') + '</span>' +
+        '<div class="text-[10px] text-slate-400">' + (r.order_number || '') + ' · Bal: ' + (r.balance_quantity ?? 0) + '</div>' +
       '</div>';
     }).join('');
   }
@@ -1343,12 +1365,12 @@ function selectALForConfirm(alNumber) {
   if (!matchedALForConfirm) return;
 
   document.getElementById('det-al-dropdown').classList.add('hidden');
-  document.getElementById('det-al-search').value = matchedALForConfirm.al_number + ' \u2014 ' + (matchedALForConfirm.customer_name || '');
+  document.getElementById('det-al-search').value = matchedALForConfirm.al_number + ' — ' + (matchedALForConfirm.customer_name || '');
 
   document.getElementById('det-al-matched').classList.remove('hidden');
   document.getElementById('det-al-matched').innerHTML =
-    '\u2705 Matched: <strong>' + matchedALForConfirm.al_number + '</strong> \u2014 ' + (matchedALForConfirm.customer_name || '') +
-    ' (Order: ' + (matchedALForConfirm.order_number || '\u2014') + ', Balance: ' + (matchedALForConfirm.balance_quantity || 0) + ')';
+    '✅ Matched: <strong>' + matchedALForConfirm.al_number + '</strong> — ' + (matchedALForConfirm.customer_name || '') +
+    ' (Order: ' + (matchedALForConfirm.order_number || '—') + ', Balance: ' + (matchedALForConfirm.balance_quantity || 0) + ')';
 
   // Enable confirm button
   var btn = document.getElementById('det-confirm-btn');
@@ -1368,7 +1390,7 @@ async function confirmPendingBooking() {
   if (!selectedBooking || !matchedALForConfirm) return;
   var btn = document.getElementById('det-confirm-btn');
   btn.disabled = true;
-  btn.textContent = 'Confirming\u2026';
+  btn.textContent = 'Confirming…';
 
   var updates = {
     status:       'booked',
@@ -1379,14 +1401,14 @@ async function confirmPendingBooking() {
 
   var { error } = await _supabase.from('shared_collection_bookings').update(updates).eq('id', selectedBooking.id);
   if (error) {
-    showToast('\u274c ' + error.message);
+    showToast('❌ ' + error.message);
     btn.disabled = false;
-    btn.textContent = '\u2705 Confirm Booking';
+    btn.textContent = '✅ Confirm Booking';
     return;
   }
 
-  showToast('\u2705 Booking confirmed \u2014 ' + matchedALForConfirm.customer_name);
-  btn.textContent = '\u2705 Confirm Booking';
+  showToast('✅ Booking confirmed — ' + matchedALForConfirm.customer_name);
+  btn.textContent = '✅ Confirm Booking';
   closeDetailModal();
   await reloadCurrentView();
 }
@@ -1405,7 +1427,7 @@ async function openDayModal(ds) {
     dayNames[d.getDay()] + ', ' + d.toLocaleDateString('en-MY', { day:'2-digit', month:'short', year:'numeric' });
 
   document.getElementById('day-board-area').innerHTML =
-    '<div class="text-center py-8 text-slate-300 text-xs font-bold uppercase tracking-widest">Loading\u2026</div>';
+    '<div class="text-center py-8 text-slate-300 text-xs font-bold uppercase tracking-widest">Loading…</div>';
   document.getElementById('day-modal').classList.add('open');
 
   // Load all bookings for this day
@@ -1442,9 +1464,9 @@ function renderBoard() {
   var area = document.getElementById('day-board-area');
   var nurseries = getNurseryList();
 
-  var columns = [{ id: 'pending', label: '\u23f3 Pending', type: 'pending' }];
+  var columns = [{ id: 'pending', label: '⏳ Pending', type: 'pending' }];
   nurseries.forEach(function(n) {
-    columns.push({ id: 'nursery-' + n.replace(/[^a-zA-Z0-9]/g, '_'), label: '\ud83c\udf31 ' + n, type: 'nursery', nurseryName: n });
+    columns.push({ id: 'nursery-' + n.replace(/[^a-zA-Z0-9]/g, '_'), label: '🌱 ' + n, type: 'nursery', nurseryName: n });
   });
 
   var html = '<div class="alloc-board">';
@@ -1478,17 +1500,17 @@ function renderBoard() {
     colBookings.forEach(function(b) {
       var startH = parseInt((b.start_time || '08').split(':')[0]);
       var endH = parseInt((b.end_time || '09').split(':')[0]);
-      var timeLabel = formatHour(startH) + ' \u2013 ' + formatHour(endH);
+      var timeLabel = formatHour(startH) + ' – ' + formatHour(endH);
 
       // Time separator
       if (timeLabel !== lastTimeLabel) {
-        html += '<div class="text-[8px] font-black text-slate-400 uppercase tracking-widest px-2 py-1 mt-1 bg-slate-100 rounded-md">\u23f0 ' + timeLabel + '</div>';
+        html += '<div class="text-[8px] font-black text-slate-400 uppercase tracking-widest px-2 py-1 mt-1 bg-slate-100 rounded-md">⏰ ' + timeLabel + '</div>';
         lastTimeLabel = timeLabel;
       }
 
       var statusCls = b.status === 'pending' ? 'status-pending' : 'status-booked';
       // Get plots for this nursery column (or all plots for pending)
-      var plotOptions = '<option value="">\u2014 Assign Plot \u2014</option>';
+      var plotOptions = '<option value="">— Assign Plot —</option>';
       var filterNursery = col.type === 'nursery' ? col.nurseryName : null;
       var filteredPlots = plotsData.filter(function(p) {
         return p.plot_name && (!filterNursery || p.nursery_name === filterNursery);
@@ -1504,7 +1526,7 @@ function renderBoard() {
         'ondragstart="boardDragStart(event,\'' + b.id + '\')" ' +
         'id="card-' + b.id + '" style="position:relative;">';
       html += '<button onclick="event.stopPropagation();cancelFromBoard(\'' + b.id + '\')" style="position:absolute;top:6px;right:6px;width:18px;height:18px;border-radius:9px;border:none;background:#fee2e2;color:#dc2626;font-size:11px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s;" onmouseover="this.style.background=\'#dc2626\';this.style.color=\'#fff\'" onmouseout="this.style.background=\'#fee2e2\';this.style.color=\'#dc2626\'">&times;</button>';
-      html += '<div class="card-name" style="padding-right:22px;cursor:pointer;" onclick="viewBooking(\'' + b.id + '\')">' + (b.customer_name || '\u2014') + '</div>';
+      html += '<div class="card-name" style="padding-right:22px;cursor:pointer;" onclick="viewBooking(\'' + b.id + '\')">' + (b.customer_name || '—') + '</div>';
       html += '<div class="flex justify-between items-center mt-1">';
       html += '<span class="card-qty">' + (b.collection_qty || 0).toLocaleString() + ' seedlings</span>';
       html += '<span class="card-detail">' + (b.al_number && b.al_number !== 'PENDING' ? b.al_number : '') + '</span>';
@@ -1517,10 +1539,10 @@ function renderBoard() {
         plotOptions + '</select>';
       html += '</div>';
       if (b.plot_name) {
-        html += '<div class="text-[9px] font-bold text-emerald-600 mt-1">\ud83d\udccd ' + b.plot_name + '</div>';
+        html += '<div class="text-[9px] font-bold text-emerald-600 mt-1">📍 ' + b.plot_name + '</div>';
       }
       if (b.status === 'pending') {
-        html += '<div class="text-[9px] font-black text-amber-600 mt-1">\u26a0\ufe0f Awaiting confirmation</div>';
+        html += '<div class="text-[9px] font-black text-amber-600 mt-1">⚠️ Awaiting confirmation</div>';
       }
       html += '</div>';
     });
@@ -1539,11 +1561,11 @@ function renderBoard() {
 // ── Update plot from board ──
 async function updatePlotFromBoard(id, plotName) {
   var { error } = await _supabase.from('shared_collection_bookings').update({ plot_name: plotName || null }).eq('id', id);
-  if (error) { showToast('\u274c ' + error.message); return; }
+  if (error) { showToast('❌ ' + error.message); return; }
   // Update local
   var bk = dayBookings.find(function(b) { return b.id === id; });
   if (bk) bk.plot_name = plotName || null;
-  showToast('\u2705 Plot updated' + (plotName ? ': ' + plotName : ''));
+  showToast('✅ Plot updated' + (plotName ? ': ' + plotName : ''));
   renderBoard();
 }
 
@@ -1551,10 +1573,10 @@ async function updatePlotFromBoard(id, plotName) {
 async function cancelFromBoard(id) {
   if (!confirm('Cancel this booking?')) return;
   var { error } = await _supabase.from('shared_collection_bookings').update({ status: 'cancelled' }).eq('id', id);
-  if (error) { showToast('\u274c ' + error.message); return; }
+  if (error) { showToast('❌ ' + error.message); return; }
   // Remove from local data
   dayBookings = dayBookings.filter(function(b) { return b.id !== id; });
-  showToast('\u274c Booking cancelled');
+  showToast('❌ Booking cancelled');
   renderBoard();
   await reloadCurrentView();
 }
@@ -1605,7 +1627,7 @@ async function boardDrop(e, nurseryName) {
   }
 
   var { error } = await _supabase.from('shared_collection_bookings').update(updates).eq('id', id);
-  if (error) { showToast('\u274c ' + error.message); return; }
+  if (error) { showToast('❌ ' + error.message); return; }
 
   // Update local data
   if (bk) {
@@ -1614,7 +1636,7 @@ async function boardDrop(e, nurseryName) {
     if (updates.status) bk.status = updates.status;
   }
 
-  showToast('\u2705 Moved to ' + (nurseryName || 'Pending'));
+  showToast('✅ Moved to ' + (nurseryName || 'Pending'));
   renderBoard();
   await reloadCurrentView();
 }
@@ -1627,6 +1649,55 @@ function showToast(msg) {
   document.getElementById('toast-msg').textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ════════════════════════════════════════════════════════
+//  7-DAY WEATHER FORECAST (Open-Meteo - Miri, Sarawak)
+// ════════════════════════════════════════════════════════
+var _wCache = {};
+var _wCodes = {0:'Clear',1:'Mainly Clear',2:'Partly Cloudy',3:'Overcast',45:'Foggy',48:'Fog',51:'Lt Drizzle',53:'Drizzle',55:'Hvy Drizzle',61:'Lt Rain',63:'Rain',65:'Hvy Rain',80:'Lt Showers',81:'Showers',82:'Hvy Showers',95:'T-Storm',96:'T-Storm+Hail',99:'Hvy T-Storm'};
+var _wIcons = {0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌧️',55:'🌧️',61:'🌦️',63:'🌧️',65:'🌧️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⚡',96:'⚡',99:'⚡'};
+
+async function loadWeather() {
+  var card = document.getElementById('weather-card');
+  if (!card) return;
+  var today = new Date(); today.setHours(0,0,0,0);
+  var end = new Date(today); end.setDate(end.getDate() + 6);
+  var fs = formatDate(today), fe = formatDate(end), ck = fs + '_' + fe;
+  var wd;
+  if (_wCache[ck]) { wd = _wCache[ck]; }
+  else {
+    try {
+      var r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=4.3995&longitude=114.0148&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia/Kuching&start_date=' + fs + '&end_date=' + fe);
+      if (!r.ok) throw 0;
+      var j = await r.json();
+      if (!j.daily || !j.daily.time) throw 0;
+      wd = j.daily; _wCache[ck] = wd;
+    } catch(e) { card.style.display = 'none'; return; }
+  }
+  var dn = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], html = '';
+  for (var i = 0; i < wd.time.length; i++) {
+    var ds = wd.time[i], dt = new Date(ds + 'T00:00:00');
+    var dl = ds === fs ? 'Today' : dn[dt.getDay()];
+    var dd = String(dt.getDate()).padStart(2,'0') + '/' + String(dt.getMonth()+1).padStart(2,'0');
+    var code = wd.weather_code[i];
+    var hi = Math.round(wd.temperature_2m_max[i]);
+    var lo = Math.round(wd.temperature_2m_min[i]);
+    var rain = wd.precipitation_probability_max[i] || 0;
+    var ic = _wIcons[code] || '☁️';
+    var dc = _wCodes[code] || 'Cloudy';
+    var rc = rain >= 60 ? ' high' : '';
+    html += '<div class="weather-day' + (ds === fs ? ' today' : '') + '">' +
+      '<div class="weather-day-name">' + dl + '</div>' +
+      '<div style="font-size:8px;color:#cbd5e1;font-weight:700;">' + dd + '</div>' +
+      '<div class="weather-day-icon">' + ic + '</div>' +
+      '<div class="weather-day-temp">' + hi + '°/' + lo + '°</div>' +
+      '<div class="weather-day-rain' + rc + '">💧 ' + rain + '%</div>' +
+      '<div class="weather-day-desc">' + dc + '</div>' +
+      '</div>';
+  }
+  document.getElementById('weather-strip').innerHTML = html;
+  card.style.display = '';
 }
 </script>
 
