@@ -195,6 +195,7 @@
           <button class="qty-btn" onclick="selectQty(100)">+100</button>
           <button class="qty-btn" onclick="selectQty(500)">+500</button>
           <button class="qty-btn" onclick="selectQty(1000)">+1,000</button>
+          <button class="qty-btn" id="qty-btn-full" onclick="selectFull()" title="Set to full remaining balance">Full</button>
           <div class="flex items-center gap-2">
             <input id="custom-qty-input" type="number" min="1" placeholder="Key in qty" class="search-input text-sm" style="padding:10px 14px; width:140px;" oninput="selectCustomQty()">
           </div>
@@ -605,15 +606,24 @@ function renderCombined(q) {
           '<button class="btn-consent w-full text-center" onclick="openConsentModal(\'' + r.al_number + '\')">\u270d\ufe0f Sign Consent</button>' +
         '</div>';
       }).join('');
-      return '<div class="mb-5"><div class="text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl border mb-3 ' + t.header + '">' + g.label + ' (' + g.rows.length + ')</div>' + cards + '</div>';
+      const collapsed = g.theme === 'emerald';
+      const bodyId = 'grp-m-' + g.theme;
+      const arrow = collapsed ? ' &#9658;' : ' &#9660;';
+      return '<div class="mb-5">' +
+        '<div class="text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl border mb-3 cursor-pointer select-none ' + t.header + '" onclick="toggleGroup(\'' + bodyId + '\',this)">' + g.label + ' (' + g.rows.length + ')' + arrow + '</div>' +
+        '<div id="' + bodyId + '"' + (collapsed ? ' style="display:none"' : '') + '>' + cards + '</div>' +
+      '</div>';
     }).join('');
   } else {
     el.innerHTML = '<div class="rounded-2xl border border-slate-200 overflow-hidden overflow-x-auto"><table class="data-table"><thead><tr>' +
       '<th>AL No.</th><th>Order #</th><th>Customer</th><th>Qty Ordered</th><th>Balance</th><th>Consents</th><th>Action</th>' +
-      '</tr></thead><tbody>' +
+      '</tr></thead>' +
       groups.map(g => {
         const t = themeMap[g.theme];
-        const headerRow = '<tr><td colspan="7" class="py-2 px-4 text-[9px] font-black uppercase tracking-widest ' + t.header + ' border-b">' + g.label + ' (' + g.rows.length + ')</td></tr>';
+        const collapsed = g.theme === 'emerald';
+        const bodyId = 'grp-d-' + g.theme;
+        const arrow = collapsed ? ' &#9658;' : ' &#9660;';
+        const headerRow = '<tbody><tr><td colspan="7" class="py-2 px-4 text-[9px] font-black uppercase tracking-widest cursor-pointer select-none ' + t.header + ' border-b" onclick="toggleGroup(\'' + bodyId + '\',this)">' + g.label + ' (' + g.rows.length + ')' + arrow + '</td></tr></tbody>';
         const dataRows = g.rows.map(r => {
           const count = consentCountMap[r.al_number] || 0;
           return '<tr class="' + t.row + '">' +
@@ -626,9 +636,9 @@ function renderCombined(q) {
             '<td><button class="btn-consent" onclick="openConsentModal(\'' + r.al_number + '\')">\u270d\ufe0f Sign Consent</button></td>' +
           '</tr>';
         }).join('');
-        return headerRow + dataRows;
+        return headerRow + '<tbody id="' + bodyId + '"' + (collapsed ? ' style="display:none"' : '') + '>' + dataRows + '</tbody>';
       }).join('') +
-      '</tbody></table></div>';
+      '</table></div>';
   }
 }
 
@@ -785,6 +795,38 @@ function selectCustomQty() {
 function showQtySelected() {
   document.getElementById('qty-selected-value').textContent = selectedQty.toLocaleString();
   document.getElementById('qty-selected-label').classList.remove('hidden');
+}
+
+// "Full" — set qty to the entire remaining balance (no need to type)
+function selectFull() {
+  if (isManualMode) {
+    showToast('⚠️ Manual mode — please key in qty');
+    return;
+  }
+  const max = getMaxConsentQty();
+  if (max <= 0) {
+    showToast('⚠️ All ordered qty already consented');
+    return;
+  }
+  selectedQty = max;
+  document.getElementById('custom-qty-input').value = '';
+  document.querySelectorAll('.qty-btn').forEach(b => b.classList.remove('active'));
+  const fullBtn = document.getElementById('qty-btn-full');
+  if (fullBtn) fullBtn.classList.add('active');
+  showQtySelected();
+}
+
+// Collapse/expand a group body (used for "Has Consent Records")
+function toggleGroup(bodyId, headerEl) {
+  const body = document.getElementById(bodyId);
+  if (!body) return;
+  const collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? '' : 'none';
+  if (headerEl) {
+    headerEl.innerHTML = headerEl.innerHTML
+      .replace('▸', collapsed ? '▾' : '▸')
+      .replace('▾', collapsed ? '▾' : '▸');
+  }
 }
 
 // ════════════════════════════════════════════════════════
