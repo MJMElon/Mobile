@@ -368,6 +368,10 @@ const SUPABASE_URL = 'https://kibqjztozokohqmhqqqf.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpYnFqenRvem9rb2hxbWhxcXFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzQzNjIsImV4cCI6MjA4OTgxMDM2Mn0.J7qJUZhWXYf5b9oey4wXJkjdi66jomEMw_NeV9NWF7M';
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// XSS-safe escape — apply to every DB-sourced value before splicing into innerHTML
+function escapeHtml(s){if(s===undefined||s===null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function escAttr(s){return String(s||'').replace(/[\\'"<>]/g,'');}
+
 // ════════════════════════════════════════════════════════
 //  GEMINI API (Google AI Studio)
 // ════════════════════════════════════════════════════════
@@ -594,15 +598,15 @@ function renderCombined(q) {
         return '<div class="bg-white rounded-2xl p-4 mb-2 shadow-sm border border-slate-200 ' + t.border + '">' +
           '<div class="flex justify-between items-start mb-2">' +
             '<div>' +
-              '<div class="font-black text-slate-800">' + (r.al_number || '\u2014') + '</div>' +
-              '<div class="text-xs font-bold text-slate-500 mt-0.5">' + (r.customer_name || '\u2014') + '</div>' +
+              '<div class="font-black text-slate-800">' + escapeHtml(r.al_number || '\u2014') + '</div>' +
+              '<div class="text-xs font-bold text-slate-500 mt-0.5">' + escapeHtml(r.customer_name || '\u2014') + '</div>' +
             '</div>' +
             (count > 0
               ? '<span class="badge-signed">' + count + ' Signed</span>'
               : '<span class="badge-pending">No Consent</span>') +
           '</div>' +
-          '<div class="text-xs font-bold text-slate-400 mb-3">\ud83d\udccb ' + (r.order_number || '\u2014') + ' \u00b7 Qty: ' + (r.quantity_ordered ?? '\u2014') + ' \u00b7 Bal: <span class="' + t.bal + ' font-black">' + (r.balance_quantity ?? '\u2014') + '</span></div>' +
-          '<button class="btn-consent w-full text-center" onclick="openConsentModal(\'' + r.al_number + '\')">\u270d\ufe0f Sign Consent</button>' +
+          '<div class="text-xs font-bold text-slate-400 mb-3">\ud83d\udccb ' + escapeHtml(r.order_number || '\u2014') + ' \u00b7 Qty: ' + escapeHtml(r.quantity_ordered ?? '\u2014') + ' \u00b7 Bal: <span class="' + t.bal + ' font-black">' + escapeHtml(r.balance_quantity ?? '\u2014') + '</span></div>' +
+          '<button class="btn-consent w-full text-center" onclick="openConsentModal(\'' + escAttr(r.al_number) + '\')">\u270d\ufe0f Sign Consent</button>' +
         '</div>';
       }).join('');
       return '<div class="mb-5"><div class="text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl border mb-3 ' + t.header + '">' + g.label + ' (' + g.rows.length + ')</div>' + cards + '</div>';
@@ -617,13 +621,13 @@ function renderCombined(q) {
         const dataRows = g.rows.map(r => {
           const count = consentCountMap[r.al_number] || 0;
           return '<tr class="' + t.row + '">' +
-            '<td><span class="font-black text-slate-800">' + (r.al_number || '\u2014') + '</span></td>' +
-            '<td>' + (r.order_number || '\u2014') + '</td>' +
-            '<td>' + (r.customer_name || '\u2014') + '</td>' +
-            '<td>' + (r.quantity_ordered ?? '\u2014') + '</td>' +
-            '<td><span class="font-black ' + t.bal + '">' + (r.balance_quantity ?? '\u2014') + '</span></td>' +
+            '<td><span class="font-black text-slate-800">' + escapeHtml(r.al_number || '\u2014') + '</span></td>' +
+            '<td>' + escapeHtml(r.order_number || '\u2014') + '</td>' +
+            '<td>' + escapeHtml(r.customer_name || '\u2014') + '</td>' +
+            '<td>' + escapeHtml(r.quantity_ordered ?? '\u2014') + '</td>' +
+            '<td><span class="font-black ' + t.bal + '">' + escapeHtml(r.balance_quantity ?? '\u2014') + '</span></td>' +
             '<td>' + (count > 0 ? '<span class="badge-signed">' + count + ' signed</span>' : '<span class="badge-pending">None</span>') + '</td>' +
-            '<td><button class="btn-consent" onclick="openConsentModal(\'' + r.al_number + '\')">\u270d\ufe0f Sign Consent</button></td>' +
+            '<td><button class="btn-consent" onclick="openConsentModal(\'' + escAttr(r.al_number) + '\')">\u270d\ufe0f Sign Consent</button></td>' +
           '</tr>';
         }).join('');
         return headerRow + dataRows;
@@ -646,17 +650,19 @@ async function openConsentModal(alNumber) {
   document.getElementById('consent-modal-title').textContent = currentConsentAL.al_number || '\u2014';
   document.getElementById('consent-modal-subtitle').textContent = currentConsentAL.customer_name || '\u2014';
 
+  // Pre-escape every value here. The "Balance to Collect" entry is the only
+  // one that intentionally embeds an HTML wrapper around an escaped value.
   const fields = [
-    { label:'AL Number',          value: currentConsentAL.al_number       || '\u2014' },
-    { label:'Order Number',       value: currentConsentAL.order_number    || '\u2014' },
-    { label:'Customer Name',      value: currentConsentAL.customer_name   || '\u2014' },
-    { label:'Purchased Product',  value: currentConsentAL.product_name    || '\u2014' },
-    { label:'Qty Ordered',        value: currentConsentAL.quantity_ordered ?? '\u2014' },
-    { label:'Balance to Collect', value: '<span class="text-blue-700 font-black text-base">' + (currentConsentAL.balance_quantity ?? '\u2014') + '</span>' },
+    { label:'AL Number',          value: escapeHtml(currentConsentAL.al_number       || '\u2014') },
+    { label:'Order Number',       value: escapeHtml(currentConsentAL.order_number    || '\u2014') },
+    { label:'Customer Name',      value: escapeHtml(currentConsentAL.customer_name   || '\u2014') },
+    { label:'Purchased Product',  value: escapeHtml(currentConsentAL.product_name    || '\u2014') },
+    { label:'Qty Ordered',        value: escapeHtml(currentConsentAL.quantity_ordered ?? '\u2014') },
+    { label:'Balance to Collect', value: '<span class="text-blue-700 font-black text-base">' + escapeHtml(currentConsentAL.balance_quantity ?? '\u2014') + '</span>' },
   ];
   document.getElementById('consent-modal-info').innerHTML = fields.map(f =>
     '<div class="bg-slate-50 rounded-xl p-3 border border-slate-100">' +
-      '<div class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">' + f.label + '</div>' +
+      '<div class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">' + escapeHtml(f.label) + '</div>' +
       '<div class="font-black text-slate-800 text-sm leading-snug">' + f.value + '</div>' +
     '</div>'
   ).join('');
@@ -918,7 +924,7 @@ async function loadConsentHistory(alNumber) {
     .order('created_at', { ascending: false });
 
   if (error) {
-    area.innerHTML = '<div class="text-xs text-red-400 font-bold">' + error.message + '</div>';
+    area.innerHTML = '<div class="text-xs text-red-400 font-bold">' + escapeHtml(error.message) + '</div>';
     return;
   }
 
@@ -945,7 +951,7 @@ async function loadConsentHistory(alNumber) {
       '<td>' + dt + '</td>' +
       '<td><span class="font-black text-emerald-700">' + (c.consent_qty || 0).toLocaleString() + '</span></td>' +
       '<td>' + (c.ai_sticker_count != null ? '<span class="text-blue-700 font-black">' + c.ai_sticker_count.toLocaleString() + '</span>' : '\u2014') + '</td>' +
-      '<td>' + (c.signature_data ? '<img src="' + c.signature_data + '" style="height:32px;border-radius:6px;border:1px solid #e2e8f0;" alt="sig">' : '\u2014') + '</td>' +
+      '<td>' + (c.signature_data ? '<img src="' + escapeHtml(c.signature_data) + '" style="height:32px;border-radius:6px;border:1px solid #e2e8f0;" alt="sig">' : '\u2014') + '</td>' +
     '</tr>';
   });
 

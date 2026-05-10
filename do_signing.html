@@ -481,6 +481,10 @@ const SUPABASE_URL = 'https://kibqjztozokohqmhqqqf.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpYnFqenRvem9rb2hxbWhxcXFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzQzNjIsImV4cCI6MjA4OTgxMDM2Mn0.J7qJUZhWXYf5b9oey4wXJkjdi66jomEMw_NeV9NWF7M';
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// XSS-safe escape — apply to every DB-sourced value before splicing into innerHTML
+function escapeHtml(s){if(s===undefined||s===null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function escAttr(s){return String(s||'').replace(/[\\'"<>]/g,'');}
+
 // ════════════════════════════════════════════════════════
 //  SESSION GUARD — redirect to login if not authenticated
 // ════════════════════════════════════════════════════════
@@ -596,7 +600,7 @@ async function loadActiveALs() {
     .order('created_at', { ascending: false });
   if (error) {
     document.getElementById('results-combined').innerHTML =
-      `<div class="text-center py-8 text-red-400 text-xs font-bold">${error.message}</div>`;
+      `<div class="text-center py-8 text-red-400 text-xs font-bold">${escapeHtml(error.message)}</div>`;
     return;
   }
   alData = data || [];
@@ -680,15 +684,15 @@ function renderCombined(q) {
         <div class="bg-white rounded-2xl p-4 mb-2 shadow-sm border border-slate-200 ${t.border}">
           <div class="flex justify-between items-start mb-2">
             <div>
-              <div class="font-black text-slate-800">${r.al_number || '—'}</div>
-              <div class="text-xs font-bold text-slate-500 mt-0.5">${r.customer_name || '—'}</div>
+              <div class="font-black text-slate-800">${escapeHtml(r.al_number || '—')}</div>
+              <div class="text-xs font-bold text-slate-500 mt-0.5">${escapeHtml(r.customer_name || '—')}</div>
             </div>
-            <span class="text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full border ${t.header}">${r.status || 'Unverified'}</span>
+            <span class="text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full border ${t.header}">${escapeHtml(r.status || 'Unverified')}</span>
           </div>
-          <div class="text-xs font-bold text-slate-400 mb-3">📋 ${r.order_number || '—'} &nbsp;·&nbsp; Qty: ${r.quantity_ordered ?? '—'} &nbsp;·&nbsp; Bal: <span class="${t.bal} font-black">${r.balance_quantity ?? '—'}</span></div>
+          <div class="text-xs font-bold text-slate-400 mb-3">📋 ${escapeHtml(r.order_number || '—')} &nbsp;·&nbsp; Qty: ${escapeHtml(r.quantity_ordered ?? '—')} &nbsp;·&nbsp; Bal: <span class="${t.bal} font-black">${escapeHtml(r.balance_quantity ?? '—')}</span></div>
           <div class="flex gap-2">
-            <button class="btn-open flex-1 text-center" onclick="manageDOs('${r.al_number}')">Manage DOs</button>
-            <button onclick="openCamera('${r.al_number}', false)"
+            <button class="btn-open flex-1 text-center" onclick="manageDOs('${escAttr(r.al_number)}')">Manage DOs</button>
+            <button onclick="openCamera('${escAttr(r.al_number)}', false)"
               title="Add DO via camera scan"
               class="shrink-0 flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-xl border-none cursor-pointer transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -712,14 +716,14 @@ function renderCombined(q) {
             const t = themeMap[g.theme];
             const headerRow = `<tr><td colspan="6" class="py-2 px-4 text-[9px] font-black uppercase tracking-widest ${t.header} border-b">${g.label} &nbsp;(${g.rows.length})</td></tr>`;
             const dataRows = g.rows.map(r => `<tr class="${t.row}">
-              <td><span class="font-black text-slate-800">${r.al_number || '—'}</span></td>
-              <td>${r.order_number || '—'}</td>
-              <td>${r.customer_name || '—'}</td>
-              <td>${r.quantity_ordered ?? '—'}</td>
-              <td><span class="font-black ${t.bal}">${r.balance_quantity ?? '—'}</span></td>
+              <td><span class="font-black text-slate-800">${escapeHtml(r.al_number || '—')}</span></td>
+              <td>${escapeHtml(r.order_number || '—')}</td>
+              <td>${escapeHtml(r.customer_name || '—')}</td>
+              <td>${escapeHtml(r.quantity_ordered ?? '—')}</td>
+              <td><span class="font-black ${t.bal}">${escapeHtml(r.balance_quantity ?? '—')}</span></td>
               <td class="whitespace-nowrap">
-                <button class="btn-open mr-1" onclick="manageDOs('${r.al_number}')">Manage DOs</button>
-                <button onclick="openCamera('${r.al_number}', false)" title="Add DO via camera scan"
+                <button class="btn-open mr-1" onclick="manageDOs('${escAttr(r.al_number)}')">Manage DOs</button>
+                <button onclick="openCamera('${escAttr(r.al_number)}', false)" title="Add DO via camera scan"
                   class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white border-none cursor-pointer transition-colors align-middle">
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 </button>
@@ -748,18 +752,19 @@ function manageDOs(alNumber, openAddForm = false) {
   // Header
   document.getElementById('mgr-al-number').textContent = activeAL.al_number || '—';
 
-  // Detail grid
+  // Detail grid — values are pre-escaped so the inline HTML wrapper around
+  // balance_quantity is the only intentional HTML in the value field.
   const fields = [
-    { label:'AL Number',          value: activeAL.al_number       || '—' },
-    { label:'Order Number',       value: activeAL.order_number    || '—' },
-    { label:'Customer Name',      value: activeAL.customer_name   || '—' },
-    { label:'Purchased Product',  value: activeAL.product_name    || '—' },
-    { label:'Qty Ordered',        value: activeAL.quantity_ordered ?? '—' },
-    { label:'Balance to Collect', value: `<span class="text-blue-700 font-black text-base" id="mgr-balance-badge">${activeAL.balance_quantity ?? '—'}</span>` },
+    { label:'AL Number',          value: escapeHtml(activeAL.al_number       || '—') },
+    { label:'Order Number',       value: escapeHtml(activeAL.order_number    || '—') },
+    { label:'Customer Name',      value: escapeHtml(activeAL.customer_name   || '—') },
+    { label:'Purchased Product',  value: escapeHtml(activeAL.product_name    || '—') },
+    { label:'Qty Ordered',        value: escapeHtml(activeAL.quantity_ordered ?? '—') },
+    { label:'Balance to Collect', value: `<span class="text-blue-700 font-black text-base" id="mgr-balance-badge">${escapeHtml(activeAL.balance_quantity ?? '—')}</span>` },
   ];
   document.getElementById('mgr-al-details').innerHTML = fields.map(f => `
     <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
-      <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">${f.label}</div>
+      <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">${escapeHtml(f.label)}</div>
       <div class="font-black text-slate-800 text-sm leading-snug">${f.value}</div>
     </div>`).join('');
 
@@ -786,7 +791,7 @@ async function loadDOsForAL(alNumber) {
     .from('shared_do_records').select('*').eq('al_number', alNumber).order('delivery_date', { ascending: false });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-red-400 text-xs font-bold">${error.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-red-400 text-xs font-bold">${escapeHtml(error.message)}</td></tr>`;
     return;
   }
 
@@ -827,19 +832,19 @@ async function loadDOsForAL(alNumber) {
     }
     // Fallback if no item rows — show total_qty
     const nurseryCell = lines.length
-      ? lines.map(l => `<div class="leading-5">${l.nursery}</div>`).join('')
+      ? lines.map(l => `<div class="leading-5">${escapeHtml(l.nursery)}</div>`).join('')
       : '—';
     const breedCell = lines.length
-      ? lines.map(l => `<div class="leading-5">${l.breed}</div>`).join('')
+      ? lines.map(l => `<div class="leading-5">${escapeHtml(l.breed)}</div>`).join('')
       : '—';
     const qtyCell = lines.length
-      ? lines.map(l => `<div class="leading-5 font-black text-emerald-700">${l.qty}</div>`).join('')
-      : `<span class="font-black text-emerald-700">${d.total_qty ?? '—'}</span>`;
+      ? lines.map(l => `<div class="leading-5 font-black text-emerald-700">${escapeHtml(l.qty)}</div>`).join('')
+      : `<span class="font-black text-emerald-700">${escapeHtml(d.total_qty ?? '—')}</span>`;
 
     const photoCell = d.image_url
-      ? `<button onclick="window.open('${d.image_url}','_blank')"
+      ? `<button onclick="window.open('${escAttr(d.image_url)}','_blank')"
            class="w-11 h-11 rounded-lg overflow-hidden border border-slate-200 hover:border-blue-400 transition-colors shrink-0 cursor-pointer bg-slate-50">
-           <img src="${d.image_url}" class="w-full h-full object-cover" loading="lazy" onerror="this.parentElement.innerHTML='📄'">
+           <img src="${escapeHtml(d.image_url)}" class="w-full h-full object-cover" loading="lazy" onerror="this.parentElement.innerHTML='📄'">
          </button>`
       : `<span class="text-slate-200 text-xs">—</span>`;
 
@@ -847,8 +852,8 @@ async function loadDOsForAL(alNumber) {
     const safeRec = encodeURIComponent(JSON.stringify(d));
 
     return `<tr class="${isCancelled ? 'opacity-50' : ''}">
-      <td class="text-slate-500 font-bold whitespace-nowrap">${dateFmt}</td>
-      <td><span class="font-black ${isCancelled ? 'text-slate-400 line-through' : 'text-slate-800'}">${d.do_number || '—'}</span></td>
+      <td class="text-slate-500 font-bold whitespace-nowrap">${escapeHtml(dateFmt)}</td>
+      <td><span class="font-black ${isCancelled ? 'text-slate-400 line-through' : 'text-slate-800'}">${escapeHtml(d.do_number || '—')}</span></td>
       <td class="text-slate-600 text-xs">${nurseryCell}</td>
       <td class="text-slate-600 text-xs">${breedCell}</td>
       <td>${qtyCell}</td>
@@ -884,7 +889,7 @@ async function loadConsentsForAL(alNumber) {
     .order('created_at', { ascending: false });
 
   if (error) {
-    area.innerHTML = '<div class="text-xs text-red-400 font-bold">' + error.message + '</div>';
+    area.innerHTML = '<div class="text-xs text-red-400 font-bold">' + escapeHtml(error.message) + '</div>';
     return;
   }
 
