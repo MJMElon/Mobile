@@ -77,9 +77,9 @@
 
   /* ── MONTH VIEW ── */
   .month-grid { display:grid; grid-template-columns:repeat(7,1fr); border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; background:white; }
-  .month-header { background:#f8fafc; padding:8px; text-align:center; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; color:#64748b; border-bottom:2px solid #e2e8f0; border-right:1px solid #e2e8f0; }
+  .month-header { background:#f8fafc; padding:8px; text-align:center; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; color:#64748b; border-bottom:2px solid #e2e8f0; border-right:1px solid #e2e8f0; min-width:0; }
   .month-header:last-child { border-right:none; }
-  .month-cell { min-height:80px; border-bottom:1px solid #f1f5f9; border-right:1px solid #f1f5f9; padding:4px 6px; cursor:pointer; transition:background .15s; position:relative; }
+  .month-cell { min-height:80px; border-bottom:1px solid #f1f5f9; border-right:1px solid #f1f5f9; padding:4px 6px; cursor:pointer; transition:background .15s; position:relative; min-width:0; overflow:hidden; }
   .month-cell:nth-child(7n) { border-right:none; }
   .month-cell:hover { background:#f0fdf4; }
   .month-cell.other-month { background:#fafafa; opacity:.4; }
@@ -97,6 +97,16 @@
   .month-holiday-tag { display:block; font-size:8px; font-weight:700; color:#dc2626; line-height:1.2; margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
   .day-count { display:inline-flex; align-items:center; justify-content:center; background:#10b981; color:white; font-size:9px; font-weight:900; min-width:18px; height:18px; border-radius:9px; padding:0 5px; margin-left:4px; }
+
+  /* ── CALENDAR MOBILE FIX (equal 7-col widths on phones) ── */
+  @media(max-width:480px){
+    .month-header{font-size:8px;padding:6px 2px;letter-spacing:0;}
+    .month-cell{min-height:56px;padding:3px 3px;}
+    .month-day-num{font-size:10px;}
+    .month-cell.today .month-day-num{width:20px;height:20px;border-radius:10px;font-size:10px;}
+    .month-holiday-tag{font-size:7px;}
+    .booking-pill{font-size:8px !important;padding:1px 4px !important;}
+  }
 
   /* ── MOBILE DAY VIEW ── */
   .tab-row { display:flex; gap:4px; background:#e2e8f0; border-radius:14px; padding:4px; overflow-x:auto; }
