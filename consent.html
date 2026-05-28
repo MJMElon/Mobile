@@ -52,6 +52,8 @@
 
   /* ── CONSENT BODY (T&C scroll) ── */
   .consent-body { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:1.1rem; font-size:13px; color:#374151; line-height:1.75; max-height:200px; overflow-y:auto; }
+  .cs-lang-btn { font-size:10px; font-weight:900; letter-spacing:.06em; padding:3px 10px; border-radius:9999px; border:1.5px solid #e2e8f0; background:#fff; color:#94a3b8; cursor:pointer; transition:all .15s; }
+  .cs-lang-btn.active { background:#059669; border-color:#059669; color:#fff; }
   .consent-body h4 { font-size:11px; font-weight:900; color:#111827; margin:0 0 .5rem; text-transform:uppercase; letter-spacing:.04em; }
   .consent-body p { margin-bottom:.6rem; }
   .consent-body p:last-child { margin-bottom:0; }
@@ -249,34 +251,32 @@
 
       <!-- T&C -->
       <div>
-        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">&#128203; Terms & Conditions</div>
-        <div class="consent-body">
-          <h4>MJM Nursery &mdash; Collection Terms &amp; Conditions</h4>
-          <p><strong>1. Collection Responsibility.</strong> The customer is solely responsible for arranging adequate transportation to collect the seedlings from MJM Nursery on the booked date and time. Failure to collect within 3 days of the booked slot may result in forfeiture of seedlings without refund.</p>
-          <p><strong>2. Seedling Condition.</strong> MJM Nursery guarantees seedlings are in healthy condition at time of collection. Any damage incurred during transport is the sole responsibility of the customer. Seedlings must be transported with appropriate covers (tarpaulin) to prevent dehydration.</p>
-          <p><strong>3. Quantity Verification.</strong> The customer must verify the quantity received at the time of collection and sign the delivery order (DO). No claims for short delivery will be entertained after the customer has left the nursery premises.</p>
-          <p><strong>4. Changes &amp; Cancellations.</strong> Booking date changes require a minimum of 48 hours&rsquo; notice. Cancellations with less than 24 hours&rsquo; notice may incur an administrative fee of RM 200.</p>
-          <p><strong>5. Access &amp; Safety.</strong> The customer&rsquo;s driver and staff must adhere to nursery safety guidelines while on premises. MJM Nursery is not liable for any accidents or injuries arising from non-compliance.</p>
-          <p><strong>6. Force Majeure.</strong> MJM Nursery reserves the right to reschedule collections in the event of extreme weather, natural disasters, or other circumstances beyond our control.</p>
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">&#128203; <span id="cs-tc-header">Terms & Conditions</span></div>
+          <div class="flex gap-1">
+            <button type="button" id="cs-lang-en" onclick="setConsentLang('en')" class="cs-lang-btn active">EN</button>
+            <button type="button" id="cs-lang-ms" onclick="setConsentLang('ms')" class="cs-lang-btn">BM</button>
+          </div>
         </div>
+        <div class="consent-body" id="consent-terms-body"></div>
       </div>
 
       <!-- Checkbox agree -->
       <label class="flex items-start gap-3 cursor-pointer select-none">
         <input type="checkbox" id="consent-chk" onchange="checkConsentReady()" class="w-5 h-5 shrink-0 mt-0.5 accent-emerald-600 cursor-pointer">
-        <span class="text-sm font-bold text-slate-600 leading-snug">I have read and agree to the MJM Nursery Collection Terms &amp; Conditions stated above.</span>
+        <span class="text-sm font-bold text-slate-600 leading-snug" id="cs-agree-label">I have read and agree to the MJM Nursery Collection Terms &amp; Conditions stated above.</span>
       </label>
 
       <!-- Photo section -->
       <div class="border-t border-slate-100 pt-5">
-        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">&#128247; Attach Photo &mdash; Sticker Verification</div>
-        <p class="text-[10px] font-bold text-slate-300 mb-3">Take a photo of the seedling stickers. AI will count the sticker quantity automatically.</p>
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">&#128247; <span id="cs-photo-title">Attach Photo &mdash; Sticker Verification</span></div>
+        <p class="text-[10px] font-bold text-slate-300 mb-3" id="cs-photo-help">Take a photo of the seedling stickers. AI will count the sticker quantity automatically.</p>
 
         <div class="photo-area" id="photo-area" onclick="document.getElementById('photo-input').click()">
           <div id="photo-placeholder">
             <div class="text-4xl mb-2">&#128247;</div>
-            <div class="text-[11px] font-black text-slate-400 uppercase tracking-widest">Tap to Take Photo</div>
-            <div class="text-[10px] font-bold text-slate-300 mt-1">Camera will open to capture sticker image</div>
+            <div class="text-[11px] font-black text-slate-400 uppercase tracking-widest" id="cs-tap-title">Tap to Take Photo</div>
+            <div class="text-[10px] font-bold text-slate-300 mt-1" id="cs-tap-sub">Camera will open to capture sticker image</div>
           </div>
           <div id="photo-preview-wrap" class="hidden">
             <img id="photo-preview" src="" class="w-full rounded-xl" style="max-height:260px; object-fit:contain;">
@@ -313,8 +313,8 @@
 
       <!-- Signature -->
       <div class="border-t border-slate-100 pt-5">
-        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">&#9997;&#65039; Customer Signature</div>
-        <p class="text-[10px] font-bold text-slate-300 mb-3">Customer signs below to consent to the collection terms for this trip.</p>
+        <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">&#9997;&#65039; <span id="cs-sign-title">Customer Signature</span></div>
+        <p class="text-[10px] font-bold text-slate-300 mb-3" id="cs-sign-help">Customer signs below to consent to the collection terms for this trip.</p>
         <div class="sign-canvas-wrap">
           <canvas id="sign-canvas"></canvas>
           <button class="sign-clear" onclick="clearSignature()">&times; Clear</button>
@@ -325,14 +325,13 @@
 
     <!-- Footer -->
     <div class="px-5 sm:px-6 pb-6 flex flex-col sm:flex-row gap-3 justify-end border-t border-slate-100 pt-5">
-      <button onclick="closeSignModal()"
+      <button onclick="closeSignModal()" id="cs-cancel-btn"
         class="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-full border border-slate-200 cursor-pointer transition-colors">
         Cancel
       </button>
       <button id="consent-submit-btn" onclick="submitConsent()" disabled
         class="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-[11px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
-        &#128190; Save Consent
-      </button>
+        &#128190; <span id="cs-save-label">Save Consent</span></button>
     </div>
 
   </div>
@@ -870,8 +869,79 @@ function proceedToSign() {
 
   document.getElementById('consent-submit-btn').disabled = true;
 
+  // Render the consent terms + labels in the currently selected language.
+  setConsentLang(CONSENT_LANG);
+
   document.getElementById('sign-modal').classList.add('open');
   setTimeout(initCanvas, 150);
+}
+
+// ── Bilingual consent (English / Bahasa Malaysia) ──
+// Terms mirror the official MJM Nursery Customer Consent form.
+var CONSENT_LANG = 'en';
+var CONSENT_STRINGS = {
+  en: {
+    tcHeader: 'Terms & Conditions',
+    heading: 'MJM Nursery — Customer Consent',
+    terms: [
+      '<strong>1. Physical Verification.</strong> Customer must verify the number of identification stickers matches the total purchase quantity before proceeding to the nursery.',
+      '<strong>2. Seedling Selection.</strong> Seedlings with stickers attached are considered selected and accepted in terms of size, quality, and condition.<br><strong>Worker Assistance.</strong> If customers request workers to help stick stickers or select seedlings, all selection risks are under the customer’s responsibility. The company will not be responsible for the quality or characteristics of seedlings selected under the customer’s instruction.',
+      '<strong>3. Loading Verification.</strong> Customers must verify the quantity of seedlings loaded onto the lorry before signing the Delivery Note (DO).',
+      '<strong>4. After DO Signature.</strong> No exchange, replacement, or claims will be entertained after the DO is signed.',
+      '<strong>5. Form Verification.</strong> The Declaration Form (L3) must be checked before leaving the nursery. Any errors must be corrected at the office first.'
+    ],
+    agree: 'By signing below, I have read the terms and I hereby accept and agree to the terms as stated above.',
+    photoTitle: 'Attach Photo — Sticker Verification',
+    photoHelp: 'Take a photo of the seedling stickers. AI will count the sticker quantity automatically.',
+    tapTitle: 'Tap to Take Photo',
+    tapSub: 'Camera will open to capture sticker image',
+    signTitle: 'Customer Signature',
+    signHelp: 'Customer signs below to consent to the collection terms for this trip.',
+    cancel: 'Cancel',
+    save: 'Save Consent'
+  },
+  ms: {
+    tcHeader: 'Terma & Syarat',
+    heading: 'MJM Nursery — Persetujuan Pelanggan',
+    terms: [
+      '<strong>1. Pengesahan Jumlah.</strong> Pelanggan mesti semak jumlah pelekat sama dengan jumlah pembelian sebelum masuk nursery.',
+      '<strong>2. Pemilihan Anak Benih.</strong> Anak benih yang telah ditampal pelekat dianggap telah dipilih dan dipersetujui dari segi saiz, kualiti, dan keadaan.<br><strong>Bantuan Pekerja.</strong> Jika pelanggan meminta pekerja membantu tampal pelekat atau pilih anak benih, segala risiko pemilihan adalah tanggungjawab pelanggan sendiri. Syarikat tidak akan bertanggungjawab terhadap kualiti atau ciri-ciri anak benih yang dipilih oleh pekerja atas arahan pelanggan.',
+      '<strong>3. Semakan Muatan.</strong> Pelanggan mesti semak jumlah anak benih yang dimuat naik ke lori sebelum tandatangan nota penghantaran (DO).',
+      '<strong>4. Selepas Tandatangan DO.</strong> Tiada pertukaran, gantian, atau tuntutan akan dilayan selepas DO ditandatangani.',
+      '<strong>5. Semakan Borang.</strong> Borang Akuan (L3) mesti disemak sebelum keluar dari nursery. Sebarang kesilapan perlu dibetulkan di pejabat terlebih dahulu.'
+    ],
+    agree: 'Dengan menandatangani di bawah, saya mengesahkan bahawa saya telah membaca, memahami dan saya bersetuju dengan terma dinyatakan di atas.',
+    photoTitle: 'Lampirkan Foto — Pengesahan Pelekat',
+    photoHelp: 'Ambil foto pelekat anak benih. AI akan mengira jumlah pelekat secara automatik.',
+    tapTitle: 'Ketik untuk Ambil Foto',
+    tapSub: 'Kamera akan dibuka untuk menangkap imej pelekat',
+    signTitle: 'Tandatangan Pelanggan',
+    signHelp: 'Pelanggan menandatangani di bawah untuk bersetuju dengan terma pengambilan bagi perjalanan ini.',
+    cancel: 'Batal',
+    save: 'Simpan Persetujuan'
+  }
+};
+function setConsentLang(lang){
+  if(lang!=='en' && lang!=='ms') lang='en';
+  CONSENT_LANG = lang;
+  var s = CONSENT_STRINGS[lang];
+  var setText = function(id,val){ var el=document.getElementById(id); if(el) el.textContent=val; };
+  // Terms body (HTML)
+  var body = document.getElementById('consent-terms-body');
+  if(body){ body.innerHTML = '<h4>'+s.heading+'</h4>' + s.terms.map(function(t){return '<p>'+t+'</p>';}).join(''); }
+  setText('cs-tc-header', s.tcHeader);
+  setText('cs-agree-label', s.agree);
+  setText('cs-photo-title', s.photoTitle);
+  setText('cs-photo-help', s.photoHelp);
+  setText('cs-tap-title', s.tapTitle);
+  setText('cs-tap-sub', s.tapSub);
+  setText('cs-sign-title', s.signTitle);
+  setText('cs-sign-help', s.signHelp);
+  setText('cs-cancel-btn', s.cancel);
+  setText('cs-save-label', s.save);
+  var en=document.getElementById('cs-lang-en'), ms=document.getElementById('cs-lang-ms');
+  if(en) en.classList.toggle('active', lang==='en');
+  if(ms) ms.classList.toggle('active', lang==='ms');
 }
 
 function closeSignModal() {
