@@ -213,6 +213,19 @@ function showDash(session) {
 }
 
 // ── Auth state listener ───────────────────────────────────
+var _MJM_STAFF_LEVELS = ['admin','normal','view','edit','manage','read','write','full','staff'];
+function _mjmHasOpsAccess(profile) {
+  if (!profile) return false;
+  var p = profile.permissions || {};
+  if (p.manage_users || p.can_verify_operation) return true;
+  if (p.modules && typeof p.modules === 'object') {
+    for (var k in p.modules) {
+      if (p.modules[k] && _MJM_STAFF_LEVELS.indexOf(String(p.modules[k]).toLowerCase()) !== -1) return true;
+    }
+  }
+  return false;
+}
+
 _supabase.auth.onAuthStateChange(async (event, session) => {
   if (isLoggingOut) return;
   if (event === 'PASSWORD_RECOVERY') {
@@ -226,6 +239,27 @@ _supabase.auth.onAuthStateChange(async (event, session) => {
   if (session) {
     sessionStorage.setItem('mjm_user_email', session.user.email);
     sessionStorage.setItem('mjm_user_name', session.user.user_metadata?.full_name || session.user.email);
+
+    // Ops-access gate — same predicate as the hub and audit. If the
+    // signed-in user has no staff-grade module access, bounce them to
+    // auth.html where the inline Pending Access notice is shown.
+    // Fail-open on profile-read errors so a brief Supabase hiccup
+    // doesn't lock real admins out.
+    var hasAccess = true;
+    try {
+      var resp = await _supabase
+        .from('shared_profiles')
+        .select('role, user_type, permissions')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (resp && !resp.error) hasAccess = _mjmHasOpsAccess(resp.data);
+      console.log('[mobile-gate]', { canEnter: hasAccess, profile: resp && resp.data });
+    } catch (e) { console.warn('[mobile-gate] profile read failed (allowing through):', e); }
+    if (!hasAccess) {
+      window.location.replace('auth.html');
+      return;
+    }
+
     showDash(session);
   }
 });

@@ -313,22 +313,75 @@ async function handlePostLogin(session) {
   sessionStorage.setItem('mjm_user_email', session.user.email || '');
   sessionStorage.setItem('mjm_user_name', session.user.user_metadata?.full_name || session.user.email || '');
 
-  // Check role in profiles table
+  // Ops-access gate — same predicate as the hub. Anyone without
+  // staff-grade module access (sales-web customer crossing over, or a
+  // fresh ops signup that the admin hasn't granted permissions to
+  // yet) sees the inline Pending Access notice and stays on this
+  // page. A Refresh button lets them re-check once the admin grants
+  // access without re-typing credentials.
   var { data: profile } = await _supabase
     .from('shared_profiles')
-    .select('role')
+    .select('role, user_type, permissions')
     .eq('id', session.user.id)
     .single();
-
-  var role = (profile && profile.role) || 'customer';
-
-  if (role === 'admin') {
-    showStatus('Welcome, Admin! Redirecting...', 'success');
-    setTimeout(function() { window.location.href = 'index.html'; }, 800);
-  } else {
-    showStatus('Welcome! Redirecting...', 'success');
-    setTimeout(function() { window.location.href = 'portal.html?uid=' + session.user.id; }, 800);
+  if (!hasOpsAccessMobile(profile)) {
+    showPendingAccessUI(session.user.email || '');
+    return;
   }
+
+  showStatus('Welcome! Redirecting...', 'success');
+  setTimeout(function() { window.location.href = 'index.html'; }, 800);
+}
+
+var _STAFF_LEVELS = ['admin','normal','view','edit','manage','read','write','full','staff'];
+function hasOpsAccessMobile(profile) {
+  if (!profile) return false;
+  var p = profile.permissions || {};
+  if (p.manage_users || p.can_verify_operation) return true;
+  if (p.modules && typeof p.modules === 'object') {
+    for (var k in p.modules) {
+      if (p.modules[k] && _STAFF_LEVELS.indexOf(String(p.modules[k]).toLowerCase()) !== -1) return true;
+    }
+  }
+  return false;
+}
+
+// Inline pending-access UI: hides the login card and shows a friendly
+// "ask the admin" notice. Kept on this page (rather than redirecting)
+// because no customer-facing portal lives under mobile.mjmnursery.com
+// — pre-#86 we used to redirect to a portal.html that didn't exist.
+function showPendingAccessUI(email) {
+  var loginCard = document.querySelector('.auth-card') || document.body;
+  var existing = document.getElementById('pending-card');
+  if (existing) { existing.remove(); }
+  var safeEmail = String(email || '').replace(/[<>&"']/g, function(c){return{'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c];});
+  var card = document.createElement('div');
+  card.id = 'pending-card';
+  card.style.cssText = 'background:#0b1b13;border:1px solid rgba(245,158,11,.4);border-radius:18px;padding:24px;max-width:380px;width:100%;text-align:center;color:#e5e7eb;font-family:inherit;';
+  card.innerHTML =
+    '<div style="font-size:36px;margin-bottom:8px;">⏳</div>' +
+    '<div style="font-size:10px;font-weight:900;color:#fbbf24;letter-spacing:.25em;margin-bottom:6px;">ACCESS PENDING</div>' +
+    '<div style="font-size:16px;font-weight:800;margin-bottom:6px;">Awaiting admin approval</div>' +
+    '<div style="font-size:12px;color:#cbd5e1;line-height:1.6;margin-bottom:14px;">Your account exists but no module access has been granted yet.<br>Please contact an admin to grant access for this AI system.</div>' +
+    '<div style="background:#020617;border:1px solid #1e293b;border-radius:10px;padding:10px 12px;margin-bottom:14px;">' +
+      '<div style="font-size:9px;font-weight:900;color:#64748b;letter-spacing:.18em;margin-bottom:2px;">YOUR SIGN-IN EMAIL</div>' +
+      '<div style="font-size:13px;font-weight:700;color:#e5e7eb;word-break:break-all;">' + safeEmail + '</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;justify-content:center;">' +
+      '<button onclick="location.reload()" style="font-size:10px;font-weight:800;letter-spacing:.18em;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.5);color:#6ee7b7;padding:8px 14px;border-radius:9999px;cursor:pointer;">↻ REFRESH</button>' +
+      '<button onclick="_pendingSignOut()" style="font-size:10px;font-weight:800;letter-spacing:.18em;background:transparent;border:1px solid #334155;color:#94a3b8;padding:8px 14px;border-radius:9999px;cursor:pointer;">SIGN OUT</button>' +
+    '</div>';
+  if (loginCard.parentNode) {
+    loginCard.parentNode.insertBefore(card, loginCard);
+    loginCard.style.display = 'none';
+  } else {
+    document.body.appendChild(card);
+  }
+  showStatus('', 'success');
+}
+async function _pendingSignOut() {
+  try { await _supabase.auth.signOut(); } catch(e) {}
+  location.reload();
 }
 
 // ── AUTH STATE LISTENER ──
