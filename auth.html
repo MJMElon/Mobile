@@ -323,11 +323,24 @@ async function handlePostLogin(session) {
   // yet) sees the inline Pending Access notice and stays on this
   // page. A Refresh button lets them re-check once the admin grants
   // access without re-typing credentials.
-  var { data: profile } = await _supabase
-    .from('shared_profiles')
-    .select('role, user_type, permissions')
-    .eq('id', session.user.id)
-    .single();
+  //
+  // Wrapped in try/catch + maybeSingle so a profile that doesn't
+  // exist yet (signup trigger race) or an RLS error doesn't leave the
+  // page stuck on "Checking access...". On read error, default to
+  // "no access" so customers don't silently slip through — this is an
+  // entry point so we'd rather fail closed here than fail open.
+  var profile = null;
+  try {
+    var resp = await _supabase
+      .from('shared_profiles')
+      .select('role, user_type, permissions')
+      .eq('id', session.user.id)
+      .maybeSingle();
+    profile = resp && resp.data;
+    console.log('[mobile-auth-gate]', { canEnter: hasOpsAccessMobile(profile), profile, error: resp && resp.error });
+  } catch (e) {
+    console.warn('[mobile-auth-gate] profile read threw:', e);
+  }
   if (!hasOpsAccessMobile(profile)) {
     showPendingAccessUI(session.user.email || '');
     return;
