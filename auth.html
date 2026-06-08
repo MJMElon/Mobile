@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- BUILD: 2026-05-29b · mobile-ops-gate -->
+<!-- BUILD: 2026-06-08 · mobile-ops-gate · fix login deadlock -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
@@ -310,8 +310,13 @@ async function updatePassword() {
 }
 
 // ── POST-LOGIN: ROLE CHECK + ROUTING ──
+// Guard against the three callers (direct login call, onAuthStateChange,
+// getSession-on-load) all running the post-login gate concurrently.
+var _postLoginRan = false;
 async function handlePostLogin(session) {
   if (!session) { showStatus('Login failed.', 'error'); return; }
+  if (_postLoginRan) { return; }
+  _postLoginRan = true;
 
   showStatus('Checking access...', 'success');
   sessionStorage.setItem('mjm_user_email', session.user.email || '');
@@ -402,7 +407,13 @@ async function _pendingSignOut() {
 }
 
 // ── AUTH STATE LISTENER ──
-_supabase.auth.onAuthStateChange(async function(event, session) {
+// IMPORTANT: do NOT call other supabase methods (incl. .from() queries, which
+// internally fetch the session token) synchronously inside this callback. The
+// callback runs while supabase-js holds its auth lock, and handlePostLogin's
+// shared_profiles query needs that same lock — awaiting it here deadlocks and
+// the page hangs on "Checking access...". Defer with setTimeout(0) so the
+// callback returns and releases the lock before the gate query runs.
+_supabase.auth.onAuthStateChange(function(event, session) {
   if (event === 'PASSWORD_RECOVERY') {
     isRecovery = true;
     document.getElementById('form-password').style.display = 'none';
@@ -413,7 +424,7 @@ _supabase.auth.onAuthStateChange(async function(event, session) {
     return;
   }
   if (event === 'SIGNED_IN' && session && !isRecovery) {
-    await handlePostLogin(session);
+    setTimeout(function() { handlePostLogin(session); }, 0);
   }
 });
 
