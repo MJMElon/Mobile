@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- BUILD: 2026-05-29b · mobile-ops-gate -->
+<!-- BUILD: 2026-06-08 · mobile-ops-gate · fix login stuck on Processing (auth-lock deadlock) -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
@@ -230,7 +230,13 @@ function _mjmHasOpsAccess(profile) {
   return false;
 }
 
-_supabase.auth.onAuthStateChange(async (event, session) => {
+// IMPORTANT: do NOT call other supabase methods (incl. .from() queries, which
+// internally fetch the session token) synchronously inside this callback. The
+// callback runs while supabase-js holds its auth lock, and the ops-access gate's
+// shared_profiles query needs that same lock — awaiting it here deadlocks and
+// the page hangs on "Processing…". Defer with setTimeout(0) so the callback
+// returns and releases the lock before the gate query runs. (Same fix as auth.html.)
+_supabase.auth.onAuthStateChange(function (event, session) {
   if (isLoggingOut) return;
   if (event === 'PASSWORD_RECOVERY') {
     isRecovering = true;
@@ -241,32 +247,37 @@ _supabase.auth.onAuthStateChange(async (event, session) => {
   }
   if (event === 'SIGNED_OUT' || !session) { showAuth(); return; }
   if (session) {
-    sessionStorage.setItem('mjm_user_email', session.user.email);
-    sessionStorage.setItem('mjm_user_name', session.user.user_metadata?.full_name || session.user.email);
-
-    // Ops-access gate — same predicate as the hub and audit. If the
-    // signed-in user has no staff-grade module access, bounce them to
-    // auth.html where the inline Pending Access notice is shown.
-    // Fail-open on profile-read errors so a brief Supabase hiccup
-    // doesn't lock real admins out.
-    var hasAccess = true;
-    try {
-      var resp = await _supabase
-        .from('shared_profiles')
-        .select('role, user_type, permissions')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      if (resp && !resp.error) hasAccess = _mjmHasOpsAccess(resp.data);
-      console.log('[mobile-gate]', { canEnter: hasAccess, profile: resp && resp.data });
-    } catch (e) { console.warn('[mobile-gate] profile read failed (allowing through):', e); }
-    if (!hasAccess) {
-      window.location.replace('auth.html');
-      return;
-    }
-
-    showDash(session);
+    setTimeout(function () { runOpsGate(session); }, 0);
   }
 });
+
+// Ops-access gate — same predicate as the hub and audit. If the signed-in
+// user has no staff-grade module access, bounce them to auth.html where the
+// inline Pending Access notice is shown. Fail-open on profile-read errors so a
+// brief Supabase hiccup doesn't lock real admins out. Runs deferred (outside
+// the onAuthStateChange callback) to avoid the auth-lock deadlock.
+async function runOpsGate(session) {
+  if (isLoggingOut) return;
+  sessionStorage.setItem('mjm_user_email', session.user.email);
+  sessionStorage.setItem('mjm_user_name', session.user.user_metadata?.full_name || session.user.email);
+
+  var hasAccess = true;
+  try {
+    var resp = await _supabase
+      .from('shared_profiles')
+      .select('role, user_type, permissions')
+      .eq('id', session.user.id)
+      .maybeSingle();
+    if (resp && !resp.error) hasAccess = _mjmHasOpsAccess(resp.data);
+    console.log('[mobile-gate]', { canEnter: hasAccess, profile: resp && resp.data });
+  } catch (e) { console.warn('[mobile-gate] profile read failed (allowing through):', e); }
+  if (!hasAccess) {
+    window.location.replace('auth.html');
+    return;
+  }
+
+  showDash(session);
+}
 
 // ── Login / Sign Up ───────────────────────────────────────
 mainBtn.addEventListener('click', async () => {
