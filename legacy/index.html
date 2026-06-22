@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- BUILD: 2026-06-08 · mobile-ops-gate · fix login stuck on Processing (auth-lock deadlock) -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
+<title>MJM Nursery AI</title>
+<link rel="icon" type="image/png" href="https://cdn.store-assets.com/s/1408881/f/16655641.png">
+<link rel="apple-touch-icon" href="https://cdn.store-assets.com/s/1408881/f/16655641.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Outfit', system-ui, sans-serif; }
+  body { background-color: #050a0e; margin: 0; overflow-x: hidden; }
+
+  .auth-bg { position:fixed;inset:0;z-index:0;background:radial-gradient(ellipse at 50% 40%,#0a1a12 0%,#050a0e 70%); }
+  .grid-lines { position:fixed;inset:0;z-index:1;pointer-events:none;
+      background-image:linear-gradient(rgba(16,185,129,.04)1px,transparent 1px),linear-gradient(90deg,rgba(16,185,129,.04)1px,transparent 1px);
+      background-size:60px 60px; }
+
+  @keyframes scan{0%{top:-4px}100%{top:100%}}
+  .scan-beam{position:fixed;left:0;right:0;height:3px;z-index:2;pointer-events:none;
+      background:linear-gradient(90deg,transparent,rgba(16,185,129,.6),transparent);
+      box-shadow:0 0 20px 4px rgba(16,185,129,.3);animation:scan 6s linear infinite;}
+
+  @keyframes hBeam{0%{transform:translateX(-100%);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(100vw);opacity:0}}
+  @keyframes vBeam{0%{transform:translateY(-100%);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateY(100vh);opacity:0}}
+  .beam{position:fixed;pointer-events:none;z-index:2;}
+  .beam-h{height:1px;left:0;right:0;background:linear-gradient(90deg,transparent 0%,rgba(16,185,129,.8)30%,#a7f3d0 50%,rgba(16,185,129,.8)70%,transparent 100%);box-shadow:0 0 8px 2px rgba(16,185,129,.5);}
+  .beam-v{width:1px;top:0;bottom:0;background:linear-gradient(180deg,transparent 0%,rgba(16,185,129,.8)30%,#a7f3d0 50%,rgba(16,185,129,.8)70%,transparent 100%);box-shadow:0 0 8px 2px rgba(16,185,129,.5);}
+  .bh1{top:28%;animation:hBeam 7s linear infinite;}
+  .bh2{top:61%;animation:hBeam 11s linear infinite 3.5s;}
+  .bh3{top:82%;animation:hBeam 8s linear infinite 1.2s;}
+  .bv1{left:22%;animation:vBeam 9s linear infinite .8s;}
+  .bv2{left:55%;animation:vBeam 13s linear infinite 4s;}
+  .bv3{left:78%;animation:vBeam 10s linear infinite 2s;}
+
+  .corner{position:absolute;width:18px;height:18px;pointer-events:none;}
+  .corner-tl{top:16px;left:16px;border-top:2px solid #10b981;border-left:2px solid #10b981;}
+  .corner-tr{top:16px;right:16px;border-top:2px solid #10b981;border-right:2px solid #10b981;}
+  .corner-bl{bottom:16px;left:16px;border-bottom:2px solid #10b981;border-left:2px solid #10b981;}
+  .corner-br{bottom:16px;right:16px;border-bottom:2px solid #10b981;border-right:2px solid #10b981;}
+
+  @keyframes crossH{0%{transform:scaleX(0);opacity:0}30%{transform:scaleX(1);opacity:1}70%{transform:scaleX(1);opacity:1}100%{transform:scaleX(0);opacity:0}}
+  @keyframes crossV{0%{transform:scaleY(0);opacity:0}30%{transform:scaleY(1);opacity:1}70%{transform:scaleY(1);opacity:1}100%{transform:scaleY(0);opacity:0}}
+  @keyframes pulseGlow{0%,100%{text-shadow:0 0 20px rgba(52,211,153,.4),0 0 60px rgba(16,185,129,.2)}50%{text-shadow:0 0 40px rgba(52,211,153,.9),0 0 100px rgba(16,185,129,.5)}}
+  @keyframes aiFlicker{0%,95%,100%{opacity:1;box-shadow:0 0 20px rgba(16,185,129,.6)}96%{opacity:.6}97%{opacity:1}98%{opacity:.4;box-shadow:0 0 40px rgba(16,185,129,1)}}
+
+  .logo-title{font-size:clamp(2rem,5vw,3rem);font-weight:900;color:#ecfdf5;letter-spacing:.04em;animation:pulseGlow 4s ease-in-out infinite;}
+  .logo-cross-h{position:absolute;left:0;right:0;height:1px;top:50%;background:linear-gradient(90deg,transparent,#34d399,#a7f3d0,#34d399,transparent);transform-origin:center;animation:crossH 3s ease-in-out infinite;box-shadow:0 0 8px #34d399;}
+  .logo-cross-v{position:absolute;top:0;bottom:0;width:1px;left:50%;background:linear-gradient(180deg,transparent,#34d399,#a7f3d0,#34d399,transparent);transform-origin:center;animation:crossV 3s ease-in-out infinite;box-shadow:0 0 8px #34d399;}
+  .ai-badge{display:inline-flex;align-items:center;justify-content:center;padding:6px 16px;border-radius:10px;background:linear-gradient(135deg,#059669,#10b981);color:white;font-size:22px;font-weight:900;letter-spacing:.12em;border:1px solid #34d399;animation:aiFlicker 5s infinite;position:relative;}
+  .ai-badge::before{content:'';position:absolute;inset:-3px;border-radius:13px;background:radial-gradient(ellipse,rgba(52,211,153,.4),transparent 70%);animation:pulseGlow 2s ease-in-out infinite;}
+
+  .auth-card{background:rgba(5,20,12,.88);backdrop-filter:blur(24px);border:1px solid rgba(52,211,153,.2);box-shadow:0 0 0 1px rgba(16,185,129,.1),0 40px 80px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05);}
+  .auth-input{background:rgba(255,255,255,.05);border:1px solid rgba(52,211,153,.2);color:#ecfdf5;border-radius:14px;padding:14px 18px;width:100%;font-size:14px;font-weight:600;outline:none;transition:all .2s;box-sizing:border-box;}
+  .auth-input::placeholder{color:rgba(167,243,208,.4);}
+  .auth-input:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.15);background:rgba(255,255,255,.08);}
+  .auth-btn{width:100%;padding:14px;background:linear-gradient(135deg,#059669,#10b981);color:white;font-weight:900;font-size:12px;letter-spacing:.15em;text-transform:uppercase;border:none;border-radius:14px;cursor:pointer;box-shadow:0 8px 20px rgba(16,185,129,.35);transition:all .2s;}
+  .auth-btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(16,185,129,.45);}
+
+  /* ── DASHBOARD ── */
+  .dash-bg { background:#f1f5f9; min-height:100vh; }
+  .fade-enter { animation:fadeIn .4s ease-out; }
+  @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+  .module-card{background:white;border-radius:20px;border:1px solid #e2e8f0;box-shadow:0 4px 16px rgba(0,0,0,.06);cursor:pointer;transition:all .2s;text-decoration:none;display:block;color:inherit;}
+  .module-card:hover{box-shadow:0 8px 32px rgba(0,0,0,.12);transform:translateY(-3px);border-color:#10b981;}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     AUTH SCREEN
+══════════════════════════════════════════════ -->
+<div id="auth-screen" class="min-h-screen flex items-center justify-center p-4 relative">
+  <div class="auth-bg"></div>
+  <div class="grid-lines"></div>
+  <div class="scan-beam"></div>
+  <div class="beam beam-h bh1"></div><div class="beam beam-h bh2"></div><div class="beam beam-h bh3"></div>
+  <div class="beam beam-v bv1"></div><div class="beam beam-v bv2"></div><div class="beam beam-v bv3"></div>
+
+  <div class="auth-card rounded-[2.5rem] w-full max-w-md p-10 relative z-10">
+    <div class="corner corner-tl"></div><div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div><div class="corner corner-br"></div>
+
+    <div class="flex flex-col items-center mb-10">
+      <div class="relative w-full flex items-center justify-center mb-3" style="height:90px;">
+        <div class="logo-cross-h"></div>
+        <div class="logo-cross-v"></div>
+        <div class="logo-title z-10 relative text-center px-4" style="font-size:clamp(2.2rem,6vw,3.2rem);line-height:1.1;">
+          MJM<br>
+          <span style="font-size:0.55em;letter-spacing:0.3em;color:#34d399;font-weight:900;display:block;margin-top:2px;">NURSERY</span>
+        </div>
+      </div>
+      <div class="ai-badge mt-1">AI</div>
+      <p class="text-[11px] font-black text-emerald-500 uppercase tracking-[0.35em] mt-5 text-center">The future is here</p>
+    </div>
+
+    <div id="standard-auth-fields" class="space-y-3">
+      <div id="signup-fields" class="hidden">
+        <input type="text" id="user-name" placeholder="Full Name" class="auth-input mb-3">
+      </div>
+      <input type="email" id="email" placeholder="Email Address" class="auth-input">
+      <input type="password" id="password" placeholder="Password" class="auth-input">
+      <button id="main-auth-btn" class="auth-btn mt-2">Login</button>
+      <div class="flex justify-between items-center pt-2">
+        <button id="forgot-password-btn" class="text-[10px] font-bold text-emerald-600/70 hover:text-emerald-400 uppercase tracking-widest bg-transparent border-none cursor-pointer transition-colors">Forgot Password?</button>
+        <button id="toggle-auth-btn" class="text-[10px] font-bold text-slate-400 hover:text-emerald-400 uppercase tracking-widest bg-transparent border-none cursor-pointer transition-colors">Create Account</button>
+      </div>
+    </div>
+
+    <div id="recovery-auth-fields" class="hidden space-y-3">
+      <div class="text-center text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-4">Create New Password</div>
+      <input type="password" id="new-password" placeholder="Enter New Password" class="auth-input">
+      <button id="update-password-btn" class="auth-btn mt-2">Save Password</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     DASHBOARD SCREEN
+══════════════════════════════════════════════ -->
+<div id="dashboard-screen" style="display:none" class="dash-bg fade-enter">
+
+  <!-- Top nav -->
+  <div class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white font-black text-xs">AI</div>
+      <span class="font-black text-slate-800 uppercase tracking-widest text-sm">MJM Nursery AI</span>
+    </div>
+    <div class="flex items-center gap-4">
+      <span id="welcome-text" class="text-xs font-bold text-slate-400 hidden md:block"></span>
+      <button id="logout-btn" class="text-[10px] font-bold text-slate-500 hover:text-red-500 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer transition-colors">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- Module grid -->
+  <div class="max-w-[900px] mx-auto px-6 py-8">
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+      <!-- Issue Collection DO -->
+      <a href="do_signing.html" class="module-card p-5 flex items-center gap-4">
+        <div class="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center text-3xl shrink-0">📋</div>
+        <div class="flex-1 min-w-0">
+          <h3 class="text-base font-black text-slate-800 uppercase tracking-wide leading-tight">Issue Collection DO</h3>
+          <div class="flex items-center gap-2 mt-2">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
+            <span class="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Active</span>
+          </div>
+        </div>
+        <div class="text-slate-300 font-black text-lg shrink-0">›</div>
+      </a>
+
+      <!-- Customer Consent -->
+      <a href="consent.html" class="module-card p-5 flex items-center gap-4">
+        <div class="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center text-3xl shrink-0">✍️</div>
+        <div class="flex-1 min-w-0">
+          <h3 class="text-base font-black text-slate-800 uppercase tracking-wide leading-tight">Customer Consent</h3>
+          <div class="flex items-center gap-2 mt-2">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
+            <span class="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Active</span>
+          </div>
+        </div>
+        <div class="text-slate-300 font-black text-lg shrink-0">›</div>
+      </a>
+
+      <!-- Customer Booking -->
+      <a href="booking.html" class="module-card p-5 flex items-center gap-4">
+        <div class="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center text-3xl shrink-0">📅</div>
+        <div class="flex-1 min-w-0">
+          <h3 class="text-base font-black text-slate-800 uppercase tracking-wide leading-tight">Customer Collection Time Slot Booking</h3>
+          <div class="flex items-center gap-2 mt-2">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
+            <span class="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Active</span>
+          </div>
+        </div>
+        <div class="text-slate-300 font-black text-lg shrink-0">›</div>
+      </a>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Supabase ──────────────────────────────────────────────
+const SUPABASE_URL = 'https://kibqjztozokohqmhqqqf.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpYnFqenRvem9rb2hxbWhxcXFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMzQzNjIsImV4cCI6MjA4OTgxMDM2Mn0.J7qJUZhWXYf5b9oey4wXJkjdi66jomEMw_NeV9NWF7M';
+const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── DOM refs ──────────────────────────────────────────────
+const mainBtn        = document.getElementById('main-auth-btn');
+const toggleBtn      = document.getElementById('toggle-auth-btn');
+const forgotBtn      = document.getElementById('forgot-password-btn');
+const updatePwBtn    = document.getElementById('update-password-btn');
+const signupFields   = document.getElementById('signup-fields');
+const standardFields = document.getElementById('standard-auth-fields');
+const recoveryFields = document.getElementById('recovery-auth-fields');
+
+let isSignUpMode = false;
+let isLoggingOut = false;
+let isRecovering = window.location.hash.includes('type=recovery');
+
+// ── Show / hide screens ───────────────────────────────────
+function showAuth() {
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('dashboard-screen').style.display = 'none';
+}
+function showDash(session) {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('dashboard-screen').style.display = 'block';
+  document.getElementById('welcome-text').innerText =
+    'Welcome, ' + (session.user.user_metadata?.full_name || session.user.email);
+}
+
+// ── Auth state listener ───────────────────────────────────
+var _MJM_STAFF_LEVELS = ['admin','normal','view','edit','manage','read','write','full','staff'];
+function _mjmHasOpsAccess(profile) {
+  if (!profile) return false;
+  var p = profile.permissions || {};
+  if (p.manage_users || p.can_verify_operation) return true;
+  if (p.modules && typeof p.modules === 'object') {
+    for (var k in p.modules) {
+      if (p.modules[k] && _MJM_STAFF_LEVELS.indexOf(String(p.modules[k]).toLowerCase()) !== -1) return true;
+    }
+  }
+  return false;
+}
+
+// IMPORTANT: do NOT call other supabase methods (incl. .from() queries, which
+// internally fetch the session token) synchronously inside this callback. The
+// callback runs while supabase-js holds its auth lock, and the ops-access gate's
+// shared_profiles query needs that same lock — awaiting it here deadlocks and
+// the page hangs on "Processing…". Defer with setTimeout(0) so the callback
+// returns and releases the lock before the gate query runs. (Same fix as auth.html.)
+_supabase.auth.onAuthStateChange(function (event, session) {
+  if (isLoggingOut) return;
+  if (event === 'PASSWORD_RECOVERY') {
+    isRecovering = true;
+    showAuth();
+    standardFields.classList.add('hidden');
+    recoveryFields.classList.remove('hidden');
+    return;
+  }
+  if (event === 'SIGNED_OUT' || !session) { showAuth(); return; }
+  if (session) {
+    setTimeout(function () { runOpsGate(session); }, 0);
+  }
+});
+
+// Ops-access gate — same predicate as the hub and audit. If the signed-in
+// user has no staff-grade module access, bounce them to auth.html where the
+// inline Pending Access notice is shown. Fail-open on profile-read errors so a
+// brief Supabase hiccup doesn't lock real admins out. Runs deferred (outside
+// the onAuthStateChange callback) to avoid the auth-lock deadlock.
+async function runOpsGate(session) {
+  if (isLoggingOut) return;
+  sessionStorage.setItem('mjm_user_email', session.user.email);
+  sessionStorage.setItem('mjm_user_name', session.user.user_metadata?.full_name || session.user.email);
+
+  var hasAccess = true;
+  try {
+    var resp = await _supabase
+      .from('shared_profiles')
+      .select('role, user_type, permissions')
+      .eq('id', session.user.id)
+      .maybeSingle();
+    if (resp && !resp.error) hasAccess = _mjmHasOpsAccess(resp.data);
+    console.log('[mobile-gate]', { canEnter: hasAccess, profile: resp && resp.data });
+  } catch (e) { console.warn('[mobile-gate] profile read failed (allowing through):', e); }
+  if (!hasAccess) {
+    window.location.replace('auth.html');
+    return;
+  }
+
+  showDash(session);
+}
+
+// ── Login / Sign Up ───────────────────────────────────────
+mainBtn.addEventListener('click', async () => {
+  const email = document.getElementById('email').value.trim();
+  const pw    = document.getElementById('password').value;
+  if (!email || !pw) return alert('Please enter email and password.');
+  mainBtn.innerText = 'Processing…'; mainBtn.disabled = true;
+
+  if (isSignUpMode) {
+    const name = document.getElementById('user-name').value.trim();
+    const { error } = await _supabase.auth.signUp({ email, password: pw, options: { data: { full_name: name } } });
+    if (error) { alert('Signup Error: ' + error.message); mainBtn.innerText = 'Sign Up'; }
+    else {
+      alert('Account created! You can now log in.');
+      isSignUpMode = false; signupFields.classList.add('hidden');
+      mainBtn.innerText = 'Login'; toggleBtn.innerText = 'Create Account'; forgotBtn.style.display = 'inline-block';
+    }
+  } else {
+    const { error } = await _supabase.auth.signInWithPassword({ email, password: pw });
+    if (error) { alert('Login Error: ' + error.message); mainBtn.innerText = 'Login'; }
+  }
+  mainBtn.disabled = false;
+});
+
+// ── Toggle Login ↔ Create Account ────────────────────────
+toggleBtn.addEventListener('click', () => {
+  isSignUpMode = !isSignUpMode;
+  if (isSignUpMode) {
+    signupFields.classList.remove('hidden'); mainBtn.innerText = 'Sign Up';
+    toggleBtn.innerText = 'Back to Login'; forgotBtn.style.display = 'none';
+  } else {
+    signupFields.classList.add('hidden'); mainBtn.innerText = 'Login';
+    toggleBtn.innerText = 'Create Account'; forgotBtn.style.display = 'inline-block';
+  }
+});
+
+// ── Forgot Password ───────────────────────────────────────
+forgotBtn.addEventListener('click', async () => {
+  const email = document.getElementById('email').value.trim();
+  if (!email) return alert('Enter your email first.');
+  forgotBtn.innerText = 'Sending…';
+  const { error } = await _supabase.auth.resetPasswordForEmail(email);
+  if (error) alert('Error: ' + error.message);
+  else alert('Reset link sent! Check your inbox.');
+  forgotBtn.innerText = 'Forgot Password?';
+});
+
+// ── Update Password (recovery) ────────────────────────────
+updatePwBtn.addEventListener('click', async () => {
+  const pw = document.getElementById('new-password').value;
+  if (!pw || pw.length < 6) return alert('Password must be at least 6 characters.');
+  updatePwBtn.innerText = 'Updating…';
+  const { error } = await _supabase.auth.updateUser({ password: pw });
+  if (error) { alert('Error: ' + error.message); updatePwBtn.innerText = 'Save Password'; }
+  else {
+    alert('Password updated! Please log in.');
+    isRecovering = false; window.location.hash = '';
+    recoveryFields.classList.add('hidden'); standardFields.classList.remove('hidden');
+    showAuth();
+  }
+});
+
+// ── Sign Out ──────────────────────────────────────────────
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  isLoggingOut = true;
+  const btn = document.getElementById('logout-btn');
+  btn.innerText = 'Signing Out…'; btn.disabled = true;
+  Object.keys(localStorage).forEach(k => { if (k.startsWith('sb-')) localStorage.removeItem(k); });
+  sessionStorage.clear();
+  try { await _supabase.auth.signOut({ scope: 'local' }); } catch(e) {}
+  isSignUpMode = false; signupFields.classList.add('hidden');
+  mainBtn.innerText = 'Login'; toggleBtn.innerText = 'Create Account'; forgotBtn.style.display = 'inline-block';
+  document.getElementById('email').value = ''; document.getElementById('password').value = '';
+  showAuth();
+  btn.innerText = 'Sign Out'; btn.disabled = false;
+  isLoggingOut = false;
+});
+
+// ── Enter key ─────────────────────────────────────────────
+document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') mainBtn.click(); });
+</script>
+</body>
+</html>
