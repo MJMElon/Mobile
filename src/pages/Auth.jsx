@@ -285,13 +285,13 @@ export default function AuthPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
               <input ref={eoEmail} type="email" className="auth-input" placeholder="Email Address" />
               <div className="otp-row" style={{ display: 'flex', gap: '.5rem' }}>
-                <input ref={eoOtp} type="text" className="auth-input" placeholder="Enter 6-digit code" maxLength={6} style={{ flex: 1 }} />
+                <input ref={eoOtp} type="text" className="auth-input" placeholder="Enter 8-digit code" maxLength={8} style={{ flex: 1 }} />
                 <button style={otpSend} onClick={sendEmailOTP}>{emailSendLabel}</button>
               </div>
-              <button className="auth-btn" onClick={verifyEmailOTP}>Verify &amp; Login</button>
+              <button className="auth-btn" onClick={verifyEmailOTP}>Login with OTP</button>
             </div>
             <div style={{ textAlign: 'center', marginTop: '.75rem' }}>
-              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,.3)' }}>A 6-digit code will be sent to your email</span>
+              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,.3)' }}>An 8-digit code will be sent to your email</span>
             </div>
           </div>
         ) : (
@@ -299,13 +299,13 @@ export default function AuthPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
               <input ref={smsPhone} type="tel" className="auth-input" placeholder="Phone Number (e.g. +60112345678)" />
               <div className="otp-row" style={{ display: 'flex', gap: '.5rem' }}>
-                <input ref={smsOtp} type="text" className="auth-input" placeholder="Enter 6-digit code" maxLength={6} style={{ flex: 1 }} />
+                <input ref={smsOtp} type="text" className="auth-input" placeholder="Enter 8-digit code" maxLength={8} style={{ flex: 1 }} />
                 <button style={otpSend} onClick={sendSmsOTP}>{smsSendLabel}</button>
               </div>
-              <button className="auth-btn" onClick={verifySmsOTP}>Verify &amp; Login</button>
+              <button className="auth-btn" onClick={verifySmsOTP}>Login with OTP</button>
             </div>
             <div style={{ textAlign: 'center', marginTop: '.75rem' }}>
-              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,.3)' }}>A 6-digit code will be sent via SMS to your phone</span>
+              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,.3)' }}>An 8-digit code will be sent via SMS to your phone</span>
             </div>
           </div>
         )}
