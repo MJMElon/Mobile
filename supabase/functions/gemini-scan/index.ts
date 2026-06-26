@@ -17,7 +17,15 @@
 //
 // deno-lint-ignore-file no-explicit-any
 
-const GEMINI_MODEL = 'gemini-2.5-flash-preview-04-17';
+// Default model when the caller doesn't specify one. Callers may pass any
+// model name via the `model` field (the hub uses several: gemini-3-flash-preview,
+// gemini-2.0-flash, etc.) so each page keeps its original behavior.
+const DEFAULT_MODEL = 'gemini-2.5-flash-preview-04-17';
+const MODEL_ALLOWLIST = [
+  'gemini-2.5-flash-preview-04-17',
+  'gemini-3-flash-preview',
+  'gemini-2.0-flash',
+];
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -47,13 +55,16 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Invalid JSON body' }, 400);
   }
 
-  const { image, mimeType, prompt } = payload || {};
+  const { image, mimeType, prompt, model } = payload || {};
   if (!image || !prompt) return json({ error: 'image and prompt are required' }, 400);
+
+  // Use the requested model only if it's on the allowlist; otherwise default.
+  const chosenModel = MODEL_ALLOWLIST.includes(model) ? model : DEFAULT_MODEL;
 
   const data = String(image).includes(',') ? String(image).split(',')[1] : image;
 
   const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
+    `https://generativelanguage.googleapis.com/v1beta/models/${chosenModel}:generateContent?key=${key}`;
   const body = {
     contents: [
       {
@@ -63,7 +74,9 @@ Deno.serve(async (req: Request) => {
         ],
       },
     ],
-    generationConfig: { responseMimeType: 'application/json' },
+    // temperature 0 = deterministic extraction/counting (matches the hub's
+    // original seed-count behavior); JSON mime forces structured output.
+    generationConfig: { responseMimeType: 'application/json', temperature: 0 },
   };
 
   try {
