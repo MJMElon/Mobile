@@ -321,13 +321,18 @@ function Consent({ session, userName }) {
   }
 
   // ── Derived qty math ──
-  const balance = currentAL?.balance_quantity || 0;
-  const remaining = isManualMode ? Infinity : Math.max(0, balance - totalPreviouslyConsented);
+  // Consent allowance is gated by the AL's TOTAL ORDERED qty, not its
+  // remaining balance. Each consent records customer agreement for part
+  // of what they ordered; cumulative consents across collection events
+  // can total the full ordered qty, regardless of how much has already
+  // been delivered (DO'd).
+  const ordered = currentAL?.quantity_ordered || 0;
+  const remaining = isManualMode ? Infinity : Math.max(0, ordered - totalPreviouslyConsented);
 
   function getMaxConsentQty() {
     if (isManualMode) return Infinity;
     if (!currentAL) return 0;
-    return Math.max(0, (currentAL.balance_quantity || 0) - totalPreviouslyConsented);
+    return Math.max(0, (currentAL.quantity_ordered || 0) - totalPreviouslyConsented);
   }
 
   function selectQty(qty) {
@@ -376,7 +381,7 @@ function Consent({ session, userName }) {
 
   const maxQtyHint = isManualMode
     ? '(Manual entry — enter any quantity)'
-    : '(Max: ' + remaining.toLocaleString() + ' remaining of ' + balance.toLocaleString() + ' balance)';
+    : '(Max: ' + remaining.toLocaleString() + ' remaining of ' + ordered.toLocaleString() + ' ordered)';
 
   // ════════════════ CONSENT HISTORY ════════════════
   async function loadConsentHistory(alNumber) {
