@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { displayName } from '../lib/auth';
 import { callGeminiScan, compressImage } from '../lib/gemini';
 import { printDOPdf } from '../lib/pdf';
+import { attachDOToOrder, generateDONumber } from '../lib/doAttach';
 import AuthGate from '../components/AuthGate';
 import TopNav from '../components/TopNav';
 import SignaturePad from '../components/SignaturePad';
@@ -233,24 +234,6 @@ function DoSigning({ session, userName }) {
     setTimeout(triggerCamera, 150);
   }
 
-  // ── DO number ──
-  async function generateDONumber() {
-    const year = new Date().getFullYear();
-    const prefix = `DO-${year}-`;
-    const { data } = await supabase
-      .from('shared_do_records')
-      .select('do_number')
-      .ilike('do_number', `${prefix}%`)
-      .order('do_number', { ascending: false })
-      .limit(1);
-    let next = 1;
-    if (data && data.length) {
-      const num = parseInt(String(data[0].do_number).slice(prefix.length).replace(/\D/g, '')) || 0;
-      next = num + 1;
-    }
-    return prefix + String(next).padStart(4, '0');
-  }
-
   // ── Scan modal ──
   async function openScanModal(base64) {
     setScanPhoto(base64);
@@ -262,7 +245,7 @@ function DoSigning({ session, userName }) {
     setItems([newRow()]);
     setScanSigTime('');
     setScanOpen(true);
-    const doNum = await generateDONumber();
+    const doNum = await generateDONumber(activeAL);
     setScanDoNumber(doNum);
   }
 
@@ -374,6 +357,10 @@ function DoSigning({ session, userName }) {
     const newBalance = (activeAL.balance_quantity ?? 0) - total;
     await supabase.from('shared_al_orders').update({ balance_quantity: newBalance }).eq('id', activeAL.id);
 
+    // Attach the standardized DO PDF to the customer's Sales Web order
+    // (best-effort — never blocks the DO).
+    await attachDOToOrder({ payload, al: activeAL, staff, sigDataUrl, photoBase64: scanPhoto });
+
     const updatedAL = { ...activeAL, balance_quantity: newBalance };
     setAlData((prev) => {
       const next = prev.map((r) => (r.id === activeAL.id ? updatedAL : r));
@@ -386,12 +373,12 @@ function DoSigning({ session, userName }) {
     // Refresh manage list + show print prompt
     setManageOpen(true);
     loadDOsForAL(updatedAL.al_number);
-    setTimeout(() => setPrintPrompt({ doNum: scanDoNumber, rec: payload, sig: sigDataUrl }), 400);
+    setTimeout(() => setPrintPrompt({ doNum: scanDoNumber, rec: payload, sig: sigDataUrl, photo: scanPhoto }), 400);
   }
 
-  function doPrint(rec, sig = null) {
+  function doPrint(rec, sig = null, photo = null) {
     const al = activeAL || alData.find((r) => r.al_number === rec.al_number) || {};
-    printDOPdf(rec, al, staff, sig);
+    printDOPdf(rec, al, staff, sig, photo);
     showToast(`${rec.do_number} printed!`);
   }
 
@@ -729,7 +716,7 @@ function DoSigning({ session, userName }) {
           <div className="text-sm font-bold text-slate-500 mb-1">{printPrompt?.doNum || '—'}</div>
           <div className="text-xs font-bold text-slate-400 mb-6">Print this DO for the customer?</div>
           <div className="flex flex-col gap-3">
-            <button onClick={() => { const p = printPrompt; setPrintPrompt(null); if (p) doPrint(p.rec, p.sig); }} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">🖨️ Yes — Print PDF</button>
+            <button onClick={() => { const p = printPrompt; setPrintPrompt(null); if (p) doPrint(p.rec, p.sig, p.photo); }} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">🖨️ Yes — Print PDF</button>
             <button onClick={() => { setPrintPrompt(null); showToast('DO saved!'); }} className="w-full py-2.5 text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 border border-slate-200 rounded-xl cursor-pointer transition-colors">Maybe Later</button>
           </div>
         </div>
