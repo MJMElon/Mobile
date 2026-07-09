@@ -134,7 +134,11 @@ export default function AuthPage() {
     const email = epEmail.current?.value.trim();
     if (!email) return showStatus('Enter your email first, then click Forgot Password.', 'error');
     showStatus('Sending reset link...', 'success');
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    // Pin the reset link to THIS app. Without an explicit redirectTo,
+    // Supabase falls back to the project-wide Site URL (a different MJM app).
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/auth.html',
+    });
     if (error) return showStatus(error.message, 'error');
     showStatus('Reset link sent! Check your inbox.', 'success');
   }
