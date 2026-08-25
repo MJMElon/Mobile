@@ -103,3 +103,37 @@
 
 .module-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 16px rgba(0,0,0,.06); cursor: pointer; transition: all .2s; text-decoration: none; display: block; color: inherit; }
 .module-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,.12); transform: translateY(-3px); border-color: #10b981; }
+
+/* ── NELOS pending-cases block (src/components/NelosBlock.jsx) ──
+   The same widget the hub's module dashboards carry, written out here
+   because Nelos ships as a vanilla script in another repo and this is a
+   separate build. Values copied from WIDGET_CSS in
+   mjm-ai-system/shared/shared_nelos.js — keep the two in step. */
+.nelos-todo { background: white; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 16px 18px; box-shadow: 0 4px 14px rgba(15,23,42,.05); }
+.nelos-todo-head { display: flex; align-items: center; gap: 9px; margin-bottom: 11px; }
+.nelos-todo-title { font-size: 11px; font-weight: 900; letter-spacing: .11em; text-transform: uppercase; color: #334155; white-space: nowrap; }
+.nelos-todo-count { font-size: 10px; font-weight: 900; padding: 2px 8px; border-radius: 999px; background: #fee2e2; color: #b91c1c; letter-spacing: .04em; }
+.nelos-todo-count.zero { background: #dcfce7; color: #15803d; }
+.nelos-todo-all { margin-left: auto; font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; color: #7c3aed; text-decoration: none; white-space: nowrap; }
+.nelos-todo-all:hover { text-decoration: underline; }
+
+/* Group headings. Overdue is sticky as well as first — on a long list,
+   scrolling should never bury the part that is already late. */
+.nelos-sec { font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; padding: 9px 2px 4px; }
+.nelos-sec-over { position: sticky; top: 0; z-index: 1; background: white; color: #b91c1c; }
+
+.nelos-row { display: flex; align-items: flex-start; gap: 9px; padding: 8px 2px; border-bottom: 1px dashed #e2e8f0; text-decoration: none; color: inherit; }
+.nelos-row:last-child { border-bottom: none; }
+.nelos-row:hover { background: #faf5ff; }
+.nelos-row-over .nelos-row-title { color: #991b1b; }
+.nelos-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.nelos-p-urgent { background: #dc2626; }
+.nelos-p-high { background: #f97316; }
+.nelos-p-normal { background: #0ea5e9; }
+.nelos-p-low { background: #94a3b8; }
+.nelos-row-main { min-width: 0; flex: 1; }
+.nelos-row-title { font-size: 13px; font-weight: 700; color: #1e293b; line-height: 1.3; display: block; }
+.nelos-row-meta { font-size: 10px; font-weight: 600; color: #94a3b8; margin-top: 2px; display: block; }
+.nelos-chip { display: inline-block; font-size: 9px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; background: #ede9fe; color: #6d28d9; padding: 1px 6px; border-radius: 5px; }
+.nelos-due-over { color: #b91c1c; font-weight: 900; white-space: nowrap; }
+.nelos-empty { text-align: center; font-size: 12px; font-weight: 700; color: #94a3b8; padding: 22px 6px; }

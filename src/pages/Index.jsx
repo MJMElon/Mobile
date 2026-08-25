@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { checkOpsAccess, rememberUser, displayName, signOutLocal } from '../lib/auth';
 import BookCover from '../components/BookCover.jsx';
 import PortalBar from '../components/PortalBar.jsx';
+import NelosBlock from '../components/NelosBlock.jsx';
 
 // Combined sign-in + dashboard. This is what mobile.mjmnursery.com opens on,
 // so this is the login almost everyone sees — auth.html is the other door,
@@ -149,6 +150,12 @@ export default function IndexPage() {
       <div className="fade-enter" style={{ background: '#f1f5f9', minHeight: '100vh' }}>
         <PortalBar user={displayName(session)} onSignOut={handleLogout} />
         <div className="max-w-[900px] mx-auto px-6 py-8">
+          {/* What is waiting, above what you came here to open. The module
+              cards are a chooser and are always the same three; the cases
+              are the only thing on this page that changes day to day, so
+              they go first. Renders nothing at all if the case log is
+              unreachable — see NelosBlock. */}
+          <NelosBlock />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {modules.map((m) => (
               <a key={m.href} href={m.href} className="module-card p-5 flex items-center gap-4">
