@@ -248,45 +248,39 @@ export default function AuthPage() {
 
         {isRecovery ? (
           <>
-            <div className="bk-row">
-              <span className="bk-tag">New password</span>
-              <input
-                ref={recPw}
-                type="password"
-                className="bk-write"
-                autoComplete="new-password"
-                onKeyDown={onEnter(updatePassword)}
-              />
-            </div>
+            <input
+              ref={recPw}
+              type="password"
+              className="bk-field"
+              placeholder="New password"
+              autoComplete="new-password"
+              onKeyDown={onEnter(updatePassword)}
+            />
             <button className="bk-btn" onClick={updatePassword}>Save Password</button>
           </>
         ) : method === 'password' ? (
           <>
             {isSignUp && (
-              <div className="bk-row">
-                <span className="bk-tag">Name</span>
-                <input ref={signupName} type="text" className="bk-write" autoComplete="name" />
-              </div>
+              <input ref={signupName} type="text" className="bk-field"
+                     placeholder="Full Name" autoComplete="name" />
             )}
 
-            <div className="bk-row">
-              <span className="bk-tag">Email</span>
-              <input
-                ref={epEmail}
-                type="email"
-                className="bk-write"
-                autoComplete="email"
-                autoCapitalize="none"
-                onKeyDown={onEnter(() => epPw.current?.focus())}
-              />
-            </div>
+            <input
+              ref={epEmail}
+              type="email"
+              className="bk-field"
+              placeholder="Email Address"
+              autoComplete="email"
+              autoCapitalize="none"
+              onKeyDown={onEnter(() => epPw.current?.focus())}
+            />
 
-            <div className="bk-row">
-              <span className="bk-tag">Password</span>
+            <div className="bk-boxed">
               <input
                 ref={epPw}
                 type={showPw ? 'text' : 'password'}
-                className="bk-write"
+                className="bk-field"
+                placeholder="Password"
                 autoComplete="current-password"
                 onKeyDown={onEnter(loginEmailPassword)}
               />
@@ -318,24 +312,22 @@ export default function AuthPage() {
           </>
         ) : method === 'otp' ? (
           <>
-            <div className="bk-row">
-              <span className="bk-tag">Email</span>
-              <input
-                ref={eoEmail}
-                type="email"
-                className="bk-write"
-                autoComplete="email"
-                autoCapitalize="none"
-              />
-            </div>
-            <div className="bk-row">
-              <span className="bk-tag">Code</span>
+            <input
+              ref={eoEmail}
+              type="email"
+              className="bk-field"
+              placeholder="Email Address"
+              autoComplete="email"
+              autoCapitalize="none"
+            />
+            <div className="bk-boxed">
               <input
                 ref={eoOtp}
                 type="text"
                 inputMode="numeric"
                 maxLength={8}
-                className="bk-write bk-code"
+                className="bk-field bk-code"
+                placeholder="8-digit code"
                 onKeyDown={onEnter(verifyEmailOTP)}
               />
               <button className="bk-send" type="button" onClick={sendEmailOTP}>{emailSendLabel}</button>
@@ -345,24 +337,21 @@ export default function AuthPage() {
           </>
         ) : (
           <>
-            <div className="bk-row">
-              <span className="bk-tag">Phone</span>
-              <input
-                ref={smsPhone}
-                type="tel"
-                className="bk-write"
-                autoComplete="tel"
-                placeholder="+60112345678"
-              />
-            </div>
-            <div className="bk-row">
-              <span className="bk-tag">Code</span>
+            <input
+              ref={smsPhone}
+              type="tel"
+              className="bk-field"
+              autoComplete="tel"
+              placeholder="Phone (+60112345678)"
+            />
+            <div className="bk-boxed">
               <input
                 ref={smsOtp}
                 type="text"
                 inputMode="numeric"
                 maxLength={8}
-                className="bk-write bk-code"
+                className="bk-field bk-code"
+                placeholder="8-digit code"
                 onKeyDown={onEnter(verifySmsOTP)}
               />
               <button className="bk-send" type="button" onClick={sendSmsOTP}>{smsSendLabel}</button>
@@ -397,15 +386,20 @@ function Book({ title, sub, children }) {
 
           {children}
 
-          <div className="bk-imprint">MJM Nursery · Mega Jutamas Sdn Bhd</div>
         </div>
       </div>
 
       <style>{`
         /* Caveat and DM Sans are linked from auth.html — see the head there. */
         .bk-page{
-          --bk-cover:#a9cdb0; --bk-cover-2:#93bb9c; --bk-cover-3:#84ac8d;  /* Admin: green */
-          --bk-ink:#23303f; --bk-print:#9c1c2c; --bk-red:#e23b4b; --bk-red-dark:#a5121f;
+          /* Admin: manila. It was green until the logotype went dark green
+             and the two stopped telling each other apart. */
+          --bk-cover:#e6d7a6; --bk-cover-2:#d8c791; --bk-cover-3:#c9b881;
+          --bk-ink:#23303f;
+          --bk-quiet:rgba(35,48,63,.62);   /* both lines on the cover */
+          /* the logotype and every button here are MJM's dark green, not the
+             printer's red the books themselves are stamped with */
+          --bk-green:#1f7a45; --bk-green-2:#155c33; --bk-green-3:#0f4a29; --bk-green-4:#0b3d21;
           --bk-hand:'Caveat','Bradley Hand','Segoe Script','Comic Sans MS',cursive;
 
           position:relative;min-height:100vh;
@@ -460,26 +454,32 @@ function Book({ title, sub, children }) {
 
         .bk-logo-wrap{text-align:center;margin-bottom:4px}
         .bk-logo{
-          display:inline-block;font-weight:900;font-size:74px;line-height:.9;
-          letter-spacing:-.02em;font-style:italic;color:var(--bk-red);
-          -webkit-text-stroke:1.5px #fff5f6;paint-order:stroke fill;
+          /* Grows with the phone, the way the FC cover does. */
+          display:inline-block;font-weight:900;font-size:clamp(74px,24vw,100px);
+          line-height:.9;letter-spacing:-.02em;font-style:italic;color:var(--bk-green);
+          -webkit-text-stroke:1.5px #f4fbf6;paint-order:stroke fill;
           text-shadow:
-            1px 1px 0 var(--bk-red-dark),2px 2px 0 var(--bk-red-dark),
-            3px 3px 0 var(--bk-red-dark),4px 4px 0 var(--bk-red-dark),
-            5px 5px 0 #8e0f1b,6px 6px 0 #8e0f1b,
-            7px 7px 0 #7a0c17,8px 8px 0 #7a0c17,
-            10px 12px 16px rgba(80,6,14,.4);
-          transform:rotate(-1.2deg);
+            1px 1px 0 var(--bk-green-2),2px 2px 0 var(--bk-green-2),
+            3px 3px 0 var(--bk-green-2),4px 4px 0 var(--bk-green-2),
+            5px 5px 0 var(--bk-green-3),6px 6px 0 var(--bk-green-3),
+            7px 7px 0 var(--bk-green-4),8px 8px 0 var(--bk-green-4),
+            10px 12px 16px rgba(6,42,22,.4);
+          /* The glyph box is centred, but the shadow only falls down-RIGHT
+             and shadows take up no layout, so the INK lands right of centre.
+             Measured off a render: at 0 the centre of mass sits 8.4px right,
+             and 1px of translate moves it 1px. -7px puts centre of mass and
+             bounding box either side of zero. */
+          transform:translateX(-7px) rotate(-1.2deg);
         }
         .bk-portal{
           margin-top:12px;text-align:center;
           font-size:12px;font-weight:900;letter-spacing:.34em;text-transform:uppercase;
-          color:var(--bk-print);
+          color:var(--bk-quiet);
         }
         .bk-portal-sub{
           margin-top:5px;text-align:center;
           font-size:9.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;
-          color:rgba(35,48,63,.45);
+          color:var(--bk-quiet);
         }
 
         /* the three ways in, printed like a subject line */
@@ -495,35 +495,43 @@ function Book({ title, sub, children }) {
           border-bottom:2px solid transparent;
         }
         .bk-tab:hover{color:rgba(35,48,63,.7)}
-        .bk-tab-on{color:var(--bk-print);border-bottom-color:var(--bk-red)}
+        .bk-tab-on{color:var(--bk-green);border-bottom-color:var(--bk-green)}
 
-        /* the fill-in lines, the way the cover asks for your name */
+        /* The cover asks for your name on a ruled line; a phone in a
+           nursery asks for a box big enough to hit with a thumb. Boxes
+           win — drawn freehand, so they still belong on the cover. */
         .bk-lines{margin-top:30px}
-        .bk-row{
-          display:flex;align-items:flex-end;gap:7px;
-          border-bottom:2px dotted rgba(35,48,63,.4);
-          padding-bottom:2px;margin-bottom:17px;
-        }
-        .bk-row:focus-within{border-bottom-color:rgba(35,48,63,.8)}
-        .bk-tag{
-          flex:0 0 auto;
-          font-family:Georgia,'Times New Roman',serif;
-          font-size:15px;font-weight:700;color:var(--bk-print);
-          padding-bottom:5px;white-space:nowrap;text-transform:lowercase;
-        }
-        .bk-tag::first-letter{text-transform:uppercase}
-        .bk-write{
-          flex:1 1 auto;min-width:0;height:34px;
-          border:0;background:transparent;outline:none;
+        .bk-field{
+          display:block;width:100%;height:54px;
+          margin-bottom:13px;padding:0 15px;
+          background:rgba(255,255,255,.6);
+          border:1.5px solid rgba(35,48,63,.32);
+          border-radius:10px 7px 12px 6px / 7px 12px 6px 10px;
           font-family:var(--bk-hand);font-size:23px;color:var(--bk-ink);
-          padding:0 2px;border-radius:0;-webkit-appearance:none;
+          outline:none;-webkit-appearance:none;
+          transition:border-color .15s,box-shadow .15s,background .15s;
         }
-        .bk-write::placeholder{
-          font-family:'DM Sans',sans-serif;font-size:12px;color:rgba(35,48,63,.3);
+        .bk-field::placeholder{
+          font-family:'DM Sans',sans-serif;
+          font-size:13px;font-weight:700;letter-spacing:.02em;
+          color:rgba(35,48,63,.42);
+        }
+        .bk-field:focus{
+          background:rgba(255,255,255,.82);
+          border-color:var(--bk-green);
+          box-shadow:0 0 0 3px rgba(31,122,69,.16);
         }
         .bk-code{letter-spacing:.12em}
+        /* a box with something sitting inside it — the eye, or Send */
+        .bk-boxed{position:relative}
+        .bk-boxed .bk-field{padding-right:104px}
+        .bk-boxed .bk-field[type=password],
+        .bk-boxed .bk-field[type=text]:not(.bk-code){padding-right:48px}
 
-        .bk-eye{flex:0 0 auto;background:none;border:none;padding:4px 0 6px 4px;cursor:pointer}
+        .bk-eye{
+          position:absolute;right:12px;top:27px;transform:translateY(-50%);
+          background:none;border:none;padding:4px;cursor:pointer;
+        }
         .bk-eye svg{
           width:17px;height:17px;
           stroke:rgba(35,48,63,.45);fill:none;stroke-width:1.7;
@@ -532,10 +540,10 @@ function Book({ title, sub, children }) {
         .bk-eye:hover svg{stroke:var(--bk-ink)}
 
         .bk-send{
-          flex:0 0 auto;align-self:center;margin-bottom:4px;
+          position:absolute;right:9px;top:27px;transform:translateY(-50%);
           background:rgba(35,48,63,.07);border:1.5px solid rgba(35,48,63,.28);
           border-radius:7px 5px 8px 4px / 5px 8px 4px 7px;
-          padding:6px 10px;cursor:pointer;white-space:nowrap;
+          padding:7px 11px;cursor:pointer;white-space:nowrap;
           font-family:'DM Sans',sans-serif;
           font-size:9px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;
           color:var(--bk-ink);
@@ -544,16 +552,16 @@ function Book({ title, sub, children }) {
 
         .bk-btn{
           width:100%;height:50px;margin-top:22px;
-          background:var(--bk-red-dark);color:#fff3f4;
-          border:2px solid rgba(90,6,14,.9);
+          background:var(--bk-green-2);color:#f2fbf5;
+          border:2px solid rgba(9,58,32,.9);
           border-radius:10px 7px 12px 6px / 7px 12px 6px 10px;
-          box-shadow:3px 3px 0 rgba(70,5,12,.35);
+          box-shadow:3px 3px 0 rgba(7,45,25,.35);
           transform:rotate(-.5deg);
           font-family:'DM Sans',sans-serif;
           font-size:13px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;
           cursor:pointer;transition:transform .12s,box-shadow .12s,background .15s;
         }
-        .bk-btn:hover{background:#bd1524}
+        .bk-btn:hover{background:var(--bk-green)}
         .bk-btn:active{transform:rotate(-.5deg) translate(3px,3px);box-shadow:0 0 0}
         .bk-btn:disabled{opacity:.65;cursor:default;transform:rotate(-.5deg)}
 
@@ -564,7 +572,7 @@ function Book({ title, sub, children }) {
           border-bottom:1.5px dashed rgba(35,48,63,.4);
           padding:0 1px;cursor:pointer;
         }
-        .bk-link:hover{color:var(--bk-print);border-bottom-color:rgba(156,28,44,.6)}
+        .bk-link:hover{color:var(--bk-green);border-bottom-color:rgba(31,122,69,.6)}
         .bk-link-right{margin-left:auto}
 
         .bk-hint{
@@ -613,11 +621,6 @@ function Book({ title, sub, children }) {
         }
         .bk-slip-acts{display:flex;align-items:baseline;margin-top:14px}
 
-        .bk-imprint{
-          margin-top:20px;text-align:center;
-          font-size:8px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;
-          color:rgba(35,48,63,.35);
-        }
 
         @media (max-width:360px){
           .bk-cover{padding:26px 20px 22px}
