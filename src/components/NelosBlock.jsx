@@ -26,14 +26,14 @@
    session or a network blip all render nothing at all rather than an
    error where the cases should be.
    ══════════════════════════════════════════════════════════════════════ */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import NelosCase from './NelosCase.jsx';
 
-/* Nelos lives on the hub, which is a different origin from this portal —
-   so these are absolute where every other link in this app is relative. */
-const AI_ROOT = 'https://ai.mjmnursery.com/';
-const caseHref = (id) => `${AI_ROOT}nelos/nelos_case.html?id=${encodeURIComponent(id)}`;
-const homeHref = () => `${AI_ROOT}nelos/nelos_dashboard.html`;
+/* No links out. A case opens in a sheet over this page (NelosCase) and is
+   started, resolved, closed and commented on there, so an admin settles
+   the whole list without leaving the Admin Portal. The hub is still where
+   Nelos lives; it is just no longer somewhere anyone has to go. */
 
 /* This portal's own key in nelos_cases.source_module / assigned_module.
    'mobile' rather than 'admin': it is what the module was called when the
@@ -218,7 +218,7 @@ async function fetchPending() {
   };
 }
 
-function Row({ c }) {
+function Row({ c, onOpen }) {
   const subject = [c.batch_name && `Batch ${c.batch_name}`, c.plot_name, c.nursery_name]
     .filter(Boolean)
     .join(' · ');
@@ -228,11 +228,10 @@ function Row({ c }) {
     c.assignee_name ? `→ ${c.assignee_name}` : null,
   ].filter(Boolean);
   return (
-    <a
+    <button
+      type="button"
       className={`nelos-row${isOverdue(c) ? ' nelos-row-over' : ''}`}
-      href={caseHref(c.id)}
-      target="_blank"
-      rel="noopener"
+      onClick={() => onOpen(c.id)}
     >
       <span
         className={`nelos-dot nelos-p-${c.priority || 'normal'}`}
@@ -247,40 +246,50 @@ function Row({ c }) {
           {!c.assignee_name && <> · <em>unassigned</em></>}
         </span>
       </span>
-    </a>
+    </button>
   );
 }
 
 export default function NelosBlock() {
   const [state, setState] = useState({ status: 'loading', rows: [], uid: null });
+  const [openId, setOpenId] = useState(null);
+  const [me, setMe] = useState({ id: null, name: null });
+
+  const reload = useCallback(async () => {
+    let result;
+    try {
+      result = await withTimeout(fetchPending(), TIMEOUT_MS);
+    } catch (e) {
+      // Last line of defence. Whatever went wrong, this block standing
+      // down is the correct outcome — a dashboard that never finishes
+      // loading is worse than one that does not mention Nelos.
+      console.warn('[nelos] block standing down:', e?.message || e);
+      result = { rows: [], failed: true };
+    }
+    setState({ status: result.failed ? 'failed' : 'ready', rows: result.rows, uid: result.uid });
+  }, []);
 
   useEffect(() => {
-    let alive = true;
-    async function run() {
-      let result;
-      try {
-        result = await withTimeout(fetchPending(), TIMEOUT_MS);
-      } catch (e) {
-        // Last line of defence. Whatever went wrong, this block standing
-        // down is the correct outcome — a dashboard that never finishes
-        // loading is worse than one that does not mention Nelos.
-        console.warn('[nelos] block standing down:', e?.message || e);
-        result = { rows: [], failed: true };
-      }
-      if (!alive) return;
-      setState({ status: result.failed ? 'failed' : 'ready', rows: result.rows, uid: result.uid });
-    }
-    run();
+    reload();
     /* Long shifts leave this page open. Refresh, but only while somebody is
        actually looking at it — a tab left open on the office machine for a
-       week would otherwise keep asking all week for nobody. */
+       week would otherwise keep asking all week for nobody. Paused while a
+       case is open: a list redrawing under a sheet is work nobody sees, and
+       the sheet refreshes the list itself on the way out. */
     const tick = setInterval(() => {
-      if (document.visibilityState === 'visible') run();
+      if (document.visibilityState === 'visible' && !openId) reload();
     }, 5 * 60 * 1000);
-    return () => {
-      alive = false;
-      clearInterval(tick);
-    };
+    return () => clearInterval(tick);
+  }, [reload, openId]);
+
+  /* Who is writing. The case sheet stamps updated_by, resolved_by and the
+     thread's author with this, so it has to be the same name the hub would
+     have written — user_metadata.full_name, then the email. */
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      const u = data?.session?.user;
+      if (u) setMe({ id: u.id, name: u.user_metadata?.full_name || u.email || 'Unknown' });
+    }).catch(() => {});
   }, []);
 
   // Nothing to say, and nothing worth breaking the dashboard over.
@@ -304,19 +313,29 @@ export default function NelosBlock() {
   const groups = [over.length, restMine.length, restOther.length].filter(Boolean).length;
 
   return (
+    <>
+      {openId && (
+        <NelosCase
+          caseId={openId}
+          me={me}
+          onClose={(didChange) => {
+            setOpenId(null);
+            /* Only re-read when something actually moved. Closing a case
+               you only looked at should not make the list flicker. */
+            if (didChange) reload();
+          }}
+        />
+      )}
     <div className="nelos-todo mb-4">
+      {/* Centred, and the count travels with it as one heading rather than
+          being pushed to the far edge. There is no "Open Nelos →" any more:
+          every case opens in place, so there is nowhere else to send
+          anyone. */}
       <div className="nelos-todo-head">
-        {/* Just "Nelos". The longer "Nelos — Pending Cases" wrapped to two
-            lines on a phone and pushed the count onto the first one on its
-            own; and the words are already carried by the count chip and the
-            group headings below it. */}
-        <span className="nelos-todo-title">📋 Nelos</span>
+        <span className="nelos-todo-title">📋 Nelos To Do</span>
         <span className={`nelos-todo-count${rows.length ? '' : ' zero'}`}>
           {rows.length || 'clear'}
         </span>
-        <a className="nelos-todo-all" href={homeHref()} target="_blank" rel="noopener">
-          Open Nelos →
-        </a>
       </div>
 
       {!rows.length && <div className="nelos-empty">Nothing pending — all clear ✓</div>}
@@ -327,21 +346,22 @@ export default function NelosBlock() {
       {!!over.length && (
         <>
           <div className="nelos-sec nelos-sec-over">⏰ Overdue · {over.length}</div>
-          {over.map((c) => <Row key={c.id} c={c} />)}
+          {over.map((c) => <Row key={c.id} c={c} onOpen={setOpenId} />)}
         </>
       )}
       {!!restMine.length && (
         <>
           {groups > 1 && <div className="nelos-sec">Assigned to me · {restMine.length}</div>}
-          {restMine.map((c) => <Row key={c.id} c={c} />)}
+          {restMine.map((c) => <Row key={c.id} c={c} onOpen={setOpenId} />)}
         </>
       )}
       {!!restOther.length && (
         <>
           {groups > 1 && <div className="nelos-sec">Other pending cases · {restOther.length}</div>}
-          {restOther.map((c) => <Row key={c.id} c={c} />)}
+          {restOther.map((c) => <Row key={c.id} c={c} onOpen={setOpenId} />)}
         </>
       )}
     </div>
+    </>
   );
 }
