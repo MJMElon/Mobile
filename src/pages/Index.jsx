@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { checkOpsAccess, rememberUser, displayName, signOutLocal } from '../lib/auth';
+import BookCover from '../components/BookCover.jsx';
+import PortalBar from '../components/PortalBar.jsx';
 
-// Combined auth + dashboard, faithful to the original index.html.
+// Combined sign-in + dashboard. This is what mobile.mjmnursery.com opens on,
+// so this is the login almost everyone sees — auth.html is the other door,
+// used by password-recovery links and the awaiting-approval notice. They
+// share one cover (BookCover) so a change to one cannot miss the other.
 export default function IndexPage() {
   const [screen, setScreen] = useState('loading'); // loading | auth | dash
   const [session, setSession] = useState(null);
@@ -142,21 +147,7 @@ export default function IndexPage() {
     ];
     return (
       <div className="fade-enter" style={{ background: '#f1f5f9', minHeight: '100vh' }}>
-        <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white font-black text-xs">AI</div>
-            <span className="font-black text-slate-800 uppercase tracking-widest text-sm">MJM Nursery AI</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-xs font-bold text-slate-400 hidden md:block">Welcome, {displayName(session)}</span>
-            <button
-              onClick={handleLogout}
-              className="text-[10px] font-bold text-slate-500 hover:text-red-500 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer transition-colors"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
+        <PortalBar user={displayName(session)} onSignOut={handleLogout} />
         <div className="max-w-[900px] mx-auto px-6 py-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {modules.map((m) => (
@@ -178,63 +169,42 @@ export default function IndexPage() {
     );
   }
 
-  // ── AUTH SCREEN ──
+  // ── SIGN IN ──
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative">
-      <div className="auth-bg"></div>
-      <div className="grid-lines"></div>
-      <div className="scan-beam"></div>
-      <div className="beam beam-h bh1"></div><div className="beam beam-h bh2"></div><div className="beam beam-h bh3"></div>
-      <div className="beam beam-v bv1"></div><div className="beam beam-v bv2"></div><div className="beam beam-v bv3"></div>
-
-      <div className="auth-card rounded-[2.5rem] w-full max-w-md p-10 relative z-10">
-        <div className="corner corner-tl"></div><div className="corner corner-tr"></div>
-        <div className="corner corner-bl"></div><div className="corner corner-br"></div>
-
-        <div className="flex flex-col items-center mb-10">
-          <div className="relative w-full flex items-center justify-center mb-3" style={{ height: '90px' }}>
-            <div className="logo-cross-h"></div>
-            <div className="logo-cross-v"></div>
-            <div className="logo-title z-10 relative text-center px-4" style={{ fontSize: 'clamp(2.2rem,6vw,3.2rem)', lineHeight: 1.1 }}>
-              MJM<br />
-              <span style={{ fontSize: '0.55em', letterSpacing: '0.3em', color: '#34d399', fontWeight: 900, display: 'block', marginTop: '2px' }}>NURSERY</span>
-            </div>
-          </div>
-          <div className="ai-badge mt-1">AI</div>
-          <p className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.35em] mt-5 text-center">The future is here</p>
-        </div>
-
+    <BookCover title="MJM Nursery" sub="Admin Portal">
+      <div className="bk-lines">
         {!isRecovering ? (
-          <div className="space-y-3">
-            {isSignUp && <input ref={nameRef} type="text" placeholder="Full Name" className="auth-input mb-3" />}
-            <input ref={emailRef} type="email" placeholder="Email Address" className="auth-input" />
+          <>
+            {isSignUp && (
+              <input ref={nameRef} type="text" placeholder="Full Name" className="bk-field" autoComplete="name" />
+            )}
+            <input ref={emailRef} type="email" placeholder="Email Address" className="bk-field"
+                   autoCapitalize="none" autoComplete="email" />
             <input
               ref={pwRef}
               type="password"
               placeholder="Password"
-              className="auth-input"
+              className="bk-field"
+              autoComplete="current-password"
               onKeyDown={(e) => e.key === 'Enter' && handleMainAuth()}
             />
-            <button className="auth-btn mt-2" disabled={busy} onClick={handleMainAuth}>{btnLabel}</button>
-            <div className="flex justify-between items-center pt-2">
+            <button className="bk-btn" disabled={busy} onClick={handleMainAuth}>{btnLabel}</button>
+            <div className="bk-links">
               {!isSignUp && (
-                <button onClick={handleForgot} className="text-[10px] font-bold text-emerald-600/70 hover:text-emerald-400 uppercase tracking-widest bg-transparent border-none cursor-pointer transition-colors">
-                  Forgot Password?
-                </button>
+                <button onClick={handleForgot} className="bk-link">Forgot password?</button>
               )}
-              <button onClick={toggleSignUp} className="text-[10px] font-bold text-slate-400 hover:text-emerald-400 uppercase tracking-widest bg-transparent border-none cursor-pointer transition-colors ml-auto">
-                {isSignUp ? 'Back to Login' : 'Create Account'}
+              <button onClick={toggleSignUp} className="bk-link bk-link-right">
+                {isSignUp ? 'Back to login' : 'Create account'}
               </button>
             </div>
-          </div>
+          </>
         ) : (
-          <div className="space-y-3">
-            <div className="text-center text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-4">Create New Password</div>
-            <input ref={newPwRef} type="password" placeholder="Enter New Password" className="auth-input" />
-            <button className="auth-btn mt-2" onClick={handleUpdatePassword}>Save Password</button>
-          </div>
+          <>
+            <input ref={newPwRef} type="password" placeholder="Enter New Password" className="bk-field" />
+            <button className="bk-btn" onClick={handleUpdatePassword}>Save Password</button>
+          </>
         )}
       </div>
-    </div>
+    </BookCover>
   );
 }
