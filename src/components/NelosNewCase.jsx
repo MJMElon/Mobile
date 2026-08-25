@@ -21,6 +21,11 @@
      Photo        one picture, into the public nelos-photos bucket.
      Remarks      what you saw.
 
+   Priority is not asked. It belongs to the KIND of case, not to the moment
+   somebody is raising one — nelos_categories.default_priority already says
+   what each kind is normally raised at, and the control only ever
+   pre-filled itself from there.
+
    No date field. The date a case is raised is today, it is printed under
    the heading, and asking somebody to confirm the current date is asking
    them to do the computer's job. A due date still exists — the category's
@@ -52,20 +57,14 @@ const NURSERY_PLOTS = {
 const NURSERY_LABEL = { PN: 'Pre Nursery', BNN: 'BNN', UNN1: 'UNN1', UNN2: 'UNN2' };
 
 /* Shown only if nelos_modules cannot be read. The five systems as they
-   stand, in the order that table seeds them. */
+   stand, in the order that table seeds them, under the short names
+   nelos_modules.handler_label already carries. */
 const FALLBACK_MODULES = [
-  { key: 'operation', label: 'Seedling Stock System' },
-  { key: 'nursery_ops', label: 'Nursery Operation (HQ)' },
-  { key: 'scan', label: 'FC Portal' },
-  { key: 'mobile', label: 'Admin Portal' },
-  { key: 'audit', label: 'Audit Portal' },
-];
-
-const PRIORITIES = [
-  { key: 'low', label: 'Low' },
-  { key: 'normal', label: 'Normal' },
-  { key: 'high', label: 'High' },
-  { key: 'urgent', label: 'Urgent' },
+  { key: 'operation', label: 'Stock' },
+  { key: 'nursery_ops', label: 'HQ' },
+  { key: 'scan', label: 'FC' },
+  { key: 'mobile', label: 'Admin' },
+  { key: 'audit', label: 'Auditor' },
 ];
 
 const MAX_PHOTO = 8 * 1024 * 1024;
@@ -80,7 +79,6 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
   const [pic, setPic] = useState('');
   const [nursery, setNursery] = useState('');
   const [plot, setPlot] = useState('');
-  const [priority, setPriority] = useState('normal');
   const [photo, setPhoto] = useState(null); // { file, url }
 
   const [busy, setBusy] = useState(false);
@@ -102,14 +100,20 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
   useEffect(() => {
     let alive = true;
 
+    /* handler_label is the short name — Stock, HQ, FC, Admin, Auditor — and
+       it already exists: migration_nelos_seats.sql seeded it as the half of
+       "Admin 1" that is not the number. "Assign to" wants the same five
+       words, so it reads them rather than inventing a second set that could
+       drift. `label` is the fallback for a system added later that has not
+       been given one. */
     supabase
       .from('nelos_modules')
-      .select('key,label')
+      .select('key,label,handler_label')
       .eq('active', true)
       .order('sort_order', { ascending: true })
       .then(({ data, error }) => {
         if (!alive || error || !data?.length) return;
-        setModules(data);
+        setModules(data.map((m) => ({ key: m.key, label: m.handler_label || m.label })));
       });
 
     supabase
@@ -167,10 +171,15 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
     setPic('');
   }
 
-  function pickWork(name) {
-    setWork(name);
-    const c = worksFor.find((x) => x.name === name);
-    if (c?.default_priority) setPriority(c.default_priority);
+  /* Priority is no longer asked for. It is a property of the KIND of case,
+     not a judgement the person raising it should have to make at the moment
+     they are raising it — nelos_categories.default_priority already says
+     what each kind is normally raised at, and the control only ever
+     pre-filled itself from there. No default_priority, or no set titles for
+     that system at all, means normal. */
+  function priorityFromWork() {
+    const c = worksFor.find((x) => x.name === work);
+    return c?.default_priority || 'normal';
   }
 
   function pickPhoto(e) {
@@ -244,7 +253,7 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
         title: title.slice(0, 300),
         description: remarks,
         category: worksFor.length ? work : null,
-        priority,
+        priority: priorityFromWork(),
         status: 'open',
         source_module: sourceModule,
         assigned_module: assignTo,
@@ -307,7 +316,7 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
 
         <label className="nc-label" htmlFor="nnc-work">Work</label>
         {worksFor.length ? (
-          <select id="nnc-work" className="nc-input" value={work} onChange={(e) => pickWork(e.target.value)}>
+          <select id="nnc-work" className="nc-input" value={work} onChange={(e) => setWork(e.target.value)}>
             <option value="">— choose the work —</option>
             {worksFor.map((c) => (
               <option key={c.name} value={c.name}>{c.name}</option>
@@ -372,20 +381,6 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
               ))}
             </select>
           </div>
-        </div>
-
-        <label className="nc-label">Priority</label>
-        <div className="nc-pri">
-          {PRIORITIES.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              className={`nc-pri-btn nc-pi-${p.key}${priority === p.key ? ' on' : ''}`}
-              onClick={() => setPriority(p.key)}
-            >
-              {p.label}
-            </button>
-          ))}
         </div>
 
         <label className="nc-label">Photo</label>

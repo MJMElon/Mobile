@@ -226,13 +226,6 @@
 /* ── Raise-a-case form (src/components/NelosNewCase.jsx) ── */
 .nc-new-title { font-size: 15px; font-weight: 900; color: #1e293b; letter-spacing: .02em; }
 .nc-label { display: block; font-size: 8.5px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; margin: 12px 0 4px; }
-.nc-pri { display: flex; gap: 6px; flex-wrap: wrap; }
-.nc-pri-btn { font-size: 10px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; padding: 7px 12px; border-radius: 999px; border: 1.5px solid transparent; background: #f1f5f9; color: #64748b; cursor: pointer; font-family: inherit; }
-.nc-pri-btn.on { border-color: currentColor; }
-.nc-pri-btn.nc-pi-urgent.on { background: #fee2e2; color: #b91c1c; }
-.nc-pri-btn.nc-pi-high.on { background: #ffedd5; color: #c2410c; }
-.nc-pri-btn.nc-pi-normal.on { background: #e0f2fe; color: #075985; }
-.nc-pri-btn.nc-pi-low.on { background: #f1f5f9; color: #475569; }
 .nc-act-wide { width: 100%; margin-top: 16px; padding: 13px; }
 
 /* New-case form: the date under the heading, the two-up row, the photo. */
