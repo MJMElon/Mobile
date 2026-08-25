@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { checkOpsAccess, rememberUser } from '../lib/auth';
+import BookCover from '../components/BookCover.jsx';
 
 // Login / Sign-up / OTP / Forgot-password / Recovery screen, on the shared
 // Supabase project — the same accounts as ai.mjmnursery.com. Nothing about
@@ -193,7 +194,7 @@ export default function AuthPage() {
   // ── Waiting for access: a note left inside the book ──
   if (pendingEmail !== null) {
     return (
-      <Book title="Admin Portal" sub="MJM Nursery · Collection &amp; Delivery">
+      <BookCover title="Admin Portal" sub="MJM Nursery · Collection &amp; Delivery">
         <div className="bk-slip">
           <div className="bk-slip-head">Access pending</div>
           <p className="bk-slip-body">
@@ -209,7 +210,7 @@ export default function AuthPage() {
             <button className="bk-link bk-link-right" onClick={pendingSignOut}>Sign out</button>
           </div>
         </div>
-      </Book>
+      </BookCover>
     );
   }
 
@@ -220,7 +221,7 @@ export default function AuthPage() {
   ];
 
   return (
-    <Book title="Admin Portal" sub="MJM Nursery · Collection &amp; Delivery">
+    <BookCover title="Admin Portal" sub="MJM Nursery · Collection &amp; Delivery">
       {/* The three ways in, printed on the cover like a subject line */}
       {!isRecovery && (
         <div className="bk-tabs">
@@ -361,278 +362,6 @@ export default function AuthPage() {
           </>
         )}
       </div>
-    </Book>
-  );
-}
-
-/* ══ The 555 exercise book, cover up ══
-   Identical to the Auditor Portal's login and the FC Portal's but for the
-   three --bk-cover values. Keep it that way: one book, a pile of colours. */
-function Book({ title, sub, children }) {
-  return (
-    <div className="bk-page">
-      <div className="bk-book">
-        {/* the inside pages, showing past the cover */}
-        <div className="bk-edges" aria-hidden="true"><i /><i /><i /></div>
-
-        <div className="bk-cover">
-          <div className="bk-smudge" aria-hidden="true" />
-
-          <div className="bk-logo-wrap">
-            <div className="bk-logo">555</div>
-          </div>
-          <div className="bk-portal">{title}</div>
-          <div className="bk-portal-sub">{sub}</div>
-
-          {children}
-
-        </div>
-      </div>
-
-      <style>{`
-        /* Caveat and DM Sans are linked from auth.html — see the head there. */
-        .bk-page{
-          /* Admin: manila. It was green until the logotype went dark green
-             and the two stopped telling each other apart. */
-          --bk-cover:#e6d7a6; --bk-cover-2:#d8c791; --bk-cover-3:#c9b881;
-          --bk-ink:#23303f;
-          --bk-quiet:rgba(35,48,63,.62);   /* both lines on the cover */
-          /* the logotype and every button here are MJM's dark green, not the
-             printer's red the books themselves are stamped with */
-          --bk-green:#1f7a45; --bk-green-2:#155c33; --bk-green-3:#0f4a29; --bk-green-4:#0b3d21;
-          --bk-hand:'Caveat','Bradley Hand','Segoe Script','Comic Sans MS',cursive;
-
-          position:relative;min-height:100vh;
-          display:flex;flex-direction:column;align-items:center;justify-content:center;
-          padding:26px 16px 20px;
-          font-family:'DM Sans',system-ui,sans-serif;
-          color:var(--bk-ink);
-          background:radial-gradient(ellipse at 50% 34%,#3a322b 0%,#221d19 62%,#14100e 100%);
-          -webkit-font-smoothing:antialiased;
-        }
-
-        .bk-book{position:relative;width:100%;max-width:400px;animation:bkIn .5s ease both}
-        @keyframes bkIn{from{opacity:0;transform:translateY(16px) scale(.985)}to{opacity:1;transform:none}}
-        @media (prefers-reduced-motion:reduce){.bk-book{animation:none}}
-
-        /* cream, yellow and green sheets stacked a little proud of the cover */
-        .bk-edges{position:absolute;inset:0}
-        .bk-edges i{
-          position:absolute;top:7px;bottom:5px;border-radius:0 3px 3px 0;
-          box-shadow:2px 2px 5px rgba(0,0,0,.35);
-        }
-        .bk-edges i:nth-child(1){right:-13px;width:15px;background:#d7dfb8}
-        .bk-edges i:nth-child(2){right:-9px;width:13px;background:#f2ea9e;top:12px;bottom:10px}
-        .bk-edges i:nth-child(3){right:-5px;width:11px;background:#fdf9e6;top:17px;bottom:15px}
-
-        .bk-cover{
-          position:relative;
-          background:
-            radial-gradient(ellipse at 32% 62%,rgba(255,255,255,.18),transparent 46%),
-            radial-gradient(ellipse at 78% 18%,rgba(0,0,0,.05),transparent 52%),
-            repeating-linear-gradient(101deg,rgba(255,255,255,.045) 0 2px,transparent 2px 6px),
-            linear-gradient(160deg,var(--bk-cover) 0%,var(--bk-cover-2) 78%,var(--bk-cover-3) 100%);
-          border-radius:3px 6px 6px 3px;
-          padding:30px 26px 26px;
-          box-shadow:0 26px 60px rgba(0,0,0,.55),
-                     inset 0 0 0 1px rgba(255,255,255,.16),
-                     inset 3px 0 0 rgba(0,0,0,.10);
-          transform:rotate(-.4deg);
-        }
-        /* the fold, and the staple that holds it */
-        .bk-cover::before{
-          content:'';position:absolute;left:0;top:0;bottom:0;width:9px;
-          background:linear-gradient(90deg,rgba(0,0,0,.16),transparent);
-          border-radius:3px 0 0 3px;
-        }
-        /* the thumbed-over smudge every one of these books picks up */
-        .bk-smudge{
-          position:absolute;left:26%;top:56%;width:46%;height:15%;
-          background:radial-gradient(ellipse,rgba(50,70,55,.13),transparent 68%);
-          transform:rotate(-7deg);pointer-events:none;
-        }
-
-        .bk-logo-wrap{text-align:center;margin-bottom:4px}
-        .bk-logo{
-          /* Grows with the phone, the way the FC cover does. */
-          display:inline-block;font-weight:900;font-size:clamp(74px,24vw,100px);
-          line-height:.9;letter-spacing:-.02em;font-style:italic;color:var(--bk-green);
-          -webkit-text-stroke:1.5px #f4fbf6;paint-order:stroke fill;
-          text-shadow:
-            1px 1px 0 var(--bk-green-2),2px 2px 0 var(--bk-green-2),
-            3px 3px 0 var(--bk-green-2),4px 4px 0 var(--bk-green-2),
-            5px 5px 0 var(--bk-green-3),6px 6px 0 var(--bk-green-3),
-            7px 7px 0 var(--bk-green-4),8px 8px 0 var(--bk-green-4),
-            10px 12px 16px rgba(6,42,22,.4);
-          /* The glyph box is centred, but the shadow only falls down-RIGHT
-             and shadows take up no layout, so the INK lands right of centre.
-             Measured off a render: at 0 the centre of mass sits 8.4px right,
-             and 1px of translate moves it 1px. -7px puts centre of mass and
-             bounding box either side of zero. */
-          transform:translateX(-7px) rotate(-1.2deg);
-        }
-        .bk-portal{
-          margin-top:12px;text-align:center;
-          font-size:12px;font-weight:900;letter-spacing:.34em;text-transform:uppercase;
-          color:var(--bk-quiet);
-        }
-        .bk-portal-sub{
-          margin-top:5px;text-align:center;
-          font-size:9.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;
-          color:var(--bk-quiet);
-        }
-
-        /* the three ways in, printed like a subject line */
-        .bk-tabs{
-          display:flex;justify-content:center;gap:14px;
-          margin-top:26px;padding-bottom:2px;
-        }
-        .bk-tab{
-          background:none;border:none;padding:2px 1px 3px;cursor:pointer;
-          font-family:'DM Sans',sans-serif;
-          font-size:9.5px;font-weight:900;letter-spacing:.15em;text-transform:uppercase;
-          color:rgba(35,48,63,.42);
-          border-bottom:2px solid transparent;
-        }
-        .bk-tab:hover{color:rgba(35,48,63,.7)}
-        .bk-tab-on{color:var(--bk-green);border-bottom-color:var(--bk-green)}
-
-        /* The cover asks for your name on a ruled line; a phone in a
-           nursery asks for a box big enough to hit with a thumb. Boxes
-           win — drawn freehand, so they still belong on the cover. */
-        .bk-lines{margin-top:30px}
-        .bk-field{
-          display:block;width:100%;height:54px;
-          margin-bottom:13px;padding:0 15px;
-          background:rgba(255,255,255,.6);
-          border:1.5px solid rgba(35,48,63,.32);
-          border-radius:10px 7px 12px 6px / 7px 12px 6px 10px;
-          font-family:var(--bk-hand);font-size:23px;color:var(--bk-ink);
-          outline:none;-webkit-appearance:none;
-          transition:border-color .15s,box-shadow .15s,background .15s;
-        }
-        .bk-field::placeholder{
-          font-family:'DM Sans',sans-serif;
-          font-size:13px;font-weight:700;letter-spacing:.02em;
-          color:rgba(35,48,63,.42);
-        }
-        .bk-field:focus{
-          background:rgba(255,255,255,.82);
-          border-color:var(--bk-green);
-          box-shadow:0 0 0 3px rgba(31,122,69,.16);
-        }
-        .bk-code{letter-spacing:.12em}
-        /* a box with something sitting inside it — the eye, or Send */
-        .bk-boxed{position:relative}
-        .bk-boxed .bk-field{padding-right:104px}
-        .bk-boxed .bk-field[type=password],
-        .bk-boxed .bk-field[type=text]:not(.bk-code){padding-right:48px}
-
-        .bk-eye{
-          position:absolute;right:12px;top:27px;transform:translateY(-50%);
-          background:none;border:none;padding:4px;cursor:pointer;
-        }
-        .bk-eye svg{
-          width:17px;height:17px;
-          stroke:rgba(35,48,63,.45);fill:none;stroke-width:1.7;
-          stroke-linecap:round;stroke-linejoin:round;transition:stroke .15s;
-        }
-        .bk-eye:hover svg{stroke:var(--bk-ink)}
-
-        .bk-send{
-          position:absolute;right:9px;top:27px;transform:translateY(-50%);
-          background:rgba(35,48,63,.07);border:1.5px solid rgba(35,48,63,.28);
-          border-radius:7px 5px 8px 4px / 5px 8px 4px 7px;
-          padding:7px 11px;cursor:pointer;white-space:nowrap;
-          font-family:'DM Sans',sans-serif;
-          font-size:9px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;
-          color:var(--bk-ink);
-        }
-        .bk-send:hover{background:rgba(35,48,63,.13)}
-
-        .bk-btn{
-          width:100%;height:50px;margin-top:22px;
-          background:var(--bk-green-2);color:#f2fbf5;
-          border:2px solid rgba(9,58,32,.9);
-          border-radius:10px 7px 12px 6px / 7px 12px 6px 10px;
-          box-shadow:3px 3px 0 rgba(7,45,25,.35);
-          transform:rotate(-.5deg);
-          font-family:'DM Sans',sans-serif;
-          font-size:13px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;
-          cursor:pointer;transition:transform .12s,box-shadow .12s,background .15s;
-        }
-        .bk-btn:hover{background:var(--bk-green)}
-        .bk-btn:active{transform:rotate(-.5deg) translate(3px,3px);box-shadow:0 0 0}
-        .bk-btn:disabled{opacity:.65;cursor:default;transform:rotate(-.5deg)}
-
-        .bk-links{display:flex;align-items:baseline;margin-top:16px}
-        .bk-link{
-          font-family:var(--bk-hand);font-size:18px;color:var(--bk-ink);
-          background:none;border:none;
-          border-bottom:1.5px dashed rgba(35,48,63,.4);
-          padding:0 1px;cursor:pointer;
-        }
-        .bk-link:hover{color:var(--bk-green);border-bottom-color:rgba(31,122,69,.6)}
-        .bk-link-right{margin-left:auto}
-
-        .bk-hint{
-          margin-top:12px;text-align:center;
-          font-size:10px;font-weight:600;color:rgba(35,48,63,.42);
-        }
-
-        /* whatever the system has to say, written on the line in pen */
-        .bk-note{
-          font-family:var(--bk-hand);font-size:19px;line-height:1.15;
-          padding:2px 2px 4px;margin-bottom:14px;border-bottom:2px solid;
-        }
-        .bk-err{color:#8f1120;border-bottom-color:rgba(143,17,32,.45);animation:bkShake .35s ease}
-        .bk-ok{color:#12603f;border-bottom-color:rgba(18,96,63,.45)}
-        @keyframes bkShake{
-          0%,100%{transform:translateX(0)}
-          20%{transform:translateX(-6px)}40%{transform:translateX(6px)}
-          60%{transform:translateX(-4px)}80%{transform:translateX(4px)}
-        }
-        @media (prefers-reduced-motion:reduce){.bk-err{animation:none}}
-
-        /* a note slipped inside the cover */
-        .bk-slip{
-          margin-top:30px;
-          background:#fffdf3;
-          border-radius:2px 4px 3px 5px;
-          padding:18px 18px 16px;
-          box-shadow:0 6px 18px rgba(0,0,0,.22),inset 0 0 0 1px rgba(0,0,0,.05);
-          transform:rotate(.6deg);
-        }
-        .bk-slip-head{
-          font-family:var(--bk-hand);font-size:26px;color:#8f1120;
-          border-bottom:2px solid rgba(143,17,32,.35);
-          padding-bottom:2px;margin-bottom:10px;
-        }
-        .bk-slip-body{font-size:12.5px;line-height:1.6;color:#4a5560;margin:0 0 12px}
-        .bk-slip-email{
-          font-family:var(--bk-hand);font-size:19px;color:var(--bk-ink);
-          border-bottom:2px dotted rgba(35,48,63,.35);
-          padding-bottom:3px;word-break:break-all;
-        }
-        .bk-slip-email span{
-          display:block;font-family:'DM Sans',sans-serif;
-          font-size:8.5px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;
-          color:rgba(35,48,63,.42);margin-bottom:1px;
-        }
-        .bk-slip-acts{display:flex;align-items:baseline;margin-top:14px}
-
-
-        @media (max-width:360px){
-          .bk-cover{padding:26px 20px 22px}
-          .bk-logo{font-size:64px}
-          .bk-portal{letter-spacing:.26em;font-size:11px}
-          .bk-tabs{gap:10px}
-        }
-        @media (min-height:800px){
-          .bk-lines{margin-top:44px}
-          .bk-cover{padding-top:40px;padding-bottom:32px}
-        }
-      `}</style>
-    </div>
+    </BookCover>
   );
 }
