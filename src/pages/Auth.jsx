@@ -464,22 +464,37 @@ function Book({ title, sub, children }) {
             5px 5px 0 var(--bk-green-3),6px 6px 0 var(--bk-green-3),
             7px 7px 0 var(--bk-green-4),8px 8px 0 var(--bk-green-4),
             10px 12px 16px rgba(6,42,22,.4);
-          /* The glyph box is centred, but the shadow only falls down-RIGHT
-             and shadows take up no layout, so the INK lands right of centre.
-             Measured off a render: at 0 the centre of mass sits 8.4px right,
-             and 1px of translate moves it 1px. -7px puts centre of mass and
-             bounding box either side of zero. */
-          transform:translateX(-7px) rotate(-1.2deg);
+          /* Lines the FACE of the middle 5 up with the cover's centre — the
+             glyph the eye reads, not the ink of all three plus their shared
+             extrusion, which hangs down-right and drags the block with it.
+
+             Measured on the built page by diffing renders. Two things push
+             it right and they scale differently: glyph geometry and this
+             element's own rotation go with font-size (the em term), while
+             the cover's -.4deg tilt acts over a fixed vertical distance (the
+             px term). Hence the calc — measured 4.5px at a 77px logo through
+             7.0px at 100px, and it holds across the clamp() range within
+             0.4px. */
+          transform:translateX(calc(3.8px - .108em)) rotate(-1.2deg);
         }
+        /* A centred, letter-spaced line is NOT centred: CSS puts the space
+           after the last letter too, so the ink sits half a letter-space
+           left of the box. An equal text-indent puts it back — indent and
+           trailing space cancel. Both come off one --ls so the two can
+           never drift apart. */
         .bk-portal{
+          --ls:.34em;
           margin-top:12px;text-align:center;
-          font-size:12px;font-weight:900;letter-spacing:.34em;text-transform:uppercase;
-          color:var(--bk-quiet);
+          font-size:12px;font-weight:900;
+          letter-spacing:var(--ls);text-indent:var(--ls);
+          text-transform:uppercase;color:var(--bk-quiet);
         }
         .bk-portal-sub{
+          --ls:.2em;
           margin-top:5px;text-align:center;
-          font-size:9.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;
-          color:var(--bk-quiet);
+          font-size:9.5px;font-weight:700;
+          letter-spacing:var(--ls);text-indent:var(--ls);
+          text-transform:uppercase;color:var(--bk-quiet);
         }
 
         /* the three ways in, printed like a subject line */
@@ -624,8 +639,10 @@ function Book({ title, sub, children }) {
 
         @media (max-width:360px){
           .bk-cover{padding:26px 20px 22px}
-          .bk-logo{font-size:64px}
-          .bk-portal{letter-spacing:.26em;font-size:11px}
+          /* No font-size here: clamp() above already governs, and a fixed
+             size fought it — dropping the logo BELOW the clamp floor on a
+             small phone, and making the centring correction discontinuous. */
+          .bk-portal{--ls:.26em;font-size:11px}
           .bk-tabs{gap:10px}
         }
         @media (min-height:800px){
