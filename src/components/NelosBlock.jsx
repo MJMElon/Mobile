@@ -330,15 +330,18 @@ export default function NelosBlock() {
       {/* Centred, and the count travels with it as one heading rather than
           being pushed to the far edge. There is no "Open Nelos →" any more:
           every case opens in place, so there is nowhere else to send
-          anyone. */}
+          anyone.
+
+          The count is a number or it is absent. It used to read "clear" on
+          an empty day, which put a word in the place a reader had learned
+          to find a figure — and the line below already says there is
+          nothing pending. */}
       <div className="nelos-todo-head">
-        <span className="nelos-todo-title">📋 Nelos To Do</span>
-        <span className={`nelos-todo-count${rows.length ? '' : ' zero'}`}>
-          {rows.length || 'clear'}
-        </span>
+        <span className="nelos-todo-title">Nelos To Do</span>
+        {!!rows.length && <span className="nelos-todo-count">{rows.length}</span>}
       </div>
 
-      {!rows.length && <div className="nelos-empty">Nothing pending — all clear ✓</div>}
+      {!rows.length && <div className="nelos-empty">Nothing pending ✓</div>}
 
       {/* Overdue leads and says so. It is the one group whose heading shows
           even when it is the only one: "3 pending" and "3 overdue" are not

@@ -113,7 +113,6 @@
 .nelos-todo-head { display: flex; align-items: center; justify-content: center; gap: 9px; margin-bottom: 11px; }
 .nelos-todo-title { font-size: 11px; font-weight: 900; letter-spacing: .11em; text-transform: uppercase; color: #334155; white-space: nowrap; }
 .nelos-todo-count { font-size: 10px; font-weight: 900; padding: 2px 8px; border-radius: 999px; background: #fee2e2; color: #b91c1c; letter-spacing: .04em; }
-.nelos-todo-count.zero { background: #dcfce7; color: #15803d; }
 
 /* Group headings. Overdue is sticky as well as first — on a long list,
    scrolling should never bury the part that is already late. */
