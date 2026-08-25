@@ -8,7 +8,8 @@
    The form asks the questions in the order the person answering them
    thinks:
 
-     Assign to    which system works this — Stock, HQ, Auditor, FC, Admin.
+     Assign to    which system works this — Seedling Stock, HQ Operation,
+                  FC, Admin, Auditor.
                   Read from nelos_modules, not hardcoded: the User Setting
                   page can rename or add one, and this follows.
      Work         that system's own case titles. nelos_categories.module_key
@@ -60,8 +61,8 @@ const NURSERY_LABEL = { PN: 'Pre Nursery', BNN: 'BNN', UNN1: 'UNN1', UNN2: 'UNN2
    stand, in the order that table seeds them, under the short names
    nelos_modules.handler_label already carries. */
 const FALLBACK_MODULES = [
-  { key: 'operation', label: 'Stock' },
-  { key: 'nursery_ops', label: 'HQ' },
+  { key: 'operation', label: 'Seedling Stock' },
+  { key: 'nursery_ops', label: 'HQ Operation' },
   { key: 'scan', label: 'FC' },
   { key: 'mobile', label: 'Admin' },
   { key: 'audit', label: 'Auditor' },
@@ -100,8 +101,8 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
   useEffect(() => {
     let alive = true;
 
-    /* handler_label is the short name — Stock, HQ, FC, Admin, Auditor — and
-       it already exists: migration_nelos_seats.sql seeded it as the half of
+    /* handler_label is the short name — Seedling Stock, HQ Operation, FC,
+       Admin, Auditor — and it already exists: migration_nelos_seats.sql seeded it as the half of
        "Admin 1" that is not the number. "Assign to" wants the same five
        words, so it reads them rather than inventing a second set that could
        drift. `label` is the fallback for a system added later that has not
