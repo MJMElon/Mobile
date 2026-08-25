@@ -29,6 +29,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import NelosCase from './NelosCase.jsx';
+import NelosNewCase from './NelosNewCase.jsx';
 
 /* No links out. A case opens in a sheet over this page (NelosCase) and is
    started, resolved, closed and commented on there, so an admin settles
@@ -253,6 +254,7 @@ function Row({ c, onOpen }) {
 export default function NelosBlock() {
   const [state, setState] = useState({ status: 'loading', rows: [], uid: null });
   const [openId, setOpenId] = useState(null);
+  const [raising, setRaising] = useState(false);
   const [me, setMe] = useState({ id: null, name: null });
 
   const reload = useCallback(async () => {
@@ -277,10 +279,10 @@ export default function NelosBlock() {
        case is open: a list redrawing under a sheet is work nobody sees, and
        the sheet refreshes the list itself on the way out. */
     const tick = setInterval(() => {
-      if (document.visibilityState === 'visible' && !openId) reload();
+      if (document.visibilityState === 'visible' && !openId && !raising) reload();
     }, 5 * 60 * 1000);
     return () => clearInterval(tick);
-  }, [reload, openId]);
+  }, [reload, openId, raising]);
 
   /* Who is writing. The case sheet stamps updated_by, resolved_by and the
      thread's author with this, so it has to be the same name the hub would
@@ -314,6 +316,16 @@ export default function NelosBlock() {
 
   return (
     <>
+      {raising && (
+        <NelosNewCase
+          module={MODULE}
+          me={me}
+          onClose={(didRaise) => {
+            setRaising(false);
+            if (didRaise) reload();
+          }}
+        />
+      )}
       {openId && (
         <NelosCase
           caseId={openId}
@@ -339,6 +351,13 @@ export default function NelosBlock() {
       <div className="nelos-todo-head">
         <span className="nelos-todo-title">Nelos To Do</span>
         {!!rows.length && <span className="nelos-todo-count">{rows.length}</span>}
+        {/* Absolutely placed, not a flex child: the heading is centred on the
+            block, and a button in the row would shove it off centre by half
+            the button's width. On a phone it is the "+" alone. */}
+        <button className="nelos-new" onClick={() => setRaising(true)} title="Raise a case">
+          <span aria-hidden="true">+</span>
+          <span className="nelos-new-label">New Case</span>
+        </button>
       </div>
 
       {!rows.length && <div className="nelos-empty">Nothing pending ✓</div>}

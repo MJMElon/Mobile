@@ -101,7 +101,11 @@
 .auth-btn:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(16,185,129,.45); }
 .auth-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
 
-.module-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 16px rgba(0,0,0,.06); cursor: pointer; transition: all .2s; text-decoration: none; display: block; color: inherit; }
+/* No display here. It used to say `display:block`, which beat the card's
+   own `flex` utility on source order alone — same specificity, this file
+   loaded later — so the icon, the title and the chevron stacked into four
+   rows instead of sitting on one. The card says how it lays itself out. */
+.module-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 16px rgba(0,0,0,.06); cursor: pointer; transition: all .2s; text-decoration: none; color: inherit; }
 .module-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,.12); transform: translateY(-3px); border-color: #10b981; }
 
 /* ── NELOS pending-cases block (src/components/NelosBlock.jsx) ──
@@ -110,8 +114,11 @@
    separate build. Values copied from WIDGET_CSS in
    mjm-ai-system/shared/shared_nelos.js — keep the two in step. */
 .nelos-todo { background: white; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 16px 18px; box-shadow: 0 4px 14px rgba(15,23,42,.05); }
-.nelos-todo-head { display: flex; align-items: center; justify-content: center; gap: 9px; margin-bottom: 11px; }
-.nelos-todo-title { font-size: 11px; font-weight: 900; letter-spacing: .11em; text-transform: uppercase; color: #334155; white-space: nowrap; }
+.nelos-todo-head { position: relative; display: flex; align-items: center; justify-content: center; gap: 9px; margin-bottom: 11px; min-height: 32px; }
+/* The module cards' title, to the value: 16px/900 uppercase, tracking-wide,
+   slate-800. This heading names a section of the same page and was set
+   five pixels smaller than the things below it. */
+.nelos-todo-title { font-size: 16px; font-weight: 900; letter-spacing: .025em; text-transform: uppercase; color: #1e293b; white-space: nowrap; line-height: 1.2; }
 .nelos-todo-count { font-size: 10px; font-weight: 900; padding: 2px 8px; border-radius: 999px; background: #fee2e2; color: #b91c1c; letter-spacing: .04em; }
 
 /* Group headings. Overdue is sticky as well as first — on a long list,
@@ -203,3 +210,27 @@
 .nc-when { font-size: 10px; font-weight: 700; color: #cbd5e1; }
 .nc-body { font-size: 12.5px; font-weight: 600; color: #334155; margin-top: 2px; white-space: pre-wrap; }
 .nc-body-sys { color: #94a3b8; font-style: italic; }
+
+/* The way to raise one, top-right of the section. Out of the flex flow so
+   the heading keeps the block's centre line — see the note in NelosBlock. */
+.nelos-new { position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 12px; border-radius: 999px; border: none; background: #7c3aed; color: white; font: inherit; font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; white-space: nowrap; transition: background .15s; }
+.nelos-new:hover { background: #6d28d9; }
+.nelos-new span[aria-hidden] { font-size: 14px; line-height: 1; letter-spacing: 0; }
+/* On a phone the words go and the + stands alone: at 360px the heading, the
+   count and a "+ NEW CASE" pill together run past the block's edge. */
+@media (max-width: 480px) {
+  .nelos-new { padding: 0 10px; width: 30px; justify-content: center; }
+  .nelos-new-label { display: none; }
+}
+
+/* ── Raise-a-case form (src/components/NelosNewCase.jsx) ── */
+.nc-new-title { font-size: 15px; font-weight: 900; color: #1e293b; letter-spacing: .02em; }
+.nc-label { display: block; font-size: 8.5px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; margin: 12px 0 4px; }
+.nc-pri { display: flex; gap: 6px; flex-wrap: wrap; }
+.nc-pri-btn { font-size: 10px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; padding: 7px 12px; border-radius: 999px; border: 1.5px solid transparent; background: #f1f5f9; color: #64748b; cursor: pointer; font-family: inherit; }
+.nc-pri-btn.on { border-color: currentColor; }
+.nc-pri-btn.nc-pi-urgent.on { background: #fee2e2; color: #b91c1c; }
+.nc-pri-btn.nc-pi-high.on { background: #ffedd5; color: #c2410c; }
+.nc-pri-btn.nc-pi-normal.on { background: #e0f2fe; color: #075985; }
+.nc-pri-btn.nc-pi-low.on { background: #f1f5f9; color: #475569; }
+.nc-act-wide { width: 100%; margin-top: 16px; padding: 13px; }
