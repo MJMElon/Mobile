@@ -194,7 +194,7 @@ export default function AuthPage() {
   // ── Waiting for access: a note left inside the book ──
   if (pendingEmail !== null) {
     return (
-      <BookCover title="Admin Portal" sub="MJM Nursery · Collection &amp; Delivery">
+      <BookCover house="MJM Nursery" portal="Admin Portal">
         <div className="bk-slip">
           <div className="bk-slip-head">Access pending</div>
           <p className="bk-slip-body">
@@ -221,7 +221,7 @@ export default function AuthPage() {
   ];
 
   return (
-    <BookCover title="Admin Portal" sub="MJM Nursery · Collection &amp; Delivery">
+    <BookCover house="MJM Nursery" portal="Admin Portal">
       {/* The three ways in, printed on the cover like a subject line */}
       {!isRecovery && (
         <div className="bk-tabs">
@@ -253,7 +253,7 @@ export default function AuthPage() {
               ref={recPw}
               type="password"
               className="bk-field"
-              placeholder="New password"
+              placeholder="Create New Password"
               autoComplete="new-password"
               onKeyDown={onEnter(updatePassword)}
             />
@@ -301,13 +301,13 @@ export default function AuthPage() {
             </div>
 
             <button className="bk-btn" onClick={loginEmailPassword}>
-              {isSignUp ? 'Sign Up' : 'Sign In'}
+              {isSignUp ? 'Sign Up' : 'Login'}
             </button>
 
             <div className="bk-links">
-              <button className="bk-link" onClick={forgotPassword}>Forgot password?</button>
+              <button className="bk-link" onClick={forgotPassword}>Forgot Password?</button>
               <button className="bk-link bk-link-right" onClick={() => setIsSignUp((v) => !v)}>
-                {isSignUp ? 'Back to sign in' : 'Create account'}
+                {isSignUp ? 'Back to Login' : 'Create Account'}
               </button>
             </div>
           </>

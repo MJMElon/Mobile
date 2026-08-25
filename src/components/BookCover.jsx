@@ -9,7 +9,7 @@
    Identical to the Auditor Portal's login and the FC Portal's but for the
    three --bk-cover values. Keep it that way: one book, a pile of colours.
    ══════════════════════════════════════════════════════════════════════ */
-export default function BookCover({ title, sub, children }) {
+export default function BookCover({ house = 'MJM Nursery', portal, children }) {
   return (
     <div className="bk-page">
       <div className="bk-book">
@@ -19,11 +19,18 @@ export default function BookCover({ title, sub, children }) {
         <div className="bk-cover">
           <div className="bk-smudge" aria-hidden="true" />
 
+          {/* The FC Portal's order, which this cover now follows: whose book
+              it is, the book, then the portal it opens. It used to run 555
+              first with the house name underneath, which read as a book that
+              happened to belong to MJM rather than as MJM's book. Two lines,
+              not three — the old third line ("Collection & Delivery" on
+              auth.html) said what the portal does, which the portal name
+              already covers. */}
+          <div className="bk-brand">{house}</div>
           <div className="bk-logo-wrap">
             <div className="bk-logo">555</div>
           </div>
-          <div className="bk-portal">{title}</div>
-          <div className="bk-portal-sub">{sub}</div>
+          <div className="bk-portal">{portal}</div>
 
           {children}
 
@@ -95,6 +102,22 @@ export default function BookCover({ title, sub, children }) {
           transform:rotate(-7deg);pointer-events:none;
         }
 
+        /* The house name, above the book. FC's metrics exactly — 19px, .26em,
+           2px clear of the logotype — because the two covers are meant to be
+           one design in two colours. The colour is this cover's own. */
+        .bk-brand{
+          --ls:.26em;
+          text-align:center;
+          font-size:19px;font-weight:900;
+          /* A centred, letter-spaced line is NOT centred: CSS puts the space
+             after the last letter too, so the ink sits half a letter-space
+             left of the box. An equal text-indent cancels it. One --ls feeds
+             both, so a breakpoint cannot change one and forget the other. */
+          letter-spacing:var(--ls);text-indent:var(--ls);
+          text-transform:uppercase;
+          color:var(--bk-quiet);
+          margin-bottom:2px;
+        }
         .bk-logo-wrap{text-align:center;margin-bottom:4px}
         .bk-logo{
           /* Grows with the phone, the way the FC cover does. */
@@ -121,25 +144,20 @@ export default function BookCover({ title, sub, children }) {
              em term), while the cover's -.4deg tilt acts over a fixed
              vertical distance (the px term). Hence the calc — measured on the
              built page by diffing renders, 4.5px at a 77px logo through 7.0px
-             at 100px, holding across the clamp() range within 0.4px. */
-          transform:translateX(calc(3.8px - .108em)) rotate(-1.2deg);
+             at 100px, holding across the clamp() range within 0.4px.
+
+             Re-measured after MJM NURSERY moved above the logotype: the
+             logo sits ~25px lower on a cover tilted -.4deg, and the whole
+             correction shifted a flat 1.1px left — flat, not scaled, which
+             is what a fixed vertical offset on a fixed tilt should do. So
+             the px term drops by 1.1 and the em term is untouched. */
+          transform:translateX(calc(2.7px - .108em)) rotate(-1.2deg);
         }
+        /* The portal, under the book. FC's metrics too. */
         .bk-portal{
-          margin-top:12px;text-align:center;
-          --ls:.34em;
-          font-size:12px;font-weight:900;
-          letter-spacing:var(--ls);text-indent:var(--ls);
-          text-transform:uppercase;
-          color:var(--bk-quiet);
-        }
-        .bk-portal-sub{
-          margin-top:5px;text-align:center;
-          /* A centred, letter-spaced line is NOT centred: CSS puts the space
-             after the last letter too, so the ink sits half a letter-space
-             left of the box. An equal text-indent cancels it. One --ls feeds
-             both, so a breakpoint cannot change one and forget the other. */
-          --ls:.2em;
-          font-size:9.5px;font-weight:700;
+          margin-top:14px;text-align:center;
+          --ls:.3em;
+          font-size:14px;font-weight:900;
           letter-spacing:var(--ls);text-indent:var(--ls);
           text-transform:uppercase;
           color:var(--bk-quiet);
@@ -289,7 +307,8 @@ export default function BookCover({ title, sub, children }) {
           .bk-cover{padding:26px 20px 22px}
           /* No font-size here: clamp() above governs. A fixed size fought it,
              dropping the 555 below the clamp floor on a small phone. */
-          .bk-portal{--ls:.26em;font-size:11px}
+          .bk-brand{font-size:17px;--ls:.22em}
+          .bk-portal{--ls:.24em;font-size:12.5px}
           .bk-tabs{gap:10px}
         }
         @media (min-height:800px){

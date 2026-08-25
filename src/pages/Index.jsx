@@ -178,7 +178,7 @@ export default function IndexPage() {
 
   // ── SIGN IN ──
   return (
-    <BookCover title="MJM Nursery" sub="Admin Portal">
+    <BookCover house="MJM Nursery" portal="Admin Portal">
       <div className="bk-lines">
         {!isRecovering ? (
           <>
@@ -198,16 +198,16 @@ export default function IndexPage() {
             <button className="bk-btn" disabled={busy} onClick={handleMainAuth}>{btnLabel}</button>
             <div className="bk-links">
               {!isSignUp && (
-                <button onClick={handleForgot} className="bk-link">Forgot password?</button>
+                <button onClick={handleForgot} className="bk-link">Forgot Password?</button>
               )}
               <button onClick={toggleSignUp} className="bk-link bk-link-right">
-                {isSignUp ? 'Back to login' : 'Create account'}
+                {isSignUp ? 'Back to Login' : 'Create Account'}
               </button>
             </div>
           </>
         ) : (
           <>
-            <input ref={newPwRef} type="password" placeholder="Enter New Password" className="bk-field" />
+            <input ref={newPwRef} type="password" placeholder="Create New Password" className="bk-field" />
             <button className="bk-btn" onClick={handleUpdatePassword}>Save Password</button>
           </>
         )}
