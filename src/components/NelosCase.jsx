@@ -33,8 +33,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-const PRIORITY_LABEL = { urgent: 'Urgent', high: 'High', normal: 'Normal', low: 'Low' };
-const STATUS_LABEL = { open: 'Open', in_progress: 'In Progress', resolved: 'Resolved', closed: 'Closed' };
 const SOURCE_LABEL = {
   operation: 'Seedling Stock System',
   nursery_ops: 'Nursery Operation',
@@ -61,6 +59,7 @@ export default function NelosCase({ caseId, me, onClose }) {
   const [flash, setFlash] = useState(null);
   const changed = useRef(false);
   const resolutionRef = useRef(null);
+  const [shot, setShot] = useState(null);        // the photo of the fix, if one was taken
   const commentRef = useRef(null);
 
   /* select('*') rather than a column list. Nelos has grown columns over
@@ -142,6 +141,20 @@ export default function NelosCase({ caseId, me, onClose }) {
     );
   }
 
+  /* The photo of the fix, into the same bucket and path shape the dock
+     uses (shared/shared_nelos_dock.js → uploadShot) so one case's picture
+     is in the same place whichever surface solved it. Upload first, then
+     patch: a failed upload leaves the case as it was, whereas patching
+     first would mark work solved and then lose the picture of it. */
+  async function uploadShot(file) {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const path = `solve/${caseId}-${Date.now()}.${ext || 'jpg'}`;
+    const { error } = await supabase.storage.from('nelos-photos')
+      .upload(path, file, { contentType: file.type || 'application/octet-stream' });
+    if (error) return null;
+    return supabase.storage.from('nelos-photos').getPublicUrl(path).data?.publicUrl || null;
+  }
+
   async function confirmResolve() {
     const text = resolutionRef.current?.value.trim();
     if (!text) {
@@ -149,12 +162,18 @@ export default function NelosCase({ caseId, me, onClose }) {
       resolutionRef.current?.focus();
       return;
     }
-    const ok = await patch(
-      { status: 'resolved', resolution: text, resolved_by: me.name, resolved_at: new Date().toISOString() },
-      `Resolved — ${me.name}`,
-    );
+    const url = shot ? await uploadShot(shot) : null;
+    const fields = { status: 'resolved', resolution: text, resolved_by: me.name,
+                     resolved_at: new Date().toISOString() };
+    /* Only when there is one: a database that has not run
+       migration_nelos_solve_photo.sql has no such column, and asking it to
+       write one would fail the whole resolve over a picture. */
+    if (url) fields.resolution_photo_url = url;
+
+    const ok = await patch(fields, `Resolved — ${me.name}`);
     if (ok) {
       setResolving(false);
+      setShot(null);
       setFlash({ ok: true, msg: 'Case resolved.' });
     }
   }
@@ -204,44 +223,62 @@ export default function NelosCase({ caseId, me, onClose }) {
   if (!c) return sheet(<div className="nelos-empty">loading case…</div>);
 
   const s = c.status;
-  const subject = [c.batch_name && `Batch ${c.batch_name}`, c.plot_name && `Plot ${c.plot_name}`, c.nursery_name]
-    .filter(Boolean)
-    .join('  ·  ');
-  const overdue = c.due_date && c.due_date < new Date().toISOString().slice(0, 10) && (s === 'open' || s === 'in_progress');
+  const pending = s === 'open' || s === 'in_progress';
+  /* Where the work is: the nursery with its plot in brackets, and the batch
+     only when there is one — a batch case that did not say so would be
+     missing the thing that identifies it. */
+  let where = c.nursery_name ? c.nursery_name + (c.plot_name ? ` (${c.plot_name})` : '')
+                             : (c.plot_name || '');
+  if (c.batch_name) where = (where ? `${where} · ` : '') + `Batch ${c.batch_name}`;
   /* Every status this page knows offers at least one move, so the "nothing
      to do" line is a fallback for a status that arrives from somewhere
      else — never something shown beside a live button. It read as a
      contradiction next to Reopen on a closed case. */
   const hasActions = s === 'open' || s === 'in_progress' || s === 'resolved' || s === 'closed';
 
+  /* The dock's case pane, move for move (shared/shared_nelos_dock.js →
+     detailHtml). Two blocks in the order the job is done: read what is
+     being asked, then answer it. Keep the two in step.
+
+     What went: the priority and status pills and the module chip, which
+     between them read "Nelos · Normal · Open" on very nearly every case —
+     three words of nothing between the title and the work — and the
+     Raised by / Assigned to / Category / Due grid, which said the same
+     things at greater length. The case number stays in the head. */
   return sheet(
     <>
       <div className="nc-head">
-        <span className="nelos-chip">{SOURCE_LABEL[c.source_module] || c.source_module || ''}</span>
         <span className="nc-no">{c.case_no || ''}</span>
         <button className="nc-x" onClick={() => onClose(changed.current)} aria-label="Close">✕</button>
       </div>
 
+      <div className="nc-sec">{pending ? 'Pending Case Details' : 'Case Details'}</div>
       <h2 className="nc-title">{c.title}</h2>
-
-      <div className="nc-pills">
-        <span className={`nc-pill nc-pi-${c.priority || 'normal'}`}>{PRIORITY_LABEL[c.priority] || c.priority}</span>
-        <span className={`nc-pill nc-st-${s}`}>{STATUS_LABEL[s] || s}</span>
+      <div className="nc-meta">
+        Created {fmtDate((c.created_at || '').slice(0, 10))}
+        {c.raised_by ? ` · by ${c.raised_by}` : ''}
       </div>
 
-      {subject && <div className="nc-subject">📍 {subject}</div>}
+      <div className="nc-facts">
+        <div className="nc-fact"><div className="nc-k">Nursery (Plot)</div><div className="nc-v">{where || '—'}</div></div>
+        <div className="nc-fact"><div className="nc-k">Assigned to</div>
+          <div className="nc-v">{SOURCE_LABEL[c.assigned_module || c.source_module] || c.assigned_module || c.source_module || '—'}</div></div>
+        <div className="nc-fact"><div className="nc-k">PIC</div>
+          <div className="nc-v">{c.assignee_name || <em>Unassigned</em>}</div></div>
+      </div>
 
-      <dl className="nc-facts">
-        <div><dt>Raised by</dt><dd>{c.raised_by || '—'}</dd></div>
-        <div><dt>Assigned to</dt><dd>{c.assignee_name || <em>unassigned</em>}</dd></div>
-        <div><dt>Category</dt><dd>{c.category || '—'}</dd></div>
-        <div><dt>Due</dt><dd style={overdue ? { color: '#b91c1c' } : undefined}>{fmtDate(c.due_date)}</dd></div>
-      </dl>
+      {/* What was written about it. The sheet never showed this at all,
+          which left an admin deciding what to do from the title alone. */}
+      {c.description
+        ? <div className="nc-desc">{c.description}</div>
+        : <div className="nc-nothing nc-desc">No further detail was written.</div>}
 
       {c.resolution && (
         <div className="nc-resolution">
           <div className="nc-sec-label">Resolution</div>
           <div className="nc-resolution-text">{c.resolution}</div>
+          {c.resolution_photo_url &&
+            <img className="nc-resolution-img" src={c.resolution_photo_url} alt="Photo of the fix" />}
           <div className="nc-resolution-meta">
             Resolved by {c.resolved_by || 'unknown'} · {fmtStamp(c.resolved_at)}
             {c.closed_at ? `  ·  Closed by ${c.closed_by || 'unknown'} · ${fmtStamp(c.closed_at)}` : ''}
@@ -266,8 +303,28 @@ export default function NelosCase({ caseId, me, onClose }) {
       </div>
 
       {resolving && (
-        <div className="nc-resolve-box">
-          <textarea ref={resolutionRef} className="nc-input" rows={3} placeholder="What was done?" autoFocus />
+        <div className="nc-solve">
+          <div className="nc-sec">Solve Case</div>
+
+          {shot ? (
+            <div className="nc-shot-prev">
+              <img src={URL.createObjectURL(shot)} alt="Photo of the fix" />
+              <button type="button" className="nc-shot-x" onClick={() => setShot(null)} aria-label="Remove photo">✕</button>
+            </div>
+          ) : (
+            <label className="nc-shot">
+              <span aria-hidden="true">📷</span>
+              <span>Take or attach a photo</span>
+              <input type="file" accept="image/*" capture="environment"
+                     onChange={(e) => setShot(e.target.files?.[0] || null)} />
+            </label>
+          )}
+
+          {/* Labelled rather than prompted from inside the box: a placeholder
+              is gone the moment anybody types, so the one thing saying what
+              the box is for disappears as they start filling it in. */}
+          <div className="nc-solve-lab">Solve Case Remark</div>
+          <textarea ref={resolutionRef} className="nc-input" rows={3} autoFocus />
           <button className="nc-act nc-act-resolve" disabled={busy} onClick={confirmResolve}>Confirm Resolved</button>
         </div>
       )}
