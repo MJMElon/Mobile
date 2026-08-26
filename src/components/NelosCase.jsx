@@ -236,6 +236,14 @@ export default function NelosCase({ caseId, me, onClose }) {
      contradiction next to Reopen on a closed case. */
   const hasActions = s === 'open' || s === 'in_progress' || s === 'resolved' || s === 'closed';
 
+  /* Only the FIRST matching comment: a later one repeating the description
+     word for word is somebody actually saying it again, and dropping that
+     would be editing the conversation. */
+  const opening = c.description
+    ? thread.find((r) => r.kind === 'comment' && r.body === c.description)
+    : null;
+  const visibleThread = opening ? thread.filter((r) => r !== opening) : thread;
+
   /* The dock's case pane, move for move (shared/shared_nelos_dock.js →
      detailHtml). Two blocks in the order the job is done: read what is
      being asked, then answer it. Keep the two in step.
@@ -329,10 +337,16 @@ export default function NelosCase({ caseId, me, onClose }) {
         </div>
       )}
 
+      {/* The opening detail is shown above, and every raise path also writes
+          it into the thread as the first comment (shared_nelos.js raiseCase,
+          and the dock's own insert) so the hub reads as one conversation.
+          Shown in both places it is the same words twice on one screen, so
+          the thread drops its copy — the one at the top is the one in the
+          right place. */}
       <div className="nc-sec-label nc-thread-label">Thread</div>
       <div className="nc-thread">
-        {thread.length ? (
-          thread.map((r) => {
+        {visibleThread.length ? (
+          visibleThread.map((r) => {
             const sys = r.kind !== 'comment';
             return (
               <div className="nc-item" key={r.id || `${r.created_at}-${r.body}`}>
