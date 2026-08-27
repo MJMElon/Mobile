@@ -55,7 +55,6 @@ export default function NelosCase({ caseId, me, onClose }) {
   const [thread, setThread] = useState([]);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [resolving, setResolving] = useState(false);
   const [flash, setFlash] = useState(null);
   const changed = useRef(false);
   const resolutionRef = useRef(null);
@@ -172,7 +171,6 @@ export default function NelosCase({ caseId, me, onClose }) {
 
     const ok = await patch(fields, `Resolved — ${me.name}`);
     if (ok) {
-      setResolving(false);
       setShot(null);
       setFlash({ ok: true, msg: 'Case resolved.' });
     }
@@ -298,11 +296,6 @@ export default function NelosCase({ caseId, me, onClose }) {
 
       <div className="nc-actions">
         {s === 'open' && <button className="nc-act nc-act-start" disabled={busy} onClick={start}>▶ Start Work</button>}
-        {(s === 'open' || s === 'in_progress') && (
-          <button className="nc-act nc-act-resolve" disabled={busy} onClick={() => setResolving((v) => !v)}>
-            ✓ Mark Resolved
-          </button>
-        )}
         {s === 'resolved' && <button className="nc-act nc-act-close" disabled={busy} onClick={closeCase}>🔒 Close Case</button>}
         {(s === 'resolved' || s === 'closed') && (
           <button className="nc-act nc-act-reopen" disabled={busy} onClick={reopen}>↩ Reopen</button>
@@ -310,7 +303,12 @@ export default function NelosCase({ caseId, me, onClose }) {
         {!hasActions && <span className="nc-nothing">Nothing to do on this case.</span>}
       </div>
 
-      {resolving && (
+      {/* Solving is the whole reason a pending case gets opened, so the block
+          to do it is ON SCREEN — the dock's case pane works this way and this
+          did not: it hid the photo and the remark behind a "Mark Resolved"
+          button, so opening a case showed no way to solve it until you had
+          pressed something that sounded like it would solve it already. */}
+      {pending && (
         <div className="nc-solve">
           <div className="nc-sec">Solve Case</div>
 
@@ -332,8 +330,8 @@ export default function NelosCase({ caseId, me, onClose }) {
               is gone the moment anybody types, so the one thing saying what
               the box is for disappears as they start filling it in. */}
           <div className="nc-solve-lab">Solve Case Remark</div>
-          <textarea ref={resolutionRef} className="nc-input" rows={3} autoFocus />
-          <button className="nc-act nc-act-resolve" disabled={busy} onClick={confirmResolve}>Confirm Resolved</button>
+          <textarea ref={resolutionRef} className="nc-input" rows={3} />
+          <button className="nc-act nc-act-resolve" disabled={busy} onClick={confirmResolve}>Save &amp; Solve</button>
         </div>
       )}
 
