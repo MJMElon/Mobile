@@ -1,19 +1,16 @@
 /* ══════════════════════════════════════════════════════════════════════
    NELOS — WORKING A CASE WITHOUT LEAVING THE ADMIN PORTAL
 
-   A sheet over the dashboard: the case, its thread, a comment box and the
-   buttons that move it along. Everything an admin needs to settle a case
-   happens here, so nothing on this portal sends anyone to the hub.
+   A sheet over the dashboard: what the case says, and the block that
+   solves it. The conversation is not here — the thread and its comment
+   box are on the hub's own case page, which is where a case is read at
+   length; this is where one gets answered.
 
    The writes are nelos_case.html's, move for move — same fields, same
    system-note wording, same order — because a case settled here has to be
    indistinguishable from one settled there. Anyone reading the thread
    later cannot be able to tell which page it was worked on:
 
-     Start Work   status → in_progress; claims it if nobody owns it, so
-                  "In Progress, unassigned" never becomes a place cases go
-                  to be forgotten. Note: "Started work[ and took
-                  ownership] — <name>"
      Resolve      status → resolved, with the resolution text, resolved_by
                   and resolved_at. The text is required: a case resolved
                   with no account of what was done is a case nobody can
@@ -24,9 +21,10 @@
                   rather than left to contradict the status.
                   Note: "Reopened — <name>"
 
-   Resolving straight from Open is allowed. Plenty of cases are dealt with
-   the moment they are read, and making someone click Start first is
-   theatre — that is nelos_case.html's rule too.
+   Resolving straight from Open is allowed and is now the only way through:
+   Start Work has gone. Plenty of cases are dealt with the moment they are
+   read, and a button that only moves a case to "in progress" was a step
+   between opening it and answering it. nelos_case.html still offers it.
 
    If nelos_case.html's rules change, change them here.
    ══════════════════════════════════════════════════════════════════════ */
@@ -47,19 +45,15 @@ const fmtDate = (d) =>
   d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const fmtStamp = (ts) =>
   ts ? new Date(ts).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
-const initials = (n) =>
-  String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
 export default function NelosCase({ caseId, me, onClose }) {
   const [c, setC] = useState(null);
-  const [thread, setThread] = useState([]);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState(null);
   const changed = useRef(false);
   const resolutionRef = useRef(null);
   const [shot, setShot] = useState(null);        // the photo of the fix, if one was taken
-  const commentRef = useRef(null);
 
   /* select('*') rather than a column list. Nelos has grown columns over
      several migrations (photo_url, resolution, the seat fields) and asking
@@ -73,12 +67,6 @@ export default function NelosCase({ caseId, me, onClose }) {
       return;
     }
     setC(data);
-    const { data: rows } = await supabase
-      .from('nelos_case_comments')
-      .select('*')
-      .eq('case_id', caseId)
-      .order('created_at', { ascending: true });
-    setThread(rows || []);
   }, [caseId]);
 
   useEffect(() => {
@@ -132,14 +120,6 @@ export default function NelosCase({ caseId, me, onClose }) {
     }
   }
 
-  async function start() {
-    const claim = c.assignee_id ? {} : { assignee_id: me.id, assignee_name: me.name };
-    await patch(
-      { status: 'in_progress', ...claim },
-      `Started work${c.assignee_id ? '' : ' and took ownership'} — ${me.name}`,
-    );
-  }
-
   /* The photo of the fix, into the same bucket and path shape the dock
      uses (shared/shared_nelos_dock.js → uploadShot) so one case's picture
      is in the same place whichever surface solved it. Upload first, then
@@ -191,17 +171,6 @@ export default function NelosCase({ caseId, me, onClose }) {
     );
   }
 
-  async function postComment() {
-    const body = commentRef.current?.value.trim();
-    if (!body) return;
-    setBusy(true);
-    await note(body, 'comment');
-    commentRef.current.value = '';
-    changed.current = true;
-    await load();
-    setBusy(false);
-  }
-
   const sheet = (inner) => (
     <div className="nc-scrim" onClick={(e) => e.target === e.currentTarget && onClose(changed.current)}>
       <div className="nc-sheet" role="dialog" aria-label="Nelos case">{inner}</div>
@@ -234,14 +203,6 @@ export default function NelosCase({ caseId, me, onClose }) {
      contradiction next to Reopen on a closed case. */
   const hasActions = s === 'open' || s === 'in_progress' || s === 'resolved' || s === 'closed';
 
-  /* Only the FIRST matching comment: a later one repeating the description
-     word for word is somebody actually saying it again, and dropping that
-     would be editing the conversation. */
-  const opening = c.description
-    ? thread.find((r) => r.kind === 'comment' && r.body === c.description)
-    : null;
-  const visibleThread = opening ? thread.filter((r) => r !== opening) : thread;
-
   /* The dock's case pane, move for move (shared/shared_nelos_dock.js →
      detailHtml). Two blocks in the order the job is done: read what is
      being asked, then answer it. Keep the two in step.
@@ -258,7 +219,7 @@ export default function NelosCase({ caseId, me, onClose }) {
         <button className="nc-x" onClick={() => onClose(changed.current)} aria-label="Close">✕</button>
       </div>
 
-      <div className="nc-sec">{pending ? 'Pending Case Details' : 'Case Details'}</div>
+      <div className="nc-sec">Case Details</div>
       <h2 className="nc-title">{c.title}</h2>
       <div className="nc-meta">
         Created {fmtDate((c.created_at || '').slice(0, 10))}
@@ -295,7 +256,6 @@ export default function NelosCase({ caseId, me, onClose }) {
       {flash && <div className={`nc-flash${flash.ok ? '' : ' nc-flash-bad'}`}>{flash.msg}</div>}
 
       <div className="nc-actions">
-        {s === 'open' && <button className="nc-act nc-act-start" disabled={busy} onClick={start}>▶ Start Work</button>}
         {s === 'resolved' && <button className="nc-act nc-act-close" disabled={busy} onClick={closeCase}>🔒 Close Case</button>}
         {(s === 'resolved' || s === 'closed') && (
           <button className="nc-act nc-act-reopen" disabled={busy} onClick={reopen}>↩ Reopen</button>
@@ -335,35 +295,6 @@ export default function NelosCase({ caseId, me, onClose }) {
         </div>
       )}
 
-      {/* The opening detail is shown above, and every raise path also writes
-          it into the thread as the first comment (shared_nelos.js raiseCase,
-          and the dock's own insert) so the hub reads as one conversation.
-          Shown in both places it is the same words twice on one screen, so
-          the thread drops its copy — the one at the top is the one in the
-          right place. */}
-      <div className="nc-sec-label nc-thread-label">Thread</div>
-      <div className="nc-thread">
-        {visibleThread.length ? (
-          visibleThread.map((r) => {
-            const sys = r.kind !== 'comment';
-            return (
-              <div className="nc-item" key={r.id || `${r.created_at}-${r.body}`}>
-                <div className={`nc-av${sys ? ' nc-av-sys' : ''}`}>{sys ? '⚙' : initials(r.author_name)}</div>
-                <div className="min-w-0 flex-1">
-                  <span className="nc-who">{r.author_name || 'Unknown'}</span>
-                  <span className="nc-when"> · {fmtStamp(r.created_at)}</span>
-                  <div className={`nc-body${sys ? ' nc-body-sys' : ''}`}>{r.body}</div>
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="nc-nothing">No comments yet.</div>
-        )}
-      </div>
-
-      <textarea ref={commentRef} className="nc-input" rows={2} placeholder="Add a comment…" />
-      <button className="nc-act nc-act-comment" disabled={busy} onClick={postComment}>Post Comment</button>
     </>,
   );
 }
