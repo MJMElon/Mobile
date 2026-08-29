@@ -42,9 +42,13 @@ export default function BookCover({ house = 'MJM Nursery', portal, children }) {
            auth.html both carry the link; a page that forgets it gets the
            fallback hand and a slightly wider logotype. */
         .bk-page{
-          /* Admin: manila. It was green until the logotype went dark green
-             and the two stopped telling each other apart. */
-          --bk-cover:#e6d7a6; --bk-cover-2:#d8c791; --bk-cover-3:#c9b881;
+          /* Admin: pink. Manila before that, and green before that — it
+             went manila when the logotype turned dark green and the two
+             stopped telling each other apart. The Auditor Portal, which
+             held this pink, is yellow now; two portals never wear the same
+             cover, because the cover is how you know which book you have
+             open before you have read a word of it. */
+          --bk-cover:#e8a9bd; --bk-cover-2:#dc97ad; --bk-cover-3:#cf8ba3;
           --bk-ink:#23303f;
           --bk-quiet:rgba(35,48,63,.62);   /* both lines on the cover */
           /* the logotype and every button here are MJM's dark green, not the
