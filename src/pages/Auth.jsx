@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { checkOpsAccess, rememberUser } from '../lib/auth';
+import { checkOpsAccess, rememberUser, isOnline } from '../lib/auth';
+import { hasOffline, openOffline, sealOffline } from '../lib/offlineVault.js';
+
+/* A login that never reached the server, as opposed to one the server
+   refused — same test as Index.jsx and the FC Portal's AuthScreen. */
+function neverReachedServer(error) {
+  return !!error && (error.status === 0 || error.status === undefined ||
+    /fetch|network|load failed/i.test(String(error.message || '')));
+}
 import BookCover from '../components/BookCover.jsx';
 
 // Login / Sign-up / OTP / Forgot-password / Recovery screen, on the shared
@@ -90,9 +98,35 @@ export default function AuthPage() {
       setIsSignUp(false);
       return;
     }
+    /* No line: try the phone's sealed copy (offlineVault.js). On success the
+       saved session goes back where supabase-js keeps it and index.html —
+       whose gate fails OPEN on an unreachable profile read — takes it from
+       there. The post-login gate HERE fails closed, which is right online
+       and wrong with no network to ask. */
+    async function offlineUnlock() {
+      if (!hasOffline(email)) {
+        return showStatus('No line — and this phone has not signed in to this account before. The first sign-in needs signal; after that it works offline.', 'error');
+      }
+      const saved = await openOffline(email, pw);
+      if (!saved || !saved.storageKey || !saved.session) {
+        return showStatus('Password does not match. (No line — checked against the copy saved on this phone.)', 'error');
+      }
+      try { localStorage.setItem(saved.storageKey, JSON.stringify(saved.session)); } catch (e) { /* */ }
+      window.location.href = 'index.html';
+    }
+    if (!isOnline()) return offlineUnlock();
     showStatus('Signing in...', 'success');
     const { data, error } = await supabase.auth.signInWithPassword({ email, password: pw });
-    if (error) return showStatus(error.message, 'error');
+    if (error) {
+      if (neverReachedServer(error) && hasOffline(email)) return offlineUnlock();
+      return showStatus(error.message, 'error');
+    }
+    // Seal the fresh session so the NEXT login can happen with no line.
+    try {
+      const key = Object.keys(localStorage).find((k) => /^sb-.+-auth-token$/.test(k));
+      const raw = key ? JSON.parse(localStorage.getItem(key)) : null;
+      if (key && (raw || data.session)) await sealOffline(email, pw, { storageKey: key, session: raw || data.session });
+    } catch (e) { /* nothing to do */ }
     await AuthPage._handlePostLogin(data.session);
   }
 

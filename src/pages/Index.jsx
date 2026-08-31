@@ -1,9 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { checkOpsAccess, rememberUser, displayName, signOutLocal, cachedSession, isOnline } from '../lib/auth';
+import { hasOffline, openOffline, sealOffline } from '../lib/offlineVault.js';
 import BookCover from '../components/BookCover.jsx';
 import PortalBar from '../components/PortalBar.jsx';
 import NelosBlock from '../components/NelosBlock.jsx';
+
+/* A login that never reached the server, as opposed to one the server
+   refused. Only the first kind is worth retrying against the phone's sealed
+   copy — a server that ANSWERED "wrong password" never is. Same test as the
+   FC Portal's AuthScreen. */
+function neverReachedServer(error) {
+  return !!error && (error.status === 0 || error.status === undefined ||
+    /fetch|network|load failed/i.test(String(error.message || '')));
+}
 
 // Combined sign-in + dashboard. This is what mobile.mjmnursery.com opens on,
 // so this is the login almost everyone sees — auth.html is the other door,
@@ -95,14 +105,52 @@ export default function IndexPage() {
         setIsSignUp(false);
         setBtnLabel('Login');
       }
+    } else if (!isOnline()) {
+      await offlineUnlock(email, pw);
+      setBtnLabel('Login');
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password: pw });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password: pw });
       if (error) {
-        alert('Login Error: ' + error.message);
+        /* navigator.onLine says true on plenty of dead connections, so a
+           login that never reached the server also falls back to the phone's
+           sealed copy. */
+        if (neverReachedServer(error) && hasOffline(email)) await offlineUnlock(email, pw);
+        else alert('Login Error: ' + error.message);
         setBtnLabel('Login');
+      } else {
+        await sealAfterLogin(email, pw, data);
       }
     }
     setBusy(false);
+  }
+
+  /* Sign in against the phone's sealed copy — the no-line path. The typed
+     password either decrypts the session saved at the last ONLINE login, or
+     nothing happens; see offlineVault.js. On success the saved session goes
+     back where supabase-js keeps it and the page reboots onto it. */
+  async function offlineUnlock(email, pw) {
+    if (!hasOffline(email)) {
+      alert('No line — and this phone has not signed in to this account before. The first sign-in needs signal; after that it works offline.');
+      return;
+    }
+    const saved = await openOffline(email, pw);
+    if (!saved || !saved.storageKey || !saved.session) {
+      alert('Password does not match. (No line — checked against the copy saved on this phone.)');
+      return;
+    }
+    try { localStorage.setItem(saved.storageKey, JSON.stringify(saved.session)); } catch (e) { /* */ }
+    window.location.reload();
+  }
+
+  /* After a successful ONLINE login, seal what supabase-js just wrote so the
+     NEXT login can happen with no line. Best effort. */
+  async function sealAfterLogin(email, pw, data) {
+    try {
+      const key = Object.keys(localStorage).find((k) => /^sb-.+-auth-token$/.test(k));
+      const raw = key ? JSON.parse(localStorage.getItem(key)) : null;
+      const session = raw || (data && data.session) || null;
+      if (key && session) await sealOffline(email, pw, { storageKey: key, session });
+    } catch (e) { /* nothing to do */ }
   }
 
   async function handleForgot() {
