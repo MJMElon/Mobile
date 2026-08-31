@@ -2,8 +2,10 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { supabase } from '../lib/supabase';
 import { displayName } from '../lib/auth';
 import { callGeminiScan, compressImage } from '../lib/gemini';
+import { DO_JOB, looksOffline, queueJob, sendDO } from '../lib/mobileQueue.js';
+import { isOnline } from '../lib/auth';
 import { printDOPdf } from '../lib/pdf';
-import { attachDOToOrder, generateDONumber } from '../lib/doAttach';
+import { generateDONumber } from '../lib/doAttach';
 import AuthGate from '../components/AuthGate';
 import TopNav from '../components/TopNav';
 import SignaturePad from '../components/SignaturePad';
@@ -257,11 +259,19 @@ function DoSigning({ session, userName }) {
   async function runAIScan(base64, mimeType) {
     let result = { items: [], date: null };
     let failed = false;
-    try {
-      result = await callGeminiScan(base64, mimeType, SCAN_PROMPT);
-    } catch (err) {
-      console.error('AI scan error:', err);
+    /* No line: the AI document scan cannot run (it is a server call), and
+       that is by design — the photo is kept, the rows are filled by hand,
+       and the DO queues like any other save. Takes the same notice path as
+       a scan that failed. */
+    if (!isOnline()) {
       failed = true;
+    } else {
+      try {
+        result = await callGeminiScan(base64, mimeType, SCAN_PROMPT);
+      } catch (err) {
+        console.error('AI scan error:', err);
+        failed = true;
+      }
     }
     setScanLoading(false);
     if (failed || !result.items?.length) {
@@ -311,25 +321,6 @@ function DoSigning({ session, userName }) {
     const sigDataUrl = scanSigRef.current.toDataURL();
     setSavingScan(true);
 
-    // Upload photo if present
-    let imageUrl = null;
-    if (scanPhoto) {
-      try {
-        const filePath = `do_photos/${activeAL.al_number}/${scanDoNumber}_${Date.now()}.jpg`;
-        const bytes = atob(scanPhoto.split(',')[1]);
-        const arr = new Uint8Array(bytes.length);
-        for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-        const blob = new Blob([arr], { type: 'image/jpeg' });
-        const { error: upErr } = await supabase.storage.from('documents').upload(filePath, blob, { contentType: 'image/jpeg', upsert: true });
-        if (!upErr) {
-          const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
-          imageUrl = urlData?.publicUrl || null;
-        }
-      } catch (e) {
-        imageUrl = scanPhoto;
-      }
-    }
-
     const payload = {
       do_number: scanDoNumber,
       al_number: activeAL.al_number,
@@ -337,7 +328,7 @@ function DoSigning({ session, userName }) {
       total_qty: total,
       remark: activeAL.customer_name,
       status: 'Delivered',
-      image_url: imageUrl,
+      image_url: null,
     };
     collected.slice(0, 5).forEach((it, i) => {
       const n = i + 1;
@@ -347,20 +338,35 @@ function DoSigning({ session, userName }) {
       payload[`qty_${n}`] = it.qty || null;
     });
 
-    const { error: insertErr } = await supabase.from('shared_do_records').insert([payload]);
-    if (insertErr) {
-      setSavingScan(false);
-      return alert('Error saving DO: ' + insertErr.message);
+    /* The whole issue as one JOB through sendDO (mobileQueue.js): it
+       uploads the photo, inserts the row (guarded against double-posting),
+       deducts the balance from the server's CURRENT value, and attaches the
+       PDF to the order. With no line the job queues on the phone and does
+       all of that when the line returns. */
+    const job = {
+      payload,
+      photoBase64: scanPhoto || null,
+      alId: activeAL.id,
+      totalQty: total,
+      al: activeAL,
+      staff,
+      sigDataUrl,
+    };
+    let queuedOffline = false;
+    try {
+      await sendDO(job);
+    } catch (e) {
+      if (!looksOffline(e)) {
+        setSavingScan(false);
+        return alert('Error saving DO: ' + e.message);
+      }
+      await queueJob(DO_JOB, job);
+      queuedOffline = true;
     }
 
-    // Deduct balance
+    // The phone's own picture of the balance moves either way — the server
+    // copy is deducted by sendDO, now or at flush.
     const newBalance = (activeAL.balance_quantity ?? 0) - total;
-    await supabase.from('shared_al_orders').update({ balance_quantity: newBalance }).eq('id', activeAL.id);
-
-    // Attach the standardized DO PDF to the customer's Sales Web order
-    // (best-effort — never blocks the DO).
-    await attachDOToOrder({ payload, al: activeAL, staff, sigDataUrl, photoBase64: scanPhoto });
-
     const updatedAL = { ...activeAL, balance_quantity: newBalance };
     setAlData((prev) => {
       const next = prev.map((r) => (r.id === activeAL.id ? updatedAL : r));
@@ -370,9 +376,11 @@ function DoSigning({ session, userName }) {
     setSavingScan(false);
     closeScanModal();
 
-    // Refresh manage list + show print prompt
+    // Refresh manage list + show print prompt. Printing is local (jsPDF),
+    // so it works with no line; only the server list fetch waits for one.
     setManageOpen(true);
-    loadDOsForAL(updatedAL.al_number);
+    if (queuedOffline) showToast('📴 DO saved to phone — sends by itself when the line returns');
+    else loadDOsForAL(updatedAL.al_number);
     setTimeout(() => setPrintPrompt({ doNum: scanDoNumber, rec: payload, sig: sigDataUrl, photo: scanPhoto }), 400);
   }
 

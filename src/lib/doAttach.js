@@ -43,10 +43,16 @@ export async function generateDONumber(al) {
   const orderNo = String(al?.order_number || al?.al_number || '').trim();
   if (!orderNo) return `DO-${Date.now().toString(36).toUpperCase()}`;
   const prefix = `DO-${orderNo}`;
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('shared_do_records')
     .select('do_number')
     .ilike('do_number', `${prefix}%`);
+  /* With no line the pool of existing numbers cannot be read, and guessing
+     "01" invites a collision when the queued DO flushes. An OFF placeholder
+     with a timestamp is unique by construction — the same convention the FC
+     scan app uses, which is why the loop below already skips OFF numbers
+     when finding the next real one. */
+  if (error) return `${prefix}-OFF${Date.now().toString(36).toUpperCase()}`;
   let max = 0;
   (data || []).forEach((r) => {
     const rest = String(r.do_number || '').slice(prefix.length);
