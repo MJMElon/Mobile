@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { checkOpsAccess, rememberUser, displayName, cachedSession, isOnline } from '../lib/auth';
+import { checkOpsAccess, rememberUser, displayName, cachedSession } from '../lib/auth';
 
 // Wraps an interior page. Ensures there's a session AND ops access before
 // rendering children. No session → bounce to login. Session but no access →
@@ -18,11 +18,11 @@ export default function AuthGate({ children }) {
         data: { session: s },
       } = await supabase.auth.getSession();
       /* getSession() answers null both for "never signed in" and for "signed
-         in, but the token expired and the refresh needed a network that
-         isn't there" — offline, fall back to whatever is still in storage
-         rather than sending someone already using the portal back through a
-         login page they cannot use without signal. */
-      const useSess = s || (!isOnline() ? cachedSession() : null);
+         in, but the token expired and the refresh did not land". Any null
+         falls back to whatever is still in storage — signed in is a state
+         you stay in; only a pressed Sign Out (or the server refusing the
+         refresh token, which raises SIGNED_OUT below) ends it. */
+      const useSess = s || cachedSession();
       if (!useSess) {
         window.location.href = 'index.html';
         return;
@@ -42,7 +42,7 @@ export default function AuthGate({ children }) {
       // Same reasoning as above: only an explicit SIGNED_OUT means somebody
       // actually signed out. Anything else answering null offline falls back
       // to the cached session instead of undoing what just got recovered.
-      const useSess = s || (event !== 'SIGNED_OUT' && !isOnline() ? cachedSession() : null);
+      const useSess = s || (event !== 'SIGNED_OUT' ? cachedSession() : null);
       if (event === 'SIGNED_OUT' || !useSess) window.location.href = 'index.html';
     });
     return () => {

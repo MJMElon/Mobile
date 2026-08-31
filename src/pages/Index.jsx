@@ -65,7 +65,7 @@ export default function IndexPage() {
          actual sign-out; anything else null, offline, falls back to whatever
          is still in storage rather than showing the login form to someone
          who was already using the portal this morning. */
-      const useSess = s || (event !== 'SIGNED_OUT' && !isOnline() ? cachedSession() : null);
+      const useSess = s || (event !== 'SIGNED_OUT' ? cachedSession() : null);
       if (event === 'SIGNED_OUT' || !useSess) {
         setScreen('auth');
         return;
@@ -74,7 +74,7 @@ export default function IndexPage() {
     });
 
     supabase.auth.getSession().then(({ data: { session: s } }) => {
-      const useSess = s || (!isOnline() ? cachedSession() : null);
+      const useSess = s || cachedSession();
       if (!useSess) setScreen('auth');
       else if (!isRecovering) setTimeout(() => runGate(useSess), 0);
       else setScreen('auth');

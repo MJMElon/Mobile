@@ -6,18 +6,18 @@ export const isOnline = () => (typeof navigator === 'undefined' ? true : navigat
    storage rather than through supabase.auth.getSession(). Needed as a
    fallback for one case: getSession() (and the INITIAL_SESSION event that
    comes with it) answers null both when nobody has ever signed in AND when a
-   token had expired and the refresh it tried needed a network that is not
-   there — an admin who signed in this morning and is now somewhere with no
-   line should not be bounced to a login page that a bar of signal is the
-   only way to use.
+   token had expired and the refresh it tried failed — no network, or a slow
+   one. An admin who signed in this morning should not be bounced to a login
+   page for either.
 
-   ONLINE, an expired token is left alone here (returns null): supabase-js is
-   about to refresh it, or the refresh token itself is bad and a real
-   sign-in is needed, and either way the normal path should decide. OFFLINE,
-   there is no refresh to have, so the clock is not a reason to turn someone
-   away — a request made with it goes nowhere without a network to carry it,
-   so trusting it to keep the app open costs nothing RLS was not already
-   going to cost. */
+   An EXPIRED token is trusted, deliberately, online and off — same rule as
+   the FC Portal's AuthContext. Signed in is meant to be a state you stay
+   in: the login page comes back for a pressed Sign Out or a server that
+   actually refused the refresh token (that raises SIGNED_OUT, which is
+   still honoured), never for a clock. Offline a stale token goes nowhere
+   without a network to carry it; online supabase-js refreshes it in the
+   background and replaces what this painted. RLS is what actually protects
+   a table — this only decides what to draw. */
 export function cachedSession() {
   try {
     const key = Object.keys(localStorage).find((k) => /^sb-.+-auth-token$/.test(k));
@@ -25,7 +25,6 @@ export function cachedSession() {
     const raw = JSON.parse(localStorage.getItem(key));
     const s = (raw && (raw.currentSession || raw)) || null;
     if (!s || !s.access_token || !s.user) return null;
-    if (s.expires_at && Number(s.expires_at) * 1000 <= Date.now() && isOnline()) return null;
     return s;
   } catch (e) {
     return null;
