@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { checkOpsAccess, rememberUser, displayName, signOutLocal } from '../lib/auth';
+import { checkOpsAccess, rememberUser, displayName, signOutLocal, cachedSession, isOnline } from '../lib/auth';
 
 // Combined auth + dashboard, faithful to the original index.html.
 export default function IndexPage() {
@@ -42,16 +42,25 @@ export default function IndexPage() {
         setScreen('auth');
         return;
       }
-      if (event === 'SIGNED_OUT' || !s) {
+      /* INITIAL_SESSION (and getSession() below) can answer null for two very
+         different reasons: nobody has ever signed in on this device, or
+         somebody has but the token expired and the refresh it tried needed a
+         network that is not there. Only an explicit SIGNED_OUT means an
+         actual sign-out; anything else null, offline, falls back to whatever
+         is still in storage rather than showing the login form to someone
+         who was already using the portal this morning. */
+      const useSess = s || (event !== 'SIGNED_OUT' && !isOnline() ? cachedSession() : null);
+      if (event === 'SIGNED_OUT' || !useSess) {
         setScreen('auth');
         return;
       }
-      if (s) setTimeout(() => runGate(s), 0);
+      setTimeout(() => runGate(useSess), 0);
     });
 
     supabase.auth.getSession().then(({ data: { session: s } }) => {
-      if (!s) setScreen('auth');
-      else if (!isRecovering) setTimeout(() => runGate(s), 0);
+      const useSess = s || (!isOnline() ? cachedSession() : null);
+      if (!useSess) setScreen('auth');
+      else if (!isRecovering) setTimeout(() => runGate(useSess), 0);
       else setScreen('auth');
     });
 

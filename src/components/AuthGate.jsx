@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { checkOpsAccess, rememberUser, displayName } from '../lib/auth';
+import { checkOpsAccess, rememberUser, displayName, cachedSession, isOnline } from '../lib/auth';
 
 // Wraps an interior page. Ensures there's a session AND ops access before
 // rendering children. No session → bounce to login. Session but no access →
@@ -17,23 +17,33 @@ export default function AuthGate({ children }) {
       const {
         data: { session: s },
       } = await supabase.auth.getSession();
-      if (!s) {
+      /* getSession() answers null both for "never signed in" and for "signed
+         in, but the token expired and the refresh needed a network that
+         isn't there" — offline, fall back to whatever is still in storage
+         rather than sending someone already using the portal back through a
+         login page they cannot use without signal. */
+      const useSess = s || (!isOnline() ? cachedSession() : null);
+      if (!useSess) {
         window.location.href = 'index.html';
         return;
       }
-      rememberUser(s);
-      const ok = await checkOpsAccess(s, { failClosed: false });
+      rememberUser(useSess);
+      const ok = await checkOpsAccess(useSess, { failClosed: false });
       if (cancelled) return;
       if (!ok) {
         window.location.replace('auth.html');
         return;
       }
-      setSession(s);
+      setSession(useSess);
       setReady(true);
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
-      if (event === 'SIGNED_OUT' || !s) window.location.href = 'index.html';
+      // Same reasoning as above: only an explicit SIGNED_OUT means somebody
+      // actually signed out. Anything else answering null offline falls back
+      // to the cached session instead of undoing what just got recovered.
+      const useSess = s || (event !== 'SIGNED_OUT' && !isOnline() ? cachedSession() : null);
+      if (event === 'SIGNED_OUT' || !useSess) window.location.href = 'index.html';
     });
     return () => {
       cancelled = true;
