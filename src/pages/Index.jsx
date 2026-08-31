@@ -2,9 +2,76 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { checkOpsAccess, rememberUser, displayName, signOutLocal, cachedSession, isOnline } from '../lib/auth';
 import { hasOffline, openOffline, sealOffline } from '../lib/offlineVault.js';
+import { lastSync, startAutoSync, syncNow } from '../lib/adminSync.js';
 import BookCover from '../components/BookCover.jsx';
 import PortalBar from '../components/PortalBar.jsx';
 import NelosBlock from '../components/NelosBlock.jsx';
+
+// The same 30-second rhythm the FC Portal and the audit module keep — see
+// adminSync.js for what a tick means on THIS portal.
+startAutoSync();
+
+/* "31 Aug, 11:42" — enough to trust the stamp, short enough for one line. */
+function fmtWhen(at) {
+  try {
+    return new Date(at).toLocaleString(undefined, {
+      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+    });
+  } catch (e) {
+    return new Date(at).toISOString().slice(0, 16).replace('T', ' ');
+  }
+}
+
+let syncNoteTimer = null;
+
+/* The Sync card, under the module cards — same card, same stamp rule as the
+   FC Portal dashboard: the time shown is the last sync that fully WORKED. */
+function SyncCard() {
+  const [busy, setBusy] = useState(false);
+  const [stamp, setStamp] = useState(lastSync);
+  const [note, setNote] = useState(null);
+
+  async function press() {
+    if (busy) return;
+    setBusy(true);
+    setNote(null);
+    const r = await syncNow();
+    setBusy(false);
+    if (r.ok) { setStamp({ at: r.at, ok: true }); return; }
+    setNote(r.offline
+      ? 'No line — sync needs signal.'
+      : 'Could not reach the server — try again where the line is better.');
+    clearTimeout(syncNoteTimer);
+    syncNoteTimer = setTimeout(() => setNote(null), 6000);
+  }
+
+  return (
+    <button
+      onClick={press}
+      disabled={busy}
+      className="module-card p-5 flex items-center gap-4 text-left cursor-pointer disabled:cursor-default w-full"
+    >
+      <div className={`w-14 h-14 bg-sky-100 rounded-2xl flex items-center justify-center text-3xl shrink-0 ${busy ? 'animate-spin' : ''}`}>
+        🔄
+      </div>
+      <div className="flex-1 min-w-0">
+        <h3 className="text-base font-black text-slate-800 uppercase tracking-wide leading-tight">Sync</h3>
+        <div className="mt-2">
+          {note ? (
+            <span className="text-[10px] font-black text-amber-600 uppercase tracking-wider leading-snug block">{note}</span>
+          ) : busy ? (
+            <span className="text-[10px] font-black text-sky-600 uppercase tracking-widest">Syncing…</span>
+          ) : stamp ? (
+            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">✓ Last sync: {fmtWhen(stamp.at)}</span>
+          ) : (
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Not synced yet</span>
+          )}
+        </div>
+      </div>
+      <div className="text-slate-300 font-black text-lg shrink-0">›</div>
+    </button>
+  );
+}
 
 /* A login that never reached the server, as opposed to one the server
    refused. Only the first kind is worth retrying against the phone's sealed
@@ -227,6 +294,9 @@ export default function IndexPage() {
                 <div className="text-slate-300 font-black text-lg shrink-0">›</div>
               </a>
             ))}
+            {/* Under the module cards, for everyone — same card and same
+                stamp rule as the FC Portal dashboard. */}
+            <SyncCard />
           </div>
         </div>
       </div>

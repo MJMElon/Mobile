@@ -1,0 +1,61 @@
+/* The Admin Portal's Sync button and its 30-second tick.
+ *
+ * Honesty first: this portal has no offline write queue — Issue DO, Consent
+ * and Booking all submit straight to Supabase when saved — so unlike the FC
+ * Portal there is nothing stored on the phone waiting to be pushed. What
+ * sync MEANS here is: prove the line and the session actually reach the
+ * data, and stamp the time so the card can say when that last worked. The
+ * probe is one row from a table this portal lives on — auth, RLS and the
+ * network all have to hold for it to come back.
+ *
+ * The 30-second tick keeps the same rhythm as the FC Portal and the audit
+ * module so the three feel like one system, and it is where a queue flush
+ * will live the day this portal gains one. It only runs while the tab is
+ * visible and the browser says online — a hidden tab polling for nothing
+ * would be pure battery.
+ */
+import { supabase } from './supabase';
+import { isOnline } from './auth';
+
+export const SYNC_STAMP_KEY = 'mjm_mobile_last_sync_v1';
+
+export function lastSync() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SYNC_STAMP_KEY));
+    return s && s.at ? s : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export async function syncNow() {
+  if (!isOnline()) return { ok: false, offline: true };
+  try {
+    const { error } = await supabase
+      .from('mobile_consent_records')
+      .select('id')
+      .limit(1);
+    if (error) throw error;
+    const at = Date.now();
+    try { localStorage.setItem(SYNC_STAMP_KEY, JSON.stringify({ at, ok: true })); } catch (e) { /* */ }
+    return { ok: true, at };
+  } catch (e) {
+    return { ok: false, offline: false, error: String((e && e.message) || e) };
+  }
+}
+
+let autoTimer = null;
+let autoBusy = false;
+
+export function startAutoSync(intervalMs = 30000) {
+  if (autoTimer) return;
+  const tick = async () => {
+    if (autoBusy || !isOnline()) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    autoBusy = true;
+    try { await syncNow(); } catch (e) { /* next tick */ }
+    autoBusy = false;
+  };
+  autoTimer = setInterval(tick, intervalMs);
+  window.addEventListener('online', tick);
+}

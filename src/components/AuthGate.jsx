@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { checkOpsAccess, rememberUser, displayName, cachedSession } from '../lib/auth';
+import { startAutoSync } from '../lib/adminSync.js';
+
+// Interior pages tick too — an MPA loads each page fresh, so the dashboard's
+// call does not cover a person parked on the DO screen all morning.
+startAutoSync();
 
 // Wraps an interior page. Ensures there's a session AND ops access before
 // rendering children. No session → bounce to login. Session but no access →

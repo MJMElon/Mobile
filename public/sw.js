@@ -15,10 +15,34 @@
  * request against it fails exactly the way it would with no service worker
  * at all, and the app's own code decides what that means.
  */
-const VER = 'mjm-mobile-1';
+/* Both lines are rewritten by the build (see the sw-precache plugin in
+   vite.config.js): VER gets a per-build value so every deploy opens a fresh
+   cache, and PRECACHE gets the five pages plus every hashed chunk the build
+   produced. Without the list, only pages somebody had already opened while
+   online worked offline — a runtime cache cannot hold a file that was never
+   fetched. Same fix, same reason, as the FC Portal's sw.js. */
+const VER = 'mjm-mobile-dev';
+const PRECACHE = [];
 
-self.addEventListener('install', () => {
+self.addEventListener('install', (e) => {
   self.skipWaiting();
+  /* Best effort, one file at a time; {cache:'reload'} bypasses the HTTP
+     cache. Precache only SEEDS the store — HTML stays network-first below,
+     so a phone with signal always gets the live deploy whatever was seeded. */
+  e.waitUntil(
+    caches.open(VER).then((cache) =>
+      Promise.allSettled(
+        PRECACHE.map((url) =>
+          fetch(url, { cache: 'reload' })
+            .then((res) => {
+              if (!res || res.status !== 200) throw new Error('HTTP ' + (res && res.status));
+              return cache.put(url, res);
+            })
+            .catch(() => {})
+        )
+      )
+    )
+  );
 });
 
 self.addEventListener('activate', (e) => {
