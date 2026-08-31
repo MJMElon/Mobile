@@ -1,21 +1,21 @@
 /* The Admin Portal's Sync button and its 30-second tick.
  *
- * Honesty first: this portal has no offline write queue — Issue DO, Consent
- * and Booking all submit straight to Supabase when saved — so unlike the FC
- * Portal there is nothing stored on the phone waiting to be pushed. What
- * sync MEANS here is: prove the line and the session actually reach the
- * data, and stamp the time so the card can say when that last worked. The
- * probe is one row from a table this portal lives on — auth, RLS and the
- * network all have to hold for it to come back.
+ * The day this portal would gain an offline write queue arrived: consents,
+ * bookings and DOs saved with no line queue in the outbox (mobileQueue.js),
+ * and every tick — and every press of the Sync card — flushes them first.
+ * The probe after the flush is one row from a table this portal lives on:
+ * auth, RLS and the network all have to hold for it to come back, so the
+ * stamp only moves when the queue is empty AND the line truly reaches the
+ * data.
  *
  * The 30-second tick keeps the same rhythm as the FC Portal and the audit
- * module so the three feel like one system, and it is where a queue flush
- * will live the day this portal gains one. It only runs while the tab is
+ * module so the three feel like one system. It only runs while the tab is
  * visible and the browser says online — a hidden tab polling for nothing
  * would be pure battery.
  */
 import { supabase } from './supabase';
 import { isOnline } from './auth';
+import { flushMobileQueue } from './mobileQueue.js';
 
 export const SYNC_STAMP_KEY = 'mjm_mobile_last_sync_v1';
 
@@ -31,6 +31,11 @@ export function lastSync() {
 export async function syncNow() {
   if (!isOnline()) return { ok: false, offline: true };
   try {
+    // PUSH first: whatever this phone queued while there was no line.
+    const flushed = await flushMobileQueue();
+    if (flushed.failed > 0 || flushed.left > 0) {
+      return { ok: false, offline: false, error: flushed.left + ' record(s) still waiting' };
+    }
     const { error } = await supabase
       .from('mobile_consent_records')
       .select('id')

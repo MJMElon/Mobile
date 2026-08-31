@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { BOOKING_JOB, looksOffline, queueJob, sendBooking } from '../lib/mobileQueue.js';
 import AuthGate from '../components/AuthGate';
 import TopNav from '../components/TopNav';
 import { useToast } from '../components/Toast';
@@ -615,15 +616,27 @@ function Booking({ session, userName }) {
       plot_name: bkPlot.trim() || null,
       notes: bkNotes.trim() || null,
     };
-    const { error } = await supabase.from('shared_collection_bookings').insert([payload]);
-    setBkSaving(false);
-    if (error) {
-      showToast('❌ ' + error.message);
-      return;
+    /* Through sendBooking (mobileQueue.js): with no line, or a save that
+       never reached the server, the booking queues on the phone and sends
+       itself when the line returns. */
+    let queuedOffline = false;
+    try {
+      await sendBooking({ payload });
+    } catch (e) {
+      if (!looksOffline(e)) {
+        setBkSaving(false);
+        showToast('❌ ' + e.message);
+        return;
+      }
+      await queueJob(BOOKING_JOB, { payload });
+      queuedOffline = true;
     }
-    showToast('✅ Booking confirmed for ' + selectedAL.customer_name);
+    setBkSaving(false);
+    showToast(queuedOffline
+      ? '📴 Saved to phone — sends by itself when the line returns'
+      : '✅ Booking confirmed for ' + selectedAL.customer_name);
     closeBookingModal();
-    await reloadCurrentView();
+    if (!queuedOffline) await reloadCurrentView();
   }
 
   // ════════════════════════════════════════════════════════

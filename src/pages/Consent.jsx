@@ -1,6 +1,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { callGeminiScan, compressImage } from '../lib/gemini';
+import { CONSENT_JOB, looksOffline, queueJob, sendConsent } from '../lib/mobileQueue.js';
+import { isOnline } from '../lib/auth';
 import AuthGate from '../components/AuthGate';
 import TopNav from '../components/TopNav';
 import SignaturePad from '../components/SignaturePad';
@@ -452,6 +454,17 @@ function Consent({ session, userName }) {
       base64 = await compressImage(base64);
       setPhotoBase64(base64);
 
+      /* No line: the AI count cannot run (the Gemini edge function is a
+         server call), and that is by design — the photo is kept, the count
+         is entered by hand, and the whole record queues like any other. */
+      if (!isOnline()) {
+        setAiScanning(false);
+        setAiResultShown(true);
+        setAiCountLabel('—');
+        setAiNotice('📴 No line — AI sticker count needs signal. Enter the count by hand.');
+        return;
+      }
+
       // Run AI scan
       setAiResultShown(false);
       setAiScanning(true);
@@ -519,43 +532,40 @@ function Consent({ session, userName }) {
       customerName = currentAL.customer_name || '';
     }
 
-    // Upload photo to Supabase storage if available
-    let photoUrl = null;
-    if (photoBase64) {
-      try {
-        const blob = await fetch(photoBase64).then((r) => r.blob());
-        const filePath = `consent_photos/${alNumber}/${Date.now()}.jpg`;
-        const { error: upErr } = await supabase.storage
-          .from('documents')
-          .upload(filePath, blob, { contentType: 'image/jpeg', upsert: true });
-        if (!upErr) {
-          const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
-          photoUrl = urlData?.publicUrl || null;
-        }
-      } catch (e) {
-        photoUrl = photoBase64;
-      }
-    }
-
-    const payload = {
-      al_number: alNumber,
-      order_number: orderNumber,
-      customer_name: customerName,
-      consent_qty: selectedQty,
-      signature_data: sigDataUrl,
-      photo_url: photoUrl,
-      ai_sticker_count: aiStickerCount,
+    /* The whole save as one JOB — row plus photo — through sendConsent
+       (mobileQueue.js), which uploads the photo and inserts. With no line,
+       or a save that never reached the server, the job queues on the phone
+       and flushes when the line returns; the photo is uploaded to storage
+       at flush time, so an offline consent still ends up with a real URL. */
+    const job = {
+      payload: {
+        al_number: alNumber,
+        order_number: orderNumber,
+        customer_name: customerName,
+        consent_qty: selectedQty,
+        signature_data: sigDataUrl,
+        photo_url: null,
+        ai_sticker_count: aiStickerCount,
+      },
+      photoBase64: photoBase64 || null,
     };
 
-    const { error } = await supabase.from('mobile_consent_records').insert([payload]);
-
-    if (error) {
-      showToast('❌ Error: ' + error.message);
-      setSubmitting(false);
-      return;
+    let queuedOffline = false;
+    try {
+      await sendConsent(job);
+    } catch (e) {
+      if (!looksOffline(e)) {
+        showToast('❌ Error: ' + e.message);
+        setSubmitting(false);
+        return;
+      }
+      await queueJob(CONSENT_JOB, job);
+      queuedOffline = true;
     }
 
-    showToast('✅ Consent saved! ' + selectedQty.toLocaleString() + ' seedlings for ' + customerName);
+    showToast(queuedOffline
+      ? '📴 Saved to phone — sends by itself when the line returns'
+      : '✅ Consent saved! ' + selectedQty.toLocaleString() + ' seedlings for ' + customerName);
     setSubmitting(false);
 
     closeSignModal();
