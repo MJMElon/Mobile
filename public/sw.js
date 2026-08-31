@@ -52,7 +52,9 @@ self.addEventListener('fetch', (e) => {
           }
           return res;
         })
-        .catch(() => caches.match(e.request))
+        /* ignoreSearch: a page opened with query params (a deep link, a
+           cache-buster) is still the same cached page offline. */
+        .catch(() => caches.match(e.request, { ignoreSearch: true }))
     );
     return;
   }
