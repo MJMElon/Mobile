@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { BOOKING_JOB, looksOffline, queueJob, sendBooking } from '../lib/mobileQueue.js';
 import AuthGate from '../components/AuthGate';
 import TopNav from '../components/TopNav';
+import CfSelect from '../components/CfSelect.jsx';
 import { useToast } from '../components/Toast';
 
 export default function BookingPage() {
@@ -1029,11 +1030,11 @@ function Booking({ session, userName }) {
               </div>
               <div>
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Time Slot</label>
-                <select className="search-input text-sm" style={{ padding: '10px 14px' }} value={bkTime} onChange={(e) => setBkTime(e.target.value)}>
+                <CfSelect value={bkTime} onChange={(e) => setBkTime(e.target.value)}>
                   {bkTimeOptions.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
-                </select>
+                </CfSelect>
               </div>
             </div>
 
@@ -1126,9 +1127,7 @@ function Booking({ session, userName }) {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Collect From Nursery</label>
-                    <select
-                      className="search-input text-sm"
-                      style={{ padding: '10px 14px' }}
+                    <CfSelect
                       value={bkNursery}
                       onChange={(e) => {
                         setBkNursery(e.target.value);
@@ -1139,16 +1138,16 @@ function Booking({ session, userName }) {
                       {nurseryOptions.map((n) => (
                         <option key={n} value={n}>{n}</option>
                       ))}
-                    </select>
+                    </CfSelect>
                   </div>
                   <div>
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Plot</label>
-                    <select className="search-input text-sm" style={{ padding: '10px 14px' }} value={bkPlot} onChange={(e) => setBkPlot(e.target.value)}>
+                    <CfSelect value={bkPlot} onChange={(e) => setBkPlot(e.target.value)}>
                       <option value="">— Select Plot —</option>
                       {plotOptionsFor(bkNursery).map((p) => (
                         <option key={p} value={p}>{p}</option>
                       ))}
-                    </select>
+                    </CfSelect>
                   </div>
                 </div>
               </div>
@@ -1209,11 +1208,11 @@ function Booking({ session, userName }) {
               </div>
               <div>
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Time Slot</label>
-                <select className="search-input text-sm" style={{ padding: '10px 14px' }} value={detTime} onChange={(e) => setDetTime(e.target.value)}>
+                <CfSelect value={detTime} onChange={(e) => setDetTime(e.target.value)}>
                   {detTimeOptions.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
-                </select>
+                </CfSelect>
               </div>
             </div>
 
@@ -1225,9 +1224,7 @@ function Booking({ session, userName }) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Nursery</label>
-                <select
-                  className="search-input text-sm"
-                  style={{ padding: '10px 14px' }}
+                <CfSelect
                   value={detNursery}
                   onChange={(e) => {
                     setDetNursery(e.target.value);
@@ -1238,16 +1235,16 @@ function Booking({ session, userName }) {
                   {nurseryOptions.map((n) => (
                     <option key={n} value={n}>{n}</option>
                   ))}
-                </select>
+                </CfSelect>
               </div>
               <div>
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Plot</label>
-                <select className="search-input text-sm" style={{ padding: '10px 14px' }} value={detPlot} onChange={(e) => setDetPlot(e.target.value)}>
+                <CfSelect value={detPlot} onChange={(e) => setDetPlot(e.target.value)}>
                   <option value="">— Select Plot —</option>
                   {plotOptionsFor(detNursery).map((p) => (
                     <option key={p} value={p}>{p}</option>
                   ))}
-                </select>
+                </CfSelect>
               </div>
             </div>
 
@@ -1401,16 +1398,15 @@ function Booking({ session, userName }) {
                                 <span className="card-detail">{b.al_number && b.al_number !== 'PENDING' ? b.al_number : ''}</span>
                               </div>
                               <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-                                <select
+                                <CfSelect
                                   value={b.plot_name || ''}
                                   onChange={(e) => updatePlotFromBoard(b.id, e.target.value)}
-                                  style={{ width: '100%', padding: '5px 8px', fontSize: '10px', fontWeight: 700, fontFamily: 'Outfit,sans-serif', border: '1.5px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', color: '#334155', cursor: 'pointer', outline: 'none' }}
                                 >
                                   <option value="">— Assign Plot —</option>
                                   {plotOpts.map((p) => (
                                     <option key={p} value={p}>{p}</option>
                                   ))}
-                                </select>
+                                </CfSelect>
                               </div>
                               {b.plot_name && <div className="text-[9px] font-bold text-emerald-600 mt-1">📍 {b.plot_name}</div>}
                               {b.status === 'pending' && <div className="text-[9px] font-black text-amber-600 mt-1">⚠️ Awaiting confirmation</div>}

@@ -43,6 +43,7 @@
    explicit one ("routing is the default, not a rule").
    ══════════════════════════════════════════════════════════════════════ */
 import { useEffect, useRef, useState } from 'react';
+import CfSelect from './CfSelect.jsx';
 import { supabase } from '../lib/supabase';
 
 /* The four nurseries and the plots each one has, copied from
@@ -308,21 +309,21 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
         {err && <div className="nc-flash nc-flash-bad">{err}</div>}
 
         <label className="nc-label" htmlFor="nnc-to">Assign to</label>
-        <select id="nnc-to" className="nc-input" value={assignTo} onChange={(e) => pickAssignTo(e.target.value)}>
+        <CfSelect id="nnc-to" value={assignTo} onChange={(e) => pickAssignTo(e.target.value)}>
           <option value="">— choose a system —</option>
           {modules.map((m) => (
             <option key={m.key} value={m.key}>{m.label}</option>
           ))}
-        </select>
+        </CfSelect>
 
         <label className="nc-label" htmlFor="nnc-work">Work</label>
         {worksFor.length ? (
-          <select id="nnc-work" className="nc-input" value={work} onChange={(e) => setWork(e.target.value)}>
+          <CfSelect id="nnc-work" value={work} onChange={(e) => setWork(e.target.value)}>
             <option value="">— choose the work —</option>
             {worksFor.map((c) => (
               <option key={c.name} value={c.name}>{c.name}</option>
             ))}
-          </select>
+          </CfSelect>
         ) : (
           /* Either no system is chosen yet, or that system has no case
              titles set up. Both are answered by saying so rather than by an
@@ -337,9 +338,8 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
         )}
 
         <label className="nc-label" htmlFor="nnc-pic">PIC</label>
-        <select
+        <CfSelect
           id="nnc-pic"
-          className="nc-input"
           value={pic}
           onChange={(e) => setPic(e.target.value)}
           disabled={!assignTo}
@@ -350,14 +350,13 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
           {picsFor.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
-        </select>
+        </CfSelect>
 
         <div className="nc-two">
           <div>
             <label className="nc-label" htmlFor="nnc-nursery">Nursery</label>
-            <select
+            <CfSelect
               id="nnc-nursery"
-              className="nc-input"
               value={nursery}
               onChange={(e) => { setNursery(e.target.value); setPlot(''); }}
             >
@@ -365,13 +364,12 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
               {Object.keys(NURSERY_PLOTS).map((n) => (
                 <option key={n} value={n}>{NURSERY_LABEL[n]}</option>
               ))}
-            </select>
+            </CfSelect>
           </div>
           <div>
             <label className="nc-label" htmlFor="nnc-plot">Plot</label>
-            <select
+            <CfSelect
               id="nnc-plot"
-              className="nc-input"
               value={plot}
               onChange={(e) => setPlot(e.target.value)}
               disabled={!nursery}
@@ -380,7 +378,7 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
               {(NURSERY_PLOTS[nursery] || []).map((p) => (
                 <option key={p} value={p}>{p}</option>
               ))}
-            </select>
+            </CfSelect>
           </div>
         </div>
 
