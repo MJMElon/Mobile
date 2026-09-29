@@ -117,6 +117,11 @@ function Consent({ session, userName }) {
   const [fullActive, setFullActive] = useState(false);
   const [history, setHistory] = useState(null); // null=loading, []=empty, [...]=rows
   const [historyErr, setHistoryErr] = useState('');
+  // Seal (barcode) scans against each consent, from the FC scan app —
+  // keyed by consent_id, so ConsentHistory can show "which seals were
+  // actually scanned for THIS collection trip" under each row. Fetched in
+  // one request per AL rather than one per row.
+  const [sealLogs, setSealLogs] = useState({});
 
   // ── Manual fields ──
   const [manualName, setManualName] = useState('');
@@ -312,6 +317,7 @@ function Consent({ session, userName }) {
     setCustomQty('');
     setFullActive(false);
     setHistory([]); // manual: no prior history
+    setSealLogs({});
     setHistoryErr('');
     setDetailOpen(true);
   }
@@ -389,6 +395,7 @@ function Consent({ session, userName }) {
   async function loadConsentHistory(alNumber) {
     setHistory(null);
     setHistoryErr('');
+    setSealLogs({});
     const { data, error } = await supabase
       .from('mobile_consent_records')
       .select('*')
@@ -400,6 +407,27 @@ function Consent({ session, userName }) {
       return;
     }
     setHistory(data || []);
+    loadSealLogs((data || []).map((c) => c.id));
+  }
+
+  // The barcodes actually scanned against each consent in this AL's
+  // history, from fcportal_scan_records — the same table the FC scan app
+  // (Barcode_Counter) writes to and reads from (fetchScanRecords there is
+  // the per-consent version of this same query). One request covering
+  // every consent id in the history, grouped client-side by consent_id,
+  // rather than one request per row.
+  async function loadSealLogs(consentIds) {
+    if (!consentIds.length) return;
+    const { data, error } = await supabase
+      .from('fcportal_scan_records')
+      .select('consent_id, barcode, scanned_at')
+      .in('consent_id', consentIds);
+    if (error) return; // seal log is supplementary — a failure here shouldn't block the history itself
+    const byConsent = {};
+    (data || []).forEach((r) => {
+      (byConsent[r.consent_id] = byConsent[r.consent_id] || []).push(r);
+    });
+    setSealLogs(byConsent);
   }
 
   // ════════════════ PROCEED TO SIGN ════════════════
@@ -839,7 +867,7 @@ function Consent({ session, userName }) {
             {/* Consent history */}
             <div className="border-t border-slate-100 pt-5">
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">📋 Consent History</div>
-              <ConsentHistory history={history} err={historyErr} isManualMode={isManualMode} />
+              <ConsentHistory history={history} err={historyErr} isManualMode={isManualMode} sealLogs={sealLogs} />
             </div>
           </div>
 
@@ -983,7 +1011,16 @@ function Consent({ session, userName }) {
 }
 
 // ── Consent history table ──
-function ConsentHistory({ history, err, isManualMode }) {
+function ConsentHistory({ history, err, isManualMode, sealLogs = {} }) {
+  const [expanded, setExpanded] = useState(() => new Set());
+  function toggleExpanded(id) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   if (history === null) {
     return <div className="text-center py-4 text-slate-300 text-xs font-bold uppercase tracking-widest">Loading…</div>;
   }
@@ -1028,14 +1065,47 @@ function ConsentHistory({ history, err, isManualMode }) {
               const dt = c.created_at
                 ? new Date(c.created_at).toLocaleString('en-MY', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
                 : '—';
+              // Ascending by the seal's own code value — same convention
+              // the FC scan app's own Scan Log uses (see ScanModule.jsx).
+              const seals = (sealLogs[c.id] || [])
+                .slice()
+                .sort((a, b) => String(a.barcode).localeCompare(String(b.barcode), undefined, { numeric: true, sensitivity: 'base' }));
+              const isOpen = expanded.has(c.id);
               return (
-                <tr key={c.id || i}>
-                  <td className="text-slate-400">{i + 1}</td>
-                  <td>{dt}</td>
-                  <td><span className="font-black text-emerald-700">{(c.consent_qty || 0).toLocaleString()}</span></td>
-                  <td>{c.ai_sticker_count != null ? <span className="text-blue-700 font-black">{c.ai_sticker_count.toLocaleString()}</span> : '—'}</td>
-                  <td>{c.signature_data ? <img src={c.signature_data} style={{ height: '32px', borderRadius: '6px', border: '1px solid #e2e8f0' }} alt="sig" /> : '—'}</td>
-                </tr>
+                <Fragment key={c.id || i}>
+                  <tr>
+                    <td className="text-slate-400">{i + 1}</td>
+                    <td>{dt}</td>
+                    <td><span className="font-black text-emerald-700">{(c.consent_qty || 0).toLocaleString()}</span></td>
+                    <td>{c.ai_sticker_count != null ? <span className="text-blue-700 font-black">{c.ai_sticker_count.toLocaleString()}</span> : '—'}</td>
+                    <td>{c.signature_data ? <img src={c.signature_data} style={{ height: '32px', borderRadius: '6px', border: '1px solid #e2e8f0' }} alt="sig" /> : '—'}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={5} style={{ padding: 0, background: '#f8fafc' }}>
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(c.id)}
+                        className="w-full text-left px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                      >
+                        🔖 Seal Log — {seals.length} entr{seals.length === 1 ? 'y' : 'ies'} {isOpen ? '▲' : '▼'}
+                      </button>
+                      {isOpen && (
+                        seals.length ? (
+                          <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+                            {seals.map((s, si) => (
+                              <span key={si} className="text-[10px] font-mono font-bold text-slate-600 bg-white border border-slate-200 rounded-md px-2 py-1">
+                                {s.barcode}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="px-4 pb-3 text-[10px] font-bold text-slate-300">No seals scanned for this entry.</div>
+                        )
+                      )}
+                    </td>
+                  </tr>
+                </Fragment>
               );
             })}
           </tbody>
