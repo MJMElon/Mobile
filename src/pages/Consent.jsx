@@ -100,10 +100,21 @@ function Consent({ session, userName }) {
 
   // ── Data ──
   const [alData, setAlData] = useState([]);
+  // Recently completed ALs (balance already 0) for the permanent Completed
+  // group at the bottom — see loadCompletedALs below for why these are
+  // fetched separately rather than just dropping alData's own
+  // balance_quantity > 0 filter.
+  const [completedData, setCompletedData] = useState([]);
+  const [completedLoadError, setCompletedLoadError] = useState('');
   const [consentCountMap, setConsentCountMap] = useState({});
   const [loadErr, setLoadErr] = useState('');
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  // Rows found by a live, server-side search for anything outside the
+  // windows above (an older completed AL, mainly) — see queueLiveSearch.
+  const [liveMatches, setLiveMatches] = useState([]);
+  const liveSearchTimerRef = useRef(null);
+  const liveSearchTokenRef = useRef(0);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 640);
   const [collapsedGroups, setCollapsedGroups] = useState(() => ({ emerald: true }));
 
@@ -178,12 +189,117 @@ function Consent({ session, userName }) {
     setLoading(false);
   }, []);
 
+  // Completed ALs for the permanent "Completed" group at the bottom of the
+  // list, windowed the same way History's own 92-day fix replaced a row
+  // count (CLAUDE.md, "A row count is not a window") — except the right
+  // date to window on here is NOT shared_al_orders.created_at (when the AL
+  // was first raised). An AL can sit open for months of partial deliveries
+  // before the LAST DO finally brings its balance to zero, so an AL raised
+  // long ago can still have become "completed" only this week. The date
+  // that actually means "recently completed" is the most recent delivery
+  // against it, so this windows shared_do_records.delivery_date instead
+  // and only keeps the ALs that delivery activity touched. A calibration
+  // DO (CAL-…) is a stock correction, not a delivery, so it is excluded
+  // the same way operation_stock_sales.js (mjm-ai-system) excludes it from
+  // every other "collected" figure, and a cancelled DO is excluded too.
+  // Anything outside this window is still reachable — see
+  // queueLiveSearch/liveSearchFallback below, which query Supabase
+  // directly rather than trusting whatever loaded on page-open.
+  const COMPLETED_WINDOW_DAYS = 90;
+  const loadCompletedALs = useCallback(async () => {
+    setCompletedLoadError('');
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - COMPLETED_WINDOW_DAYS);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+    const { data: doRows, error: doErr } = await supabase
+      .from('shared_do_records')
+      .select('al_number,delivery_date,status,do_number')
+      .gte('delivery_date', cutoffStr);
+    if (doErr) {
+      setCompletedLoadError('Could not read delivery records (' + doErr.message + ').');
+      setCompletedData([]);
+      return;
+    }
+
+    const recentAlNumbers = [...new Set(
+      (doRows || [])
+        .filter((d) => d.status !== 'Cancelled' && !/^CAL-/i.test(String(d.do_number || '')))
+        .map((d) => d.al_number)
+        .filter(Boolean)
+    )];
+    if (!recentAlNumbers.length) {
+      setCompletedData([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('shared_al_orders')
+      .select('*')
+      .not('status', 'in', '("Cancelled","Collected")')
+      .lte('balance_quantity', 0)
+      .in('al_number', recentAlNumbers)
+      .order('created_at', { ascending: false });
+    if (error) {
+      setCompletedLoadError('Could not read the matching orders (' + error.message + ').');
+      setCompletedData([]);
+      return;
+    }
+    setCompletedData(data || []);
+  }, []);
+
   useEffect(() => {
     loadActiveALs();
+    loadCompletedALs();
     const onResize = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [loadActiveALs]);
+  }, [loadActiveALs, loadCompletedALs]);
+
+  // Debounced live search — reaches a completed AL older than the window
+  // above (or anything else alData/completedData did not happen to load)
+  // by querying Supabase directly, filtered server-side, so it cannot be
+  // truncated by a project row cap the way trusting an unbounded fetch can.
+  useEffect(() => {
+    clearTimeout(liveSearchTimerRef.current);
+    const lower = query.trim();
+    if (lower.length < 2) {
+      setLiveMatches([]);
+      return;
+    }
+    liveSearchTimerRef.current = setTimeout(async () => {
+      const token = ++liveSearchTokenRef.current;
+      const safe = lower.replace(/([%_])/g, '\\$1');
+      const { data, error } = await supabase
+        .from('shared_al_orders')
+        .select('*')
+        .not('status', 'in', '("Cancelled","Collected")')
+        .or('al_number.ilike.%' + safe + '%,order_number.ilike.%' + safe + '%,customer_name.ilike.%' + safe + '%')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (token !== liveSearchTokenRef.current) return; // a newer search is already in flight
+      if (error) { setLiveMatches([]); return; }
+      const rows = data || [];
+      setLiveMatches(rows);
+
+      const alNumbers = rows.map((r) => r.al_number).filter(Boolean);
+      if (alNumbers.length) {
+        const { data: consents } = await supabase
+          .from('mobile_consent_records')
+          .select('al_number')
+          .in('al_number', alNumbers);
+        if (token !== liveSearchTokenRef.current) return;
+        setConsentCountMap((prev) => {
+          const next = { ...prev };
+          alNumbers.forEach((n) => {
+            next[n] = (consents || []).filter((c) => c.al_number === n).length;
+          });
+          return next;
+        });
+      }
+    }, 300);
+    return () => clearTimeout(liveSearchTimerRef.current);
+  }, [query]);
 
   // ════════════════ GROUPED LIST ════════════════
   const groups = useMemo(() => {
@@ -191,35 +307,49 @@ function Consent({ session, userName }) {
     const matched = [];
     const hasConsent = [];
     const noneYet = [];
+    const completedGroup = [];
+
+    const isMatchOf = (r) =>
+      lower.length >= 1 &&
+      ((r.al_number || '').toLowerCase().includes(lower) ||
+        (r.order_number || '').toLowerCase().includes(lower) ||
+        (r.customer_name || '').toLowerCase().includes(lower));
 
     alData.forEach((r) => {
-      const isMatch =
-        lower.length >= 1 &&
-        ((r.al_number || '').toLowerCase().includes(lower) ||
-          (r.order_number || '').toLowerCase().includes(lower) ||
-          (r.customer_name || '').toLowerCase().includes(lower));
       const count = consentCountMap[r.al_number] || 0;
-      if (isMatch) matched.push(r);
+      if (isMatchOf(r)) matched.push(r);
       else if (count > 0) hasConsent.push(r);
       else noneYet.push(r);
     });
 
+    // completedData (loadCompletedALs, last COMPLETED_WINDOW_DAYS) is its
+    // own permanent group at the very bottom — a search match still pulls
+    // a row OUT of it and into Search Match instead, same rule alData's
+    // own rows follow above.
+    completedData.forEach((r) => {
+      if (isMatchOf(r)) matched.push(r);
+      else completedGroup.push(r);
+    });
+
+    // liveMatches is how a completed AL OLDER than the window above (or
+    // anything else not in alData/completedData) reaches Search Match.
+    // Deduped by id against what the two loops above already found.
+    const matchedIds = new Set(matched.map((r) => r.id));
+    liveMatches.forEach((r) => { if (!matchedIds.has(r.id)) matched.push(r); });
+
     const g = [];
-    if (lower.length >= 1) {
-      if (matched.length) g.push({ label: '🔍 Search Match', rows: matched, theme: 'amber' });
-      if (hasConsent.length) g.push({ label: '✅ Has Consent Records', rows: hasConsent, theme: 'emerald' });
-      if (noneYet.length) g.push({ label: '📋 Active AL — No Consent Yet', rows: noneYet, theme: 'blue' });
-    } else {
-      if (hasConsent.length) g.push({ label: '✅ Has Consent Records', rows: hasConsent, theme: 'emerald' });
-      if (noneYet.length) g.push({ label: '📋 Active AL — No Consent Yet', rows: noneYet, theme: 'blue' });
-    }
+    if (lower.length >= 1 && matched.length) g.push({ label: '🔍 Search Match', rows: matched, theme: 'amber' });
+    if (hasConsent.length) g.push({ label: '✅ Has Consent Records', rows: hasConsent, theme: 'emerald' });
+    if (noneYet.length) g.push({ label: '📋 Active AL — No Consent Yet', rows: noneYet, theme: 'blue' });
+    if (completedGroup.length) g.push({ label: '✔️ Completed (last ' + COMPLETED_WINDOW_DAYS + ' days)', rows: completedGroup, theme: 'slate' });
     return g;
-  }, [alData, consentCountMap, query]);
+  }, [alData, completedData, liveMatches, consentCountMap, query]);
 
   const themeMap = {
     amber: { header: 'bg-amber-50 text-amber-700 border-amber-200', row: 'bg-amber-50/60', bal: 'text-amber-700', border: 'border-l-4 border-amber-400' },
     emerald: { header: 'bg-emerald-50 text-emerald-700 border-emerald-200', row: 'bg-emerald-50/50', bal: 'text-emerald-700', border: 'border-l-4 border-emerald-500' },
     blue: { header: 'bg-blue-50 text-blue-700 border-blue-200', row: 'bg-blue-50/50', bal: 'text-blue-700', border: 'border-l-4 border-blue-400' },
+    slate: { header: 'bg-slate-100 text-slate-600 border-slate-300', row: 'bg-slate-50/60', bal: 'text-slate-500', border: 'border-l-4 border-slate-300' },
   };
 
   function toggleGroup(theme) {
@@ -281,7 +411,14 @@ function Consent({ session, userName }) {
 
   // ════════════════ CONSENT DETAIL MODAL ════════════════
   async function openConsentModal(alNumber) {
-    const al = alData.find((r) => r.al_number === alNumber);
+    // A completed or live-search-only row never lives in alData (see
+    // loadCompletedALs / the live search effect) — without checking those
+    // too, opening one of those rows' "View Consent Log" button did
+    // nothing, silently, because al came back undefined.
+    const al =
+      alData.find((r) => r.al_number === alNumber) ||
+      completedData.find((r) => r.al_number === alNumber) ||
+      liveMatches.find((r) => r.al_number === alNumber);
     if (!al) return;
 
     setIsManualMode(false);
@@ -662,7 +799,16 @@ function Consent({ session, userName }) {
             <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-amber-700"><span className="w-3 h-3 rounded bg-amber-400 inline-block"></span>Search Match</span>
             <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700"><span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span>Has Consent Records</span>
             <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-blue-700"><span className="w-3 h-3 rounded bg-blue-400 inline-block"></span>Active AL — No Consent Yet</span>
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-600"><span className="w-3 h-3 rounded bg-slate-400 inline-block"></span>Completed</span>
           </div>
+
+          {/* Shown whenever loadCompletedALs() could not finish — an empty
+              Completed group and a FAILED one otherwise look identical. */}
+          {completedLoadError && (
+            <div className="mb-4 p-3 rounded-xl border border-rose-300 bg-rose-50 text-rose-700 text-xs font-bold">
+              ⚠️ Completed list: {completedLoadError}
+            </div>
+          )}
 
           <div>
             {loading ? (
@@ -690,6 +836,7 @@ function Consent({ session, userName }) {
                       <div>
                         {g.rows.map((r) => {
                           const count = consentCountMap[r.al_number] || 0;
+                          const isCompleted = (Number(r.balance_quantity) || 0) <= 0;
                           return (
                             <div key={r.id} className={`bg-white rounded-2xl p-4 mb-2 shadow-sm border border-slate-200 ${t.border}`}>
                               <div className="flex justify-between items-start mb-2">
@@ -705,8 +852,11 @@ function Consent({ session, userName }) {
                               </div>
                               <div className="text-xs font-bold text-slate-400 mb-3">
                                 📋 {r.order_number || '—'} · Qty: {r.quantity_ordered ?? '—'} · Bal: <span className={`${t.bal} font-black`}>{r.balance_quantity ?? '—'}</span>
+                                {isCompleted && <span className="text-emerald-600"> (Completed)</span>}
                               </div>
-                              <button className="btn-consent w-full text-center" onClick={() => openConsentModal(r.al_number)}>✍️ Sign Consent</button>
+                              <button className="btn-consent w-full text-center" onClick={() => openConsentModal(r.al_number)}>
+                                {isCompleted ? '📃 View Consent Log' : '✍️ Sign Consent'}
+                              </button>
                             </div>
                           );
                         })}
@@ -739,15 +889,23 @@ function Consent({ session, userName }) {
                           <tbody>
                             {g.rows.map((r) => {
                               const count = consentCountMap[r.al_number] || 0;
+                              const isCompleted = (Number(r.balance_quantity) || 0) <= 0;
                               return (
                                 <tr key={r.id} className={t.row}>
                                   <td><span className="font-black text-slate-800">{r.al_number || '—'}</span></td>
                                   <td>{r.order_number || '—'}</td>
                                   <td>{r.customer_name || '—'}</td>
                                   <td>{r.quantity_ordered ?? '—'}</td>
-                                  <td><span className={`font-black ${t.bal}`}>{r.balance_quantity ?? '—'}</span></td>
+                                  <td>
+                                    <span className={`font-black ${t.bal}`}>{r.balance_quantity ?? '—'}</span>
+                                    {isCompleted && <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider"> Completed</span>}
+                                  </td>
                                   <td>{count > 0 ? <span className="badge-signed">{count} signed</span> : <span className="badge-pending">None</span>}</td>
-                                  <td><button className="btn-consent" onClick={() => openConsentModal(r.al_number)}>✍️ Sign Consent</button></td>
+                                  <td>
+                                    <button className="btn-consent" onClick={() => openConsentModal(r.al_number)}>
+                                      {isCompleted ? '📃 View Consent Log' : '✍️ Sign Consent'}
+                                    </button>
+                                  </td>
                                 </tr>
                               );
                             })}
