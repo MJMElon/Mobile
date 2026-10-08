@@ -431,6 +431,7 @@ function DoSigning({ session, userName }) {
     };
     let queuedOffline = false;
     let savedDO = null;
+    let lastSendDOError = null;
     try {
       savedDO = await sendDO(job);
     } catch (e) {
@@ -438,6 +439,7 @@ function DoSigning({ session, userName }) {
         setSavingScan(false);
         return alert('Error saving DO: ' + e.message);
       }
+      lastSendDOError = e.message;
       await queueJob(DO_JOB, job);
       queuedOffline = true;
     }
@@ -464,7 +466,12 @@ function DoSigning({ session, userName }) {
     loadDOsForAL(updatedAL.al_number); // refreshes the list behind the modals; not awaited, nothing below depends on it
     const printJob = { doNum: scanDoNumber, rec: payload, sig: sigDataUrl, photo: scanPhoto };
     if (queuedOffline) {
-      showToast('📴 DO saved to phone — sends by itself when the line returns');
+      // Surfaced on screen (not just console) because the worker step being
+      // skipped was once reported as a silent bug when it was actually this
+      // branch firing on a connection that only LOOKED offline for a moment —
+      // the toast is the only way anyone but a developer can tell the two
+      // apart.
+      showToast('📴 DO saved to phone — sends by itself when the line returns' + (lastSendDOError ? ' (' + lastSendDOError + ')' : ''));
       setTimeout(() => setPrintPrompt(printJob), 400);
     } else if (savedDO) {
       // savedDO comes straight back from sendDO's own insert/select, not a
@@ -474,6 +481,12 @@ function DoSigning({ session, userName }) {
       // the same pooled connection that already sees it.
       openWorkerTick(savedDO, { thenPrint: printJob });
     } else {
+      // sendDO resolved without throwing but handed back nothing to open the
+      // worker step against — rather than silently falling through to print
+      // (which is exactly how this bug went unnoticed the first time), say so
+      // on screen so a report of "worker step didn't show" always comes with
+      // the reason rather than nothing at all.
+      showToast('⚠ DO saved, but the worker step could not reopen (no row returned)');
       setTimeout(() => setPrintPrompt(printJob), 400);
     }
   }
