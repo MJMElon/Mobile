@@ -33,6 +33,40 @@ Include one object per distinct nursery+breed combination. If a field is unreada
 let rowSeq = 0;
 const newRow = (nursery = '', breed = '', qty = '', aiTagged = false) => ({ id: ++rowSeq, nursery, breed, qty, aiTagged });
 
+// ── Who loaded this DO — nursery/worker helpers ──
+// Same normalisation CLAUDE.md documents for every other nursery
+// comparison in either repository: strip everything but letters and
+// digits, uppercase. A DO's items carry free-text/typed nursery names
+// (shared_plots.nursery_name) which must line up with mjmnpayroll_workers'
+// own nursery spelling without trusting either side to be typed the same.
+const nurseryKey = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+// Same "general worker" test Barcode_Counter's maintenance module uses for
+// its own "Who Did This Work" picker (helpers.js isGeneralWorker) — the
+// piece-rate pool for Loading Seedlings is the same roster as the other
+// maintenance jobs, not office/admin staff.
+const MAINT_ROLE = /^general\s*worker$|pekerja am|buruh am/i;
+function isGeneralWorker(w) {
+  if (w.maint_general === true) return true;
+  if (w.maint_general === false) return false;
+  return MAINT_ROLE.test(String(w.role || w.job_title || ''));
+}
+
+// The distinct nurseries a DO's items actually touch, resolved through
+// plotMap (plot_name -> nursery_name) the same way DoRow already shows a
+// DO's nursery per line. Works for both a freshly-built save payload and a
+// row loaded back from shared_do_records — both carry plot_1..plot_5.
+function nurseriesOfDO(d, plotMap) {
+  const keys = [];
+  for (let i = 1; i <= 5; i++) {
+    const plot = d[`plot_${i}`];
+    if (!plot) continue;
+    const key = nurseryKey(plotMap[plot] || plot);
+    if (key && !keys.includes(key)) keys.push(key);
+  }
+  return keys;
+}
+
 function DoSigning({ session, userName }) {
   const { ToastHost, showToast } = useToast();
   const staff = displayName(session);
@@ -76,6 +110,16 @@ function DoSigning({ session, userName }) {
   // ── Print prompt ──
   const [printPrompt, setPrintPrompt] = useState(null); // { doNum, rec, sig }
 
+  // ── Who loaded this DO ──
+  const [allWorkers, setAllWorkers] = useState([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [wtOpen, setWtOpen] = useState(false);
+  const [wtDO, setWtDO] = useState(null); // the DO (saved row or freshly-built payload+id) being ticked
+  const [wtNurseries, setWtNurseries] = useState([]);
+  const [wtPicked, setWtPicked] = useState({}); // { BNN: ['Name', ...], ... }
+  const [wtSaving, setWtSaving] = useState(false);
+  const wtThenPrintRef = useRef(null);
+
   // ── Load ──
   const loadActiveALs = useCallback(async () => {
     setLoading(true);
@@ -105,13 +149,45 @@ function DoSigning({ session, userName }) {
     setBreedsData(breeds || []);
   }, []);
 
+  // Workers for the "Who Loaded This DO" picker, and whether this session
+  // may edit a tick that's already locked. manage_users is the same
+  // top-level admin flag mjm-ai-system's own pages check (shared_access.js
+  // isAdminOf / the mobile portal's own _mjmHasMobileAccess) — reused here
+  // rather than inventing a separate check, since AuthGate does not expose
+  // the profile to pages, only the session.
+  const loadWorkersAndRole = useCallback(async () => {
+    const { data } = await supabase
+      .from('mjmnpayroll_workers')
+      .select('id, worker_no, full_name, nursery, role, job_title, maint_general, active')
+      .eq('active', true)
+      .order('full_name');
+    setAllWorkers(data || []);
+    const { data: profile } = await supabase
+      .from('shared_profiles')
+      .select('permissions')
+      .eq('id', session.user.id)
+      .maybeSingle();
+    setIsAdmin(!!profile?.permissions?.manage_users);
+  }, [session]);
+
   useEffect(() => {
     loadActiveALs();
     loadDropdownData();
+    loadWorkersAndRole();
     const onResize = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [loadActiveALs, loadDropdownData]);
+  }, [loadActiveALs, loadDropdownData, loadWorkersAndRole]);
+
+  const workersByNurseryKey = useMemo(() => {
+    const m = {};
+    allWorkers.filter(isGeneralWorker).forEach((w) => {
+      const k = nurseryKey(w.nursery);
+      if (!k) return;
+      (m[k] = m[k] || []).push(w);
+    });
+    return m;
+  }, [allWorkers]);
 
   const plotMap = useMemo(() => {
     const m = {};
@@ -174,9 +250,10 @@ function DoSigning({ session, userName }) {
     if (error) {
       setDoErr(error.message);
       setDoRows([]);
-      return;
+      return [];
     }
     setDoRows(data || []);
+    return data || [];
   }
 
   async function loadConsentsForAL(alNumber) {
@@ -376,18 +453,99 @@ function DoSigning({ session, userName }) {
     setSavingScan(false);
     closeScanModal();
 
-    // Refresh manage list + show print prompt. Printing is local (jsPDF),
-    // so it works with no line; only the server list fetch waits for one.
+    // Refresh manage list, then the "Who Loaded This DO" step, then the
+    // print prompt — Printing is local (jsPDF), so it works with no line;
+    // only the server list fetch and the worker step need one. A queued
+    // (offline) save has no server row yet to tick workers against, so it
+    // keeps the old flow straight to the print prompt; Manage DOs' own
+    // Workers button picks it up once the DO has actually synced.
     setManageOpen(true);
-    if (queuedOffline) showToast('📴 DO saved to phone — sends by itself when the line returns');
-    else loadDOsForAL(updatedAL.al_number);
-    setTimeout(() => setPrintPrompt({ doNum: scanDoNumber, rec: payload, sig: sigDataUrl, photo: scanPhoto }), 400);
+    const printJob = { doNum: scanDoNumber, rec: payload, sig: sigDataUrl, photo: scanPhoto };
+    if (queuedOffline) {
+      showToast('📴 DO saved to phone — sends by itself when the line returns');
+      setTimeout(() => setPrintPrompt(printJob), 400);
+    } else {
+      const rows = await loadDOsForAL(updatedAL.al_number);
+      const savedRow = rows.find((d) => d.do_number === scanDoNumber) || null;
+      if (savedRow) openWorkerTick(savedRow, { thenPrint: printJob });
+      else setTimeout(() => setPrintPrompt(printJob), 400);
+    }
   }
 
   function doPrint(rec, sig = null, photo = null) {
     const al = activeAL || alData.find((r) => r.al_number === rec.al_number) || {};
     printDOPdf(rec, al, staff, sig, photo);
     showToast(`${rec.do_number} printed!`);
+  }
+
+  // ── Who loaded this DO ──
+  // Opened right after a fresh save (wired into saveScanDO below) AND from
+  // the Manage DOs list's own Workers button on any already-saved DO, so a
+  // skipped step is never a dead end — see the user's own spec: skip closes
+  // the window, Manage DOs is how you come back to fill it in.
+  const wtLocked = !!wtDO?.worked_by_locked_at && !isAdmin;
+
+  function openWorkerTick(doRecord, { thenPrint = null } = {}) {
+    const keys = nurseriesOfDO(doRecord, plotMap);
+    const seeded = {};
+    keys.forEach((k) => {
+      seeded[k] = (doRecord.worked_by_by_nursery || {})[k] || [];
+    });
+    setWtDO(doRecord);
+    setWtNurseries(keys);
+    setWtPicked(seeded);
+    wtThenPrintRef.current = thenPrint;
+    setWtOpen(true);
+  }
+
+  function closeWorkerTick() {
+    setWtOpen(false);
+    const tp = wtThenPrintRef.current;
+    wtThenPrintRef.current = null;
+    if (tp) setTimeout(() => setPrintPrompt(tp), 250);
+  }
+
+  // Skip never writes anything — a DO with no worked_by_by_nursery and no
+  // lock reads identically to one nobody has looked at yet, which is
+  // exactly right: Manage DOs' Workers button is how it gets answered
+  // later, same door either way.
+  function skipWorkerTick() {
+    closeWorkerTick();
+  }
+
+  function toggleWorkerPick(key, name) {
+    if (wtLocked) return;
+    setWtPicked((prev) => {
+      const cur = prev[key] || [];
+      const next = cur.includes(name) ? cur.filter((n) => n !== name) : [...cur, name];
+      return { ...prev, [key]: next };
+    });
+  }
+
+  async function saveWorkerTick() {
+    if (!wtDO || wtLocked) return;
+    setWtSaving(true);
+    const cleaned = {};
+    wtNurseries.forEach((k) => {
+      if ((wtPicked[k] || []).length) cleaned[k] = wtPicked[k];
+    });
+    const nowIso = new Date().toISOString();
+    const { error } = await supabase
+      .from('shared_do_records')
+      .update({ worked_by_by_nursery: cleaned, worked_by_locked_at: nowIso, worked_by_locked_by: staff })
+      .eq('id', wtDO.id);
+    setWtSaving(false);
+    if (error) {
+      showToast('❌ Could not save workers: ' + error.message);
+      return;
+    }
+    setDoRows((prev) =>
+      prev
+        ? prev.map((d) => (d.id === wtDO.id ? { ...d, worked_by_by_nursery: cleaned, worked_by_locked_at: nowIso, worked_by_locked_by: staff } : d))
+        : prev
+    );
+    showToast('✅ Workers saved');
+    closeWorkerTick();
   }
 
   // ════════════════ RENDER ════════════════
@@ -540,7 +698,7 @@ function DoSigning({ session, userName }) {
                     ) : !doRows.length ? (
                       <tr><td colSpan={6} className="text-center py-10"><div className="text-3xl mb-2">📭</div><div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No DOs issued yet for this AL</div></td></tr>
                     ) : (
-                      doRows.map((d) => <DoRow key={d.id} d={d} plotMap={plotMap} onPrint={() => doPrint(d)} />)
+                      doRows.map((d) => <DoRow key={d.id} d={d} plotMap={plotMap} onPrint={() => doPrint(d)} onManageWorkers={() => openWorkerTick(d)} />)
                     )}
                   </tbody>
                 </table>
@@ -716,6 +874,76 @@ function DoSigning({ session, userName }) {
         </div>
       </div>
 
+      {/* WHO LOADED THIS DO */}
+      <div className={`modal-overlay ${wtOpen ? 'open' : ''}`} onClick={() => !wtSaving && skipWorkerTick()}>
+        <div className="modal-box" style={{ maxWidth: '640px' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ background: 'linear-gradient(135deg,#065f46,#059669)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
+            <div>
+              <div className="text-[10px] font-black text-emerald-200 uppercase tracking-widest mb-1">👷 Who Loaded This DO</div>
+              <div className="text-lg font-black text-white">{wtDO?.do_number || '—'}</div>
+              <div className="text-[11px] font-bold text-emerald-200 mt-1">Leave blank if nobody has been ticked yet — Manage DOs' 👷 button brings you back here.</div>
+            </div>
+            <button onClick={() => !wtSaving && skipWorkerTick()} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4">✕</button>
+          </div>
+
+          <div className="p-5 sm:p-6 space-y-5">
+            {wtDO?.worked_by_locked_at && !isAdmin && (
+              <div className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                🔒 Locked — saved by {wtDO.worked_by_locked_by || 'someone'} on {new Date(wtDO.worked_by_locked_at).toLocaleString('en-MY')}. Only an admin can change this.
+              </div>
+            )}
+            {wtDO?.worked_by_locked_at && isAdmin && (
+              <div className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                🔓 Normally locked (saved by {wtDO.worked_by_locked_by || 'someone'} on {new Date(wtDO.worked_by_locked_at).toLocaleString('en-MY')}) — you can change it as an admin.
+              </div>
+            )}
+
+            {!wtNurseries.length ? (
+              <div className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No nursery found on this DO's items.</div>
+            ) : (
+              wtNurseries.map((key) => {
+                const list = workersByNurseryKey[key] || [];
+                const picked = wtPicked[key] || [];
+                return (
+                  <div key={key}>
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{key}</div>
+                    {!list.length ? (
+                      <div className="text-[11px] font-bold text-slate-300">No general workers registered for {key}.</div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {list.map((w) => {
+                          const on = picked.includes(w.full_name);
+                          return (
+                            <button
+                              key={w.id}
+                              disabled={wtLocked}
+                              onClick={() => toggleWorkerPick(key, w.full_name)}
+                              className={`px-4 py-2.5 rounded-xl border-2 text-xs font-black uppercase tracking-wide transition-colors ${
+                                on ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-200 text-slate-700'
+                              } ${wtLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                            >
+                              {on && '✓ '}
+                              {w.full_name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="px-5 sm:px-6 pb-6 flex flex-col sm:flex-row gap-3 justify-end border-t border-slate-100 pt-5">
+            <button onClick={skipWorkerTick} disabled={wtSaving} className="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-full border border-slate-200 cursor-pointer transition-colors disabled:opacity-50">Skip for now</button>
+            <button onClick={saveWorkerTick} disabled={wtSaving || wtLocked} className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-[11px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
+              {wtSaving ? 'Saving…' : '💾 Save & Lock'}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* PRINT PROMPT */}
       <div className={`modal-overlay ${printPrompt ? 'open' : ''}`}>
         <div className="bg-white rounded-3xl p-7 w-full max-w-sm shadow-2xl text-center">
@@ -739,7 +967,7 @@ function DoSigning({ session, userName }) {
 }
 
 // ── Small helpers ──
-function DoRow({ d, plotMap, onPrint }) {
+function DoRow({ d, plotMap, onPrint, onManageWorkers }) {
   const isCancelled = d.status === 'Cancelled';
   const dateFmt = d.delivery_date ? new Date(d.delivery_date).toLocaleDateString('en-MY') : '—';
   const lines = [];
@@ -749,6 +977,12 @@ function DoRow({ d, plotMap, onPrint }) {
     const qty = parseInt(d[`qty_${i}`]) || 0;
     if (plot || breed || qty > 0) lines.push({ nursery: plotMap[plot] || plot || '—', breed: breed || '—', qty });
   }
+  const workerCount = Object.values(d.worked_by_by_nursery || {}).reduce((s, names) => s + (names?.length || 0), 0);
+  const workersTitle = d.worked_by_locked_at
+    ? `Locked by ${d.worked_by_locked_by || 'someone'} on ${new Date(d.worked_by_locked_at).toLocaleString('en-MY')}`
+    : workerCount
+      ? 'Workers ticked, not yet saved'
+      : 'Who loaded this DO?';
   return (
     <tr className={isCancelled ? 'opacity-50' : ''}>
       <td className="text-slate-500 font-bold whitespace-nowrap">{dateFmt}</td>
@@ -767,6 +1001,14 @@ function DoRow({ d, plotMap, onPrint }) {
           )}
           <button onClick={onPrint} title="Print this DO" className="w-11 h-11 rounded-lg border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 flex items-center justify-center cursor-pointer transition-colors bg-slate-50 shrink-0">
             <PrintIcon />
+          </button>
+          <button onClick={onManageWorkers} title={workersTitle} className={`w-11 h-11 rounded-lg border flex items-center justify-center cursor-pointer transition-colors shrink-0 relative ${d.worked_by_locked_at ? 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100' : 'border-slate-200 bg-slate-50 hover:border-amber-400 hover:bg-amber-50'}`}>
+            <span className="text-lg leading-none">👷</span>
+            {d.worked_by_locked_at ? (
+              <span className="absolute -top-1 -right-1 text-[10px]">🔒</span>
+            ) : !workerCount ? (
+              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border border-white" />
+            ) : null}
           </button>
         </div>
       </td>
