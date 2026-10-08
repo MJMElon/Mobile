@@ -82,13 +82,22 @@ export async function sendDO(job) {
     .limit(1);
   if (dupErr) throw new Error(dupErr.message);
 
+  // The caller (DoSigning.jsx's saveScanDO, online path) needs the real row
+  // right after this returns, to open the Who Loaded This DO step against
+  // it. Re-querying shared_do_records by do_number right after this call
+  // used to be how it got that row — and came back empty often enough to
+  // be the actual bug: a request this close behind the insert is not
+  // guaranteed to see it depending on which pooled connection answers it.
+  // Returning the row this function ALREADY has (just inserted, or the
+  // duplicate already on file) removes the second read, and the race
+  // along with it.
   if (!dup || !dup.length) {
     const payload = { ...job.payload };
     if (job.photoBase64) {
       const filePath = `do_photos/${payload.al_number}/${payload.do_number}_${Date.now()}.jpg`;
       payload.image_url = await uploadPhoto(filePath, job.photoBase64);
     }
-    const { error } = await supabase.from('shared_do_records').insert([payload]);
+    const { data: inserted, error } = await supabase.from('shared_do_records').insert([payload]).select().single();
     if (error) throw new Error(error.message);
 
     /* Deduct the balance from what the server holds NOW. Only when the
@@ -119,7 +128,11 @@ export async function sendDO(job) {
         photoBase64: job.photoBase64,
       });
     } catch (e) { /* never blocks the DO */ }
+
+    return inserted;
   }
+
+  return { id: dup[0].id };
 }
 
 /* One handler shape for all three: a network-looking failure leaves the job

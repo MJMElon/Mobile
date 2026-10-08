@@ -430,8 +430,9 @@ function DoSigning({ session, userName }) {
       sigDataUrl,
     };
     let queuedOffline = false;
+    let savedDO = null;
     try {
-      await sendDO(job);
+      savedDO = await sendDO(job);
     } catch (e) {
       if (!looksOffline(e)) {
         setSavingScan(false);
@@ -460,15 +461,20 @@ function DoSigning({ session, userName }) {
     // keeps the old flow straight to the print prompt; Manage DOs' own
     // Workers button picks it up once the DO has actually synced.
     setManageOpen(true);
+    loadDOsForAL(updatedAL.al_number); // refreshes the list behind the modals; not awaited, nothing below depends on it
     const printJob = { doNum: scanDoNumber, rec: payload, sig: sigDataUrl, photo: scanPhoto };
     if (queuedOffline) {
       showToast('📴 DO saved to phone — sends by itself when the line returns');
       setTimeout(() => setPrintPrompt(printJob), 400);
+    } else if (savedDO) {
+      // savedDO comes straight back from sendDO's own insert/select, not a
+      // second query for it — a re-query here (by do_number, right after
+      // the insert) is what silently skipped this whole step before: a
+      // request that close behind the write is not guaranteed to land on
+      // the same pooled connection that already sees it.
+      openWorkerTick(savedDO, { thenPrint: printJob });
     } else {
-      const rows = await loadDOsForAL(updatedAL.al_number);
-      const savedRow = rows.find((d) => d.do_number === scanDoNumber) || null;
-      if (savedRow) openWorkerTick(savedRow, { thenPrint: printJob });
-      else setTimeout(() => setPrintPrompt(printJob), 400);
+      setTimeout(() => setPrintPrompt(printJob), 400);
     }
   }
 
