@@ -971,8 +971,25 @@ function Consent({ session, userName }) {
               <div>
                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Order Details</div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {(() => {
+                    // Comma-joined ("Oil Palm Seedling - Feb 2026, ...March 2026")
+                    // read as one run-on line; one product per row instead,
+                    // shrinking the text only once there are enough of them
+                    // that the box would otherwise keep growing.
+                    const products = (currentAL?.product_name || '')
+                      .split(',').map((p) => p.trim()).filter(Boolean);
+                    const productTextClass =
+                      products.length > 7 ? 'text-[10px]' : products.length > 4 ? 'text-xs' : 'text-sm';
+                    return (
+                      <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Purchased Product</div>
+                        <div className={`font-black text-slate-800 ${productTextClass} leading-snug`}>
+                          {products.length ? products.map((p, i) => <div key={i}>{p}</div>) : '—'}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {[
-                    ['Purchased Product', currentAL?.product_name || '—'],
                     ['Qty Ordered', currentAL?.quantity_ordered ?? '—'],
                     ['Balance to Collect', currentAL?.balance_quantity ?? '—', true],
                   ].map(([label, value, big]) => (
