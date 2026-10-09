@@ -33,7 +33,7 @@ const CONSENT_STRINGS = {
       '<strong>5. Form Verification.</strong> The Declaration Form (L3) must be checked before leaving the nursery. Any errors must be corrected at the office first.',
     ],
     agree: 'By signing below, I have read the terms and I hereby accept and agree to the terms as stated above.',
-    photoTitle: 'Attach Photo — Sticker Verification',
+    photoTitle: 'Attach Photo — Seals / Stickers Verification',
     photoHelp: 'Take a photo of the seedling stickers. AI will count the sticker quantity automatically.',
     tapTitle: 'Tap to Take Photo',
     tapSub: 'Camera will open to capture sticker image',
@@ -1069,9 +1069,9 @@ function Consent({ session, userName }) {
             </label>
 
             {/* Photo + Signature, side by side at the bottom */}
-            <div className="border-t border-slate-100 pt-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
-              {/* Photo section */}
-              <div>
+            <div className="border-t border-slate-100 pt-5 grid grid-cols-1 sm:grid-cols-5 gap-5">
+              {/* Photo section — 2/5 */}
+              <div className="sm:col-span-2">
                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">📷 <span>{s.photoTitle}</span></div>
                 <p className="text-[10px] font-bold text-slate-300 mb-3">{s.photoHelp}</p>
 
@@ -1125,8 +1125,8 @@ function Consent({ session, userName }) {
                 )}
               </div>
 
-              {/* Signature */}
-              <div>
+              {/* Signature — 3/5, the bigger half */}
+              <div className="sm:col-span-3">
                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">✍️ <span>{s.signTitle}</span></div>
                 <p className="text-[10px] font-bold text-slate-300 mb-3">{s.signHelp}</p>
                 {signOpen && (
