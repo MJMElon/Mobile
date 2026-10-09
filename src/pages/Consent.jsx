@@ -40,7 +40,7 @@ const CONSENT_STRINGS = {
     signTitle: 'Customer Signature',
     signHelp: 'Customer signs below to consent to the collection terms for this trip.',
     cancel: 'Cancel',
-    save: 'Save Consent',
+    save: 'Save',
   },
   ms: {
     tcHeader: 'Terma & Syarat',
@@ -60,7 +60,7 @@ const CONSENT_STRINGS = {
     signTitle: 'Tandatangan Pelanggan',
     signHelp: 'Pelanggan menandatangani di bawah untuk bersetuju dengan terma pengambilan bagi perjalanan ini.',
     cancel: 'Batal',
-    save: 'Simpan Persetujuan',
+    save: 'Simpan',
   },
 };
 
@@ -930,10 +930,10 @@ function Consent({ session, userName }) {
           <div style={{ background: 'linear-gradient(135deg,#064e3b,#065f46)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
             <div>
               <div className="text-[10px] font-black text-emerald-300 uppercase tracking-widest mb-1">✍️ Customer Consent</div>
-              <div className="text-[11px] font-black text-white uppercase tracking-wide">
+              <div className="text-base font-black text-white uppercase tracking-wide">
                 {isManualMode ? 'Manual Consent' : currentAL?.al_number || '—'}
               </div>
-              <div className="text-[11px] font-bold text-emerald-300 mt-1">
+              <div className="text-base font-bold text-emerald-300 mt-1">
                 {isManualMode ? (manualName.trim() || 'Enter customer details below') : currentAL?.customer_name || '—'}
               </div>
             </div>
@@ -1140,9 +1140,10 @@ function Consent({ session, userName }) {
           </div>
 
           <div className="px-5 sm:px-6 pb-6 flex flex-col sm:flex-row gap-3 justify-end border-t border-slate-100 pt-5">
-            <button onClick={closeSignModal} className="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-full border border-slate-200 cursor-pointer transition-colors">{s.cancel}</button>
-            <button onClick={submitConsent} disabled={!consentReady || submitting} className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-[11px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
-              💾 <span>{submitting ? 'Saving…' : s.save}</span>
+            <button onClick={closeSignModal} className="h-11 px-8 text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 rounded-full border border-slate-200 cursor-pointer transition-colors">{s.cancel}</button>
+            <button onClick={submitConsent} disabled={!consentReady || submitting} className="group h-11 flex items-stretch overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed rounded-full border-none cursor-pointer">
+              <span className="flex items-center justify-center w-11 bg-emerald-800 text-white text-base shrink-0 transition-colors group-hover:bg-emerald-900">💾</span>
+              <span className="flex items-center justify-center px-8 bg-emerald-600 text-white font-black text-[11px] uppercase tracking-widest transition-colors group-hover:bg-emerald-700">{submitting ? 'Saving…' : s.save}</span>
             </button>
           </div>
         </div>
