@@ -78,7 +78,7 @@ const SCOPED_CSS = `
 .qty-btn { padding:10px 18px; border-radius:14px; border:2px solid #e2e8f0; background:white; font-weight:900; font-size:14px; cursor:pointer; transition:all .2s; font-family:'Outfit',sans-serif; color:#334155; }
 .qty-btn:hover { border-color:#10b981; background:#ecfdf5; color:#065f46; }
 .qty-btn.active { border-color:#10b981; background:#10b981; color:white; box-shadow:0 4px 12px rgba(16,185,129,.3); }
-.consent-body { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:1.1rem; font-size:13px; color:#374151; line-height:1.75; max-height:200px; overflow-y:auto; }
+.consent-body { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:1.1rem; font-size:13px; color:#374151; line-height:1.75; max-height:380px; overflow-y:auto; }
 .cs-lang-btn { font-size:10px; font-weight:900; letter-spacing:.06em; padding:3px 10px; border-radius:9999px; border:1.5px solid #e2e8f0; background:#fff; color:#94a3b8; cursor:pointer; transition:all .15s; }
 .cs-lang-btn.active { background:#059669; border-color:#059669; color:#fff; }
 .consent-body h4 { font-size:11px; font-weight:900; color:#111827; margin:0 0 .5rem; text-transform:uppercase; letter-spacing:.04em; }
@@ -1037,7 +1037,7 @@ function Consent({ session, userName }) {
 
       {/* ══ SIGN CONSENT MODAL ══ */}
       <div className={`modal-overlay ${signOpen ? 'open' : ''}`} style={{ zIndex: 250 }} onClick={closeSignModal}>
-        <div className="modal-box" style={{ maxWidth: '640px' }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-box" style={{ maxWidth: '820px' }} onClick={(e) => e.stopPropagation()}>
           <div style={{ background: 'linear-gradient(135deg,#0f172a,#1e293b)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
             <div>
               <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">✍️ Sign Collection Consent</div>
@@ -1071,70 +1071,73 @@ function Consent({ session, userName }) {
               <span className="text-sm font-bold text-slate-600 leading-snug">{s.agree}</span>
             </label>
 
-            {/* Photo section */}
-            <div className="border-t border-slate-100 pt-5">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">📷 <span>{s.photoTitle}</span></div>
-              <p className="text-[10px] font-bold text-slate-300 mb-3">{s.photoHelp}</p>
+            {/* Photo + Signature, side by side at the bottom */}
+            <div className="border-t border-slate-100 pt-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+              {/* Photo section */}
+              <div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">📷 <span>{s.photoTitle}</span></div>
+                <p className="text-[10px] font-bold text-slate-300 mb-3">{s.photoHelp}</p>
 
-              <div className={`photo-area ${photoBase64 ? 'has-photo' : ''}`} onClick={openPhotoPicker}>
-                {!photoBase64 ? (
-                  <div>
-                    <div className="text-4xl mb-2">📷</div>
-                    <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{s.tapTitle}</div>
-                    <div className="text-[10px] font-bold text-slate-300 mt-1">{s.tapSub}</div>
+                <div className={`photo-area ${photoBase64 ? 'has-photo' : ''}`} onClick={openPhotoPicker}>
+                  {!photoBase64 ? (
+                    <div>
+                      <div className="text-4xl mb-2">📷</div>
+                      <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{s.tapTitle}</div>
+                      <div className="text-[10px] font-bold text-slate-300 mt-1">{s.tapSub}</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <img src={photoBase64} className="w-full rounded-xl" style={{ maxHeight: '180px', objectFit: 'contain' }} alt="Sticker preview" />
+                    </div>
+                  )}
+                </div>
+
+                {photoBase64 && (
+                  <div className="flex gap-2 mt-3">
+                    <button className="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer transition-colors" onClick={(e) => { e.stopPropagation(); retakePhoto(); }}>
+                      📷 Retake
+                    </button>
                   </div>
-                ) : (
-                  <div>
-                    <img src={photoBase64} className="w-full rounded-xl" style={{ maxHeight: '260px', objectFit: 'contain' }} alt="Sticker preview" />
+                )}
+
+                {/* AI Scan result */}
+                {(aiScanning || aiResultShown) && (
+                  <div className="mt-4">
+                    {aiScanning && (
+                      <div className="text-center py-5">
+                        <div className="text-3xl mb-2">🤖</div>
+                        <div className="text-[11px] font-black text-slate-500 uppercase tracking-widest">AI is counting stickers…</div>
+                        <div className="text-[10px] font-bold text-slate-300 mt-1">Analyzing photo with Google AI</div>
+                      </div>
+                    )}
+                    {aiResultShown && (
+                      <div>
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
+                          <div>
+                            <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">✨ AI Sticker Count</div>
+                            <div className="text-2xl font-black text-emerald-700">{aiCountLabel}</div>
+                          </div>
+                          <div className="text-4xl">🤖</div>
+                        </div>
+                        {aiNotice && (
+                          <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mt-2">{aiNotice}</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
-              {photoBase64 && (
-                <div className="flex gap-2 mt-3">
-                  <button className="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer transition-colors" onClick={(e) => { e.stopPropagation(); retakePhoto(); }}>
-                    📷 Retake
-                  </button>
+              {/* Signature */}
+              <div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">✍️ <span>{s.signTitle}</span></div>
+                <p className="text-[10px] font-bold text-slate-300 mb-3">{s.signHelp}</p>
+                {signOpen && (
+                  <SignaturePad ref={sigRef} height={150} hint="Sign here" onSignedAt={() => setHasSig(true)} />
+                )}
+                <div className="flex justify-end mt-2">
+                  <button onClick={() => { sigRef.current?.clear(); setHasSig(false); }} className="text-[11px] font-bold text-slate-500 hover:text-red-500 cursor-pointer border-none bg-transparent">× Clear</button>
                 </div>
-              )}
-
-              {/* AI Scan result */}
-              {(aiScanning || aiResultShown) && (
-                <div className="mt-4">
-                  {aiScanning && (
-                    <div className="text-center py-5">
-                      <div className="text-3xl mb-2">🤖</div>
-                      <div className="text-[11px] font-black text-slate-500 uppercase tracking-widest">AI is counting stickers…</div>
-                      <div className="text-[10px] font-bold text-slate-300 mt-1">Analyzing photo with Google AI</div>
-                    </div>
-                  )}
-                  {aiResultShown && (
-                    <div>
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
-                        <div>
-                          <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">✨ AI Sticker Count</div>
-                          <div className="text-2xl font-black text-emerald-700">{aiCountLabel}</div>
-                        </div>
-                        <div className="text-4xl">🤖</div>
-                      </div>
-                      {aiNotice && (
-                        <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mt-2">{aiNotice}</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Signature */}
-            <div className="border-t border-slate-100 pt-5">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">✍️ <span>{s.signTitle}</span></div>
-              <p className="text-[10px] font-bold text-slate-300 mb-3">{s.signHelp}</p>
-              {signOpen && (
-                <SignaturePad ref={sigRef} height={150} hint="Sign here" onSignedAt={() => setHasSig(true)} />
-              )}
-              <div className="flex justify-end mt-2">
-                <button onClick={() => { sigRef.current?.clear(); setHasSig(false); }} className="text-[11px] font-bold text-slate-500 hover:text-red-500 cursor-pointer border-none bg-transparent">× Clear</button>
               </div>
             </div>
           </div>
