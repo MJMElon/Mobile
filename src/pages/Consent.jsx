@@ -1072,8 +1072,10 @@ function Consent({ session, userName }) {
             <div className="border-t border-slate-100 pt-5 grid grid-cols-1 sm:grid-cols-5 gap-5">
               {/* Photo section — 2/5 */}
               <div className="sm:col-span-2">
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">📷 <span>{s.photoTitle}</span></div>
-                <p className="text-[10px] font-bold text-slate-300 mb-3">{s.photoHelp}</p>
+                <div className="sm:min-h-[72px]">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">📷 <span>{s.photoTitle}</span></div>
+                  <p className="text-[10px] font-bold text-slate-300 mb-3">{s.photoHelp}</p>
+                </div>
 
                 <div className={`photo-area ${photoBase64 ? 'has-photo' : ''}`} onClick={openPhotoPicker}>
                   {!photoBase64 ? (
@@ -1127,8 +1129,10 @@ function Consent({ session, userName }) {
 
               {/* Signature — 3/5, the bigger half */}
               <div className="sm:col-span-3">
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">✍️ <span>{s.signTitle}</span></div>
-                <p className="text-[10px] font-bold text-slate-300 mb-3">{s.signHelp}</p>
+                <div className="sm:min-h-[72px]">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">✍️ <span>{s.signTitle}</span></div>
+                  <p className="text-[10px] font-bold text-slate-300 mb-3">{s.signHelp}</p>
+                </div>
                 {signOpen && (
                   <SignaturePad ref={sigRef} height={150} hint="Sign here" onSignedAt={() => setHasSig(true)} />
                 )}
