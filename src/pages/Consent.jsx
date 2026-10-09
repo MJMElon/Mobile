@@ -1142,7 +1142,7 @@ function Consent({ session, userName }) {
           <div className="px-5 sm:px-6 pb-6 flex flex-col sm:flex-row gap-3 justify-end border-t border-slate-100 pt-5">
             <button onClick={closeSignModal} className="h-11 px-8 text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 rounded-full border border-slate-200 cursor-pointer transition-colors">{s.cancel}</button>
             <button onClick={submitConsent} disabled={!consentReady || submitting} className="group h-11 flex items-stretch overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed rounded-full border-none cursor-pointer">
-              <span className="flex items-center justify-center w-11 bg-emerald-800 text-white text-base shrink-0 transition-colors group-hover:bg-emerald-900">💾</span>
+              <span className="flex items-center justify-center w-11 bg-emerald-800 text-white text-base shrink-0 transition-colors group-hover:bg-emerald-900">⬇️</span>
               <span className="flex items-center justify-center px-8 bg-emerald-600 text-white font-black text-[11px] uppercase tracking-widest transition-colors group-hover:bg-emerald-700">{submitting ? 'Saving…' : s.save}</span>
             </button>
           </div>
