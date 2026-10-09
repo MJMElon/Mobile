@@ -87,7 +87,7 @@ const SCOPED_CSS = `
 .history-table { width:100%; border-collapse:collapse; font-size:12px; }
 .history-table th { background:#f8fafc; padding:8px 12px; text-align:left; font-size:9px; text-transform:uppercase; letter-spacing:.08em; font-weight:900; color:#64748b; border-bottom:2px solid #e2e8f0; }
 .history-table td { padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; vertical-align:middle; }
-.photo-area { border:2px dashed #cbd5e1; border-radius:16px; background:#f8fafc; text-align:center; padding:2rem; cursor:pointer; transition:all .2s; }
+.photo-area { border:2px dashed #cbd5e1; border-radius:16px; background:#f8fafc; text-align:center; padding:.9rem; cursor:pointer; transition:all .2s; }
 .photo-area:hover { border-color:#10b981; background:#ecfdf5; }
 .photo-area.has-photo { border-style:solid; border-color:#10b981; padding:.5rem; }
 .scan-barcode-btn { display:inline-flex; align-items:center; gap:6px; padding:12px 16px; border-radius:14px; border:2px solid #e2e8f0; background:white; cursor:pointer; transition:all .2s; font-family:'Outfit',sans-serif; font-weight:900; font-size:12px; color:#334155; }
@@ -1092,9 +1092,9 @@ function Consent({ session, userName }) {
               <div className={`photo-area ${photoBase64 ? 'has-photo' : ''}`} onClick={openPhotoPicker}>
                 {!photoBase64 ? (
                   <div>
-                    <div className="text-4xl mb-2">📷</div>
+                    <div className="text-xl mb-1">📷</div>
                     <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{s.tapTitle}</div>
-                    <div className="text-[10px] font-bold text-slate-300 mt-1">{s.tapSub}</div>
+                    <div className="text-[10px] font-bold text-slate-300 mt-0.5">{s.tapSub}</div>
                   </div>
                 ) : (
                   <div>

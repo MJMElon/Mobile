@@ -13,6 +13,20 @@ const SignaturePad = forwardRef(function SignaturePad(
   const state = useRef({ drawing: false, hasSig: false });
   const [showHint, setShowHint] = useState(true);
 
+  // Callers almost always pass an inline onSignedAt (a new function every
+  // render), which used to sit in the canvas effect's dependency array
+  // below. The FIRST stroke calling it (e.g. setHasSig(true) in the
+  // caller) re-rendered the parent with a new onSignedAt reference, which
+  // re-ran that effect and wiped the canvas — resize() resets
+  // canvas.width/height, which clears it — erasing the signature just
+  // drawn. A second attempt stuck because by then the caller's state was
+  // already true, so its setState call was a no-op: no re-render, no
+  // effect re-run, nothing to clear. Keeping the latest callback in a ref
+  // lets the effect below depend only on `height`, so drawing a signature
+  // never itself triggers a clear.
+  const onSignedAtRef = useRef(onSignedAt);
+  onSignedAtRef.current = onSignedAt;
+
   useImperativeHandle(ref, () => ({
     hasSignature: () => state.current.hasSig,
     toDataURL: () => canvasRef.current?.toDataURL('image/png'),
@@ -68,7 +82,7 @@ const SignaturePad = forwardRef(function SignaturePad(
     function end() {
       if (!state.current.drawing) return;
       state.current.drawing = false;
-      if (onSignedAt) onSignedAt(new Date());
+      if (onSignedAtRef.current) onSignedAtRef.current(new Date());
     }
 
     canvas.addEventListener('mousedown', start);
@@ -87,7 +101,7 @@ const SignaturePad = forwardRef(function SignaturePad(
       canvas.removeEventListener('touchmove', move);
       canvas.removeEventListener('touchend', end);
     };
-  }, [height, onSignedAt]);
+  }, [height]);
 
   return (
     <div className="sig-wrap" style={{ cursor: 'crosshair' }}>
