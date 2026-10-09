@@ -930,7 +930,7 @@ function Consent({ session, userName }) {
           <div style={{ background: 'linear-gradient(135deg,#064e3b,#065f46)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
             <div>
               <div className="text-[10px] font-black text-emerald-300 uppercase tracking-widest mb-1">✍️ Customer Consent</div>
-              <div className="text-xl font-black text-white uppercase tracking-wide">
+              <div className="text-[11px] font-black text-white uppercase tracking-wide">
                 {isManualMode ? 'Manual Consent' : currentAL?.al_number || '—'}
               </div>
               <div className="text-[11px] font-bold text-emerald-300 mt-1">
@@ -972,9 +972,6 @@ function Consent({ session, userName }) {
                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Order Details</div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {[
-                    ['AL Number', currentAL?.al_number || '—'],
-                    ['Order Number', currentAL?.order_number || '—'],
-                    ['Customer Name', currentAL?.customer_name || '—'],
                     ['Purchased Product', currentAL?.product_name || '—'],
                     ['Qty Ordered', currentAL?.quantity_ordered ?? '—'],
                     ['Balance to Collect', currentAL?.balance_quantity ?? '—', true],
