@@ -33,7 +33,7 @@ const CONSENT_STRINGS = {
       '<strong>5. Form Verification.</strong> The Declaration Form (L3) must be checked before leaving the nursery. Any errors must be corrected at the office first.',
     ],
     agree: 'By signing below, I have read the terms and I hereby accept and agree to the terms as stated above.',
-    photoTitle: 'Attach Photo — Seals / Stickers Verification',
+    photoTitle: 'Attach Photo — Seals / Stickers',
     photoHelp: 'Take a photo of the seedling stickers. AI will count the sticker quantity automatically.',
     tapTitle: 'Tap to Take Photo',
     tapSub: 'Camera will open to capture sticker image',
@@ -53,7 +53,7 @@ const CONSENT_STRINGS = {
       '<strong>5. Semakan Borang.</strong> Borang Akuan (L3) mesti disemak sebelum keluar dari nursery. Sebarang kesilapan perlu dibetulkan di pejabat terlebih dahulu.',
     ],
     agree: 'Dengan menandatangani di bawah, saya mengesahkan bahawa saya telah membaca, memahami dan saya bersetuju dengan terma dinyatakan di atas.',
-    photoTitle: 'Lampirkan Foto — Pengesahan Pelekat',
+    photoTitle: 'Lampirkan Foto — Pelekat',
     photoHelp: 'Ambil foto pelekat anak benih. AI akan mengira jumlah pelekat secara automatik.',
     tapTitle: 'Ketik untuk Ambil Foto',
     tapSub: 'Kamera akan dibuka untuk menangkap imej pelekat',
@@ -1073,8 +1073,7 @@ function Consent({ session, userName }) {
               {/* Photo section — 2/5 */}
               <div className="sm:col-span-2">
                 <div className="sm:min-h-[72px]">
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">📷 <span>{s.photoTitle}</span></div>
-                  <p className="text-[10px] font-bold text-slate-300 mb-3">{s.photoHelp}</p>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">📷 <span>{s.photoTitle}</span></div>
                 </div>
 
                 <div className={`photo-area ${photoBase64 ? 'has-photo' : ''}`} onClick={openPhotoPicker}>
