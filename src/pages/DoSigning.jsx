@@ -115,7 +115,16 @@ function DoSigning({ session, userName }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [wtOpen, setWtOpen] = useState(false);
   const [wtDO, setWtDO] = useState(null); // the DO (saved row or freshly-built payload+id) being ticked
-  const [wtNurseries, setWtNurseries] = useState([]);
+  /* WHERE THE SEEDLINGS WERE is not WHO CARRIED THEM. The DO's own plots
+     say which nursery they came out of, and that nursery is always open
+     because it is the answer nearly every time. It is not the only answer:
+     seedlings standing in BNN, on a DO issued against BNN, are regularly
+     loaded by a UNN 1 gang. So the DO's nurseries are the ones OPENED and
+     every other nursery with workers on the roster can be opened by hand.
+     SAME RULE IN Barcode_Counter's src/modules/do/useWorkerTick.js, which
+     is where the test for it lives — change one, change the other. */
+  const [wtOwn, setWtOwn] = useState([]);     // from the DO's plots, never closed
+  const [wtExtra, setWtExtra] = useState([]); // opened by hand
   const [wtPicked, setWtPicked] = useState({}); // { BNN: ['Name', ...], ... }
   const [wtSaving, setWtSaving] = useState(false);
   const wtThenPrintRef = useRef(null);
@@ -503,18 +512,42 @@ function DoSigning({ session, userName }) {
   // skipped step is never a dead end — see the user's own spec: skip closes
   // the window, Manage DOs is how you come back to fill it in.
   const wtLocked = !!wtDO?.worked_by_locked_at && !isAdmin;
+  const wtNurseries = wtOwn.concat(wtExtra.filter((k) => !wtOwn.includes(k)));
+  // Offered underneath, never above: a nursery nobody has opened is a
+  // prompt, not a section. Sorted, so the row does not reshuffle itself.
+  const wtOtherNurseries = Object.keys(workersByNurseryKey)
+    .filter((k) => !wtNurseries.includes(k))
+    .sort();
 
   function openWorkerTick(doRecord, { thenPrint = null } = {}) {
-    const keys = nurseriesOfDO(doRecord, plotMap);
+    const own = nurseriesOfDO(doRecord, plotMap);
+    const saved = doRecord.worked_by_by_nursery || {};
+    /* A nursery somebody ticked BY HAND last time has to come back open, or
+       the answer they gave is on the record and nowhere on the screen — and
+       the next save, built from the sections on screen, would drop it. */
+    const extra = Object.keys(saved).filter((k) => !own.includes(k) && (saved[k] || []).length);
     const seeded = {};
-    keys.forEach((k) => {
-      seeded[k] = (doRecord.worked_by_by_nursery || {})[k] || [];
-    });
+    own.concat(extra).forEach((k) => { seeded[k] = saved[k] || []; });
     setWtDO(doRecord);
-    setWtNurseries(keys);
+    setWtOwn(own);
+    setWtExtra(extra);
     setWtPicked(seeded);
     wtThenPrintRef.current = thenPrint;
     setWtOpen(true);
+  }
+
+  function addNursery(key) {
+    if (wtLocked || !key || wtNurseries.includes(key)) return;
+    setWtExtra((prev) => prev.concat([key]));
+    setWtPicked((prev) => (prev[key] ? prev : { ...prev, [key]: [] }));
+  }
+
+  // Only a hand-opened one can be closed again, and closing it drops its
+  // ticks — the DO's own nursery is not a choice anybody made.
+  function removeNursery(key) {
+    if (wtLocked || wtOwn.includes(key)) return;
+    setWtExtra((prev) => prev.filter((k) => k !== key));
+    setWtPicked((prev) => { const next = { ...prev }; delete next[key]; return next; });
   }
 
   function closeWorkerTick() {
@@ -917,15 +950,29 @@ function DoSigning({ session, userName }) {
               </div>
             )}
 
-            {!wtNurseries.length ? (
+            {!wtNurseries.length && !wtOtherNurseries.length ? (
               <div className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No nursery found on this DO's items.</div>
             ) : (
               wtNurseries.map((key) => {
                 const list = workersByNurseryKey[key] || [];
                 const picked = wtPicked[key] || [];
+                const own = wtOwn.includes(key);
                 return (
                   <div key={key}>
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{key}</div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{key}</span>
+                      {!own && <span className="text-[9px] font-bold text-slate-300">added by hand</span>}
+                      {!own && !wtLocked && (
+                        <button
+                          type="button"
+                          title={`Remove ${key}`}
+                          onClick={() => removeNursery(key)}
+                          className="w-5 h-5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-slate-700 text-[11px] font-black leading-none flex items-center justify-center cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                     {!list.length ? (
                       <div className="text-[11px] font-bold text-slate-300">No general workers registered for {key}.</div>
                     ) : (
@@ -951,6 +998,29 @@ function DoSigning({ session, userName }) {
                   </div>
                 );
               })
+            )}
+
+            {/* ANOTHER NURSERY'S GANG. The seedlings stood in one nursery and
+                were loaded by another often enough that it cannot be an
+                edit-the-record job: every other nursery with workers on the
+                roster is one tap away, and tapping one opens its own list of
+                names underneath the DO's. */}
+            {!wtLocked && wtOtherNurseries.length > 0 && (
+              <div>
+                <div className="text-[10px] font-bold text-slate-400 mb-2">Loaded by another nursery gang? Add the nursery:</div>
+                <div className="flex flex-wrap gap-2">
+                  {wtOtherNurseries.map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => addNursery(key)}
+                      className="px-4 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-white text-xs font-black text-slate-500 uppercase tracking-wide hover:border-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
+                    >
+                      + {key}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 
