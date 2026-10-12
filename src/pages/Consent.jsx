@@ -155,17 +155,10 @@ function Consent({ session, userName }) {
   const barcodeStreamRef = useRef(null);
   const barcodeVideoRef = useRef(null);
 
-  // ── Sticker photo: live camera only, no file/gallery picker. A file
-  // input's capture="environment" only forces the camera on phones — on a
-  // laptop it is just a normal file picker, which is exactly the "upload
-  // any document" hole this has to close on every device. getUserMedia
-  // opens a live feed in-page instead, the same way the barcode scanner
-  // above already does, and a captured frame never passes through a picker
-  // at all. ──
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [cameraStatus, setCameraStatus] = useState('Starting camera…');
-  const cameraStreamRef = useRef(null);
-  const cameraVideoRef = useRef(null);
+  // The device's own camera app (capture="environment") rather than an
+  // in-page live feed: it gives the real camera UI — zoom, flash, switch
+  // lens — that a bare getUserMedia video never does.
+  const photoInputRef = useRef(null);
 
   // ════════════════ LOAD DATA ════════════════
   const loadActiveALs = useCallback(async () => {
@@ -615,40 +608,16 @@ function Consent({ session, userName }) {
     }
   }
 
-  async function openPhotoPicker() {
-    setCameraOpen(true);
-    setCameraStatus('Starting camera…');
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 } },
-      });
-      cameraStreamRef.current = stream;
-      if (cameraVideoRef.current) cameraVideoRef.current.srcObject = stream;
-      setCameraStatus('');
-    } catch (e) {
-      setCameraStatus('Camera error: ' + e.message + ' — camera access is required, no file upload is offered instead.');
-    }
+  function openPhotoPicker() {
+    if (photoInputRef.current) photoInputRef.current.click();
   }
 
-  function stopCamera() {
-    if (cameraStreamRef.current) {
-      cameraStreamRef.current.getTracks().forEach((t) => t.stop());
-      cameraStreamRef.current = null;
-    }
-    if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
-    setCameraOpen(false);
-  }
-
-  async function capturePhoto() {
-    const video = cameraVideoRef.current;
-    if (!video || !video.videoWidth) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    stopCamera();
-    await processCapturedPhoto(dataUrl);
+  function onPhotoFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => { processCapturedPhoto(ev.target.result); };
+    reader.readAsDataURL(file);
   }
 
   function retakePhoto() {
@@ -657,7 +626,10 @@ function Consent({ session, userName }) {
     setAiScanning(false);
     setAiResultShown(false);
     setAiNotice('');
-    openPhotoPicker();
+    if (photoInputRef.current) {
+      photoInputRef.current.value = '';
+      photoInputRef.current.click();
+    }
   }
 
   // ════════════════ SUBMIT CONSENT ════════════════
@@ -1113,30 +1085,9 @@ function Consent({ session, userName }) {
         </div>
       </div>
 
-      {/* ══ STICKER PHOTO CAMERA MODAL — live capture only, no file picker ══ */}
-      <div className={`modal-overlay ${cameraOpen ? 'open' : ''}`} style={{ zIndex: 270 }} onClick={stopCamera}>
-        <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center" onClick={(e) => e.stopPropagation()}>
-          <div className="text-3xl mb-2">📷</div>
-          <div className="font-black text-slate-800 text-lg uppercase tracking-wide mb-1">Take Photo</div>
-          <div className="text-xs font-bold text-slate-400 mb-4">Point the camera at the seals / stickers</div>
-          <div className="rounded-2xl overflow-hidden bg-black mb-4" style={{ height: '260px', position: 'relative' }}>
-            <video ref={cameraVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          </div>
-          {cameraStatus && (
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">{cameraStatus}</div>
-          )}
-          <div className="flex gap-3 justify-center">
-            <button onClick={stopCamera} className="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-full border border-slate-200 cursor-pointer transition-colors">Cancel</button>
-            <button
-              onClick={capturePhoto}
-              disabled={!!cameraStatus}
-              className="text-[10px] font-black text-white uppercase tracking-widest bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed px-7 py-3 rounded-full border-none cursor-pointer transition-colors"
-            >
-              📸 Capture
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Opens the device's own camera app — zoom, flash, lens switch all
+          come from there rather than being rebuilt in-page. */}
+      <input ref={photoInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhotoFile} />
 
       <ToastHost />
     </>
