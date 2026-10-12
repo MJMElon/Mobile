@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { formatSealRanges, rangeQty } from './sealRanges.js';
 
 // Company letterhead — the standardized DO identity block shared with the
 // Barcode Counter app and the Sales Web proforma invoice.
@@ -128,6 +129,37 @@ export function buildDOPdf(doRec, al = {}, staff = '—', sigDataUrl = null, pho
   doc.setTextColor(...INK);
   doc.text('TOTAL QUANTITY', 92, y + 4);
   doc.text(fmtQty(doRec.total_qty), 187, y + 4, { align: 'right' });
+
+  // ── Seal numbers on this DO ── (FC Portal writes seal_ranges when the DO
+  // is issued off a scan card). Capped at four lines so a DO of many short
+  // runs cannot push the acknowledgement off the page; the full list is in
+  // the system.
+  const seals = Array.isArray(doRec.seal_ranges) ? doRec.seal_ranges : [];
+  if (seals.length) {
+    y += 11;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...GREY);
+    doc.text('SEAL NO.', 20, y);
+    const sealQty = doRec.seal_qty != null
+      ? Number(doRec.seal_qty)
+      : seals.reduce((s, r) => s + (Number(r.qty) || rangeQty(r.start, r.end)), 0);
+    doc.text('SEAL QTY: ' + fmtQty(sealQty), 190, y, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...INK);
+    let lines = doc.splitTextToSize(formatSealRanges(seals), 170);
+    if (lines.length > 4) {
+      const more = ' ... (' + seals.length + ' ranges, see system)';
+      let body = lines[3];
+      // Drop whole ranges off the fourth line until the note fits beside
+      // it — a seal number cut in half reads as a different seal.
+      while (body.includes(', ') && doc.getTextWidth(body + more) > 170) body = body.slice(0, body.lastIndexOf(', '));
+      lines = [...lines.slice(0, 3), body.replace(/[,\s-]+$/, '') + more];
+    }
+    lines.forEach((ln, i) => doc.text(ln, 20, y + 5 + i * 4));
+    y += 5 + (lines.length - 1) * 4;
+  }
 
   // ── Customer acknowledgement: collection photo + signature ──
   y += 18;

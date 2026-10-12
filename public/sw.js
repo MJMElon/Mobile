@@ -17,7 +17,7 @@
  */
 /* Both lines are rewritten by the build (see the sw-precache plugin in
    vite.config.js): VER gets a per-build value so every deploy opens a fresh
-   cache, and PRECACHE gets the five pages plus every hashed chunk the build
+   cache, and PRECACHE gets the six pages plus every hashed chunk the build
    produced. Without the list, only pages somebody had already opened while
    online worked offline — a runtime cache cannot hold a file that was never
    fetched. Same fix, same reason, as the FC Portal's sw.js. */
