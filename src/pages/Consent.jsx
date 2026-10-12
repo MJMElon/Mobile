@@ -669,11 +669,15 @@ function Consent({ session, userName }) {
   }
 
   // ════════════════ SUBMIT CONSENT ════════════════
-  const consentReady = agreed && hasSig && selectedQty > 0;
+  const consentReady = agreed && hasSig && !!photoBase64 && selectedQty > 0;
 
   async function submitConsent() {
     if (selectedQty <= 0) return;
     if (!isManualMode && !currentAL) return;
+    if (!photoBase64) {
+      showToast('📷 Please take a photo of the seals/stickers first');
+      return;
+    }
 
     setSubmitting(true);
 
@@ -1087,7 +1091,7 @@ function Consent({ session, userName }) {
 
             {/* Photo section — stacked above Signature, not side by side */}
             <div className="border-t border-slate-100 pt-5">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">📷 <span>{s.photoTitle}</span></div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">📷 <span>{s.photoTitle}</span> <span className="text-red-500">*</span></div>
 
               <div className={`photo-area ${photoBase64 ? 'has-photo' : ''}`} onClick={openPhotoPicker}>
                 {!photoBase64 ? (
