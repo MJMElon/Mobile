@@ -1,6 +1,6 @@
 // Registers the offline app-shell service worker (public/sw.js → /sw.js).
-// Called once from every entry file, so all five pages (index, auth, booking,
-// consent, do_signing) end up covered by the same cache regardless of which
+// Called once from every entry file, so all six pages (index, auth, booking,
+// consent, do_signing, seal) end up covered by the same cache regardless of which
 // one somebody happens to open first.
 export function registerSW() {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;

@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 import { readFileSync, readdirSync, writeFileSync } from 'fs';
 
-/* Injects the built file list into dist/sw.js after every build — the five
+/* Injects the built file list into dist/sw.js after every build — the six
    pages plus every content-hashed chunk, whose names change per deploy so
    the worker cannot carry a hardcoded list. VER becomes a per-build stamp
    (every deploy opens a fresh cache and re-seeds it). Without this, only
@@ -22,7 +22,7 @@ function swPrecache() {
       }
       const list = [
         './', './index.html', './auth.html', './booking.html',
-        './consent.html', './do_signing.html',
+        './consent.html', './do_signing.html', './seal.html',
         ...files,
       ];
       const swPath = resolve(dist, 'sw.js');
@@ -55,6 +55,7 @@ export default defineConfig({
         booking: resolve(__dirname, 'booking.html'),
         consent: resolve(__dirname, 'consent.html'),
         do_signing: resolve(__dirname, 'do_signing.html'),
+        seal: resolve(__dirname, 'seal.html'),
       },
     },
   },

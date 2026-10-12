@@ -6,6 +6,7 @@ import { DO_JOB, looksOffline, queueJob, sendDO } from '../lib/mobileQueue.js';
 import { isOnline } from '../lib/auth';
 import { printDOPdf } from '../lib/pdf';
 import { generateDONumber } from '../lib/doAttach';
+import { formatSealRanges, rangeQty } from '../lib/sealRanges.js';
 import AuthGate from '../components/AuthGate';
 import TopNav from '../components/TopNav';
 import SignaturePad from '../components/SignaturePad';
@@ -1093,7 +1094,16 @@ function DoRow({ d, plotMap, onPrint, onManageWorkers }) {
   return (
     <tr className={isCancelled ? 'opacity-50' : ''}>
       <td className="text-slate-500 font-bold whitespace-nowrap">{dateFmt}</td>
-      <td><span className={`font-black ${isCancelled ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{d.do_number || '—'}</span></td>
+      <td>
+        <span className={`font-black ${isCancelled ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{d.do_number || '—'}</span>
+        {/* The seals scanned onto this DO at the lorry (FC Portal writes them). */}
+        {Array.isArray(d.seal_ranges) && d.seal_ranges.length > 0 && (
+          <div className="text-[10px] font-mono font-bold text-slate-500 mt-1 leading-snug break-words" style={{ maxWidth: '220px' }}>
+            🔖 {formatSealRanges(d.seal_ranges)}
+            <span className="font-sans text-slate-400"> · {(d.seal_qty ?? d.seal_ranges.reduce((s2, r) => s2 + (r.qty || rangeQty(r.start, r.end)), 0)).toLocaleString()} seals</span>
+          </div>
+        )}
+      </td>
       <td className="text-slate-600 text-xs">{lines.length ? lines.map((l, i) => <div key={i} className="leading-5">{l.nursery}</div>) : '—'}</td>
       <td className="text-slate-600 text-xs">{lines.length ? lines.map((l, i) => <div key={i} className="leading-5">{l.breed}</div>) : '—'}</td>
       <td>{lines.length ? lines.map((l, i) => <div key={i} className="leading-5 font-black text-emerald-700">{l.qty}</div>) : <span className="font-black text-emerald-700">{d.total_qty ?? '—'}</span>}</td>
@@ -1155,6 +1165,17 @@ function ConsentArea({ consents, err }) {
               <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 inline-flex items-center gap-2 mt-2">
                 <span className="text-[9px] font-black text-blue-700 uppercase tracking-widest">🤖 AI Count:</span>
                 <span className="font-black text-blue-700">{c.ai_sticker_count.toLocaleString()}</span>
+              </div>
+            )}
+            {Array.isArray(c.seal_ranges) && c.seal_ranges.length > 0 && (
+              <div className="mt-2">
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                  🔖 Seals Issued — {c.seal_ranges.reduce((sum, r) => sum + rangeQty(r.start, r.end), 0).toLocaleString()}
+                </div>
+                <div className="text-[11px] font-mono font-bold text-slate-600 break-words">{formatSealRanges(c.seal_ranges)}</div>
+                {c.seal_photo_url && (
+                  <img src={c.seal_photo_url} className="rounded-xl border border-slate-200 mt-1.5" style={{ maxHeight: '120px', maxWidth: '100%', objectFit: 'contain' }} alt="Customer received seals" />
+                )}
               </div>
             )}
             {c.photo_url && (
