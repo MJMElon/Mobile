@@ -120,7 +120,6 @@ function Consent({ session, userName }) {
 
   // ── Consent detail modal ──
   const [detailOpen, setDetailOpen] = useState(false);
-  const [isManualMode, setIsManualMode] = useState(false);
   const [currentAL, setCurrentAL] = useState(null);
   const [totalPreviouslyConsented, setTotalPreviouslyConsented] = useState(0);
   const [selectedQty, setSelectedQty] = useState(0);
@@ -133,12 +132,6 @@ function Consent({ session, userName }) {
   // actually scanned for THIS collection trip" under each row. Fetched in
   // one request per AL rather than one per row.
   const [sealLogs, setSealLogs] = useState({});
-
-  // ── Manual fields ──
-  const [manualName, setManualName] = useState('');
-  const [manualAL, setManualAL] = useState('');
-  const [manualOrder, setManualOrder] = useState('');
-  const [manualNotes, setManualNotes] = useState('');
 
   // ── Sign modal ──
   const [signOpen, setSignOpen] = useState(false);
@@ -155,13 +148,24 @@ function Consent({ session, userName }) {
   const [aiNotice, setAiNotice] = useState(''); // '' = hidden
   const [submitting, setSubmitting] = useState(false);
   const sigRef = useRef(null);
-  const photoInputRef = useRef(null);
 
   // ── Barcode modal ──
   const [barcodeOpen, setBarcodeOpen] = useState(false);
   const [barcodeStatus, setBarcodeStatus] = useState('Scanning…');
   const barcodeStreamRef = useRef(null);
   const barcodeVideoRef = useRef(null);
+
+  // ── Sticker photo: live camera only, no file/gallery picker. A file
+  // input's capture="environment" only forces the camera on phones — on a
+  // laptop it is just a normal file picker, which is exactly the "upload
+  // any document" hole this has to close on every device. getUserMedia
+  // opens a live feed in-page instead, the same way the barcode scanner
+  // above already does, and a captured frame never passes through a picker
+  // at all. ──
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStatus, setCameraStatus] = useState('Starting camera…');
+  const cameraStreamRef = useRef(null);
+  const cameraVideoRef = useRef(null);
 
   // ════════════════ LOAD DATA ════════════════
   const loadActiveALs = useCallback(async () => {
@@ -421,7 +425,6 @@ function Consent({ session, userName }) {
       liveMatches.find((r) => r.al_number === alNumber);
     if (!al) return;
 
-    setIsManualMode(false);
     setCurrentAL(al);
     setSelectedQty(0);
     setCustomQty('');
@@ -442,27 +445,9 @@ function Consent({ session, userName }) {
     loadConsentHistory(alNumber);
   }
 
-  function openManualConsent() {
-    setIsManualMode(true);
-    setCurrentAL(null);
-    setManualName('');
-    setManualAL('');
-    setManualOrder('');
-    setManualNotes('');
-    setTotalPreviouslyConsented(0);
-    setSelectedQty(0);
-    setCustomQty('');
-    setFullActive(false);
-    setHistory([]); // manual: no prior history
-    setSealLogs({});
-    setHistoryErr('');
-    setDetailOpen(true);
-  }
-
   function closeConsentModal() {
     setDetailOpen(false);
     setCurrentAL(null);
-    setIsManualMode(false);
   }
 
   // ── Derived qty math ──
@@ -472,21 +457,20 @@ function Consent({ session, userName }) {
   // can total the full ordered qty, regardless of how much has already
   // been delivered (DO'd).
   const ordered = currentAL?.quantity_ordered || 0;
-  const remaining = isManualMode ? Infinity : Math.max(0, ordered - totalPreviouslyConsented);
+  const remaining = Math.max(0, ordered - totalPreviouslyConsented);
 
   function getMaxConsentQty() {
-    if (isManualMode) return Infinity;
     if (!currentAL) return 0;
     return Math.max(0, (currentAL.quantity_ordered || 0) - totalPreviouslyConsented);
   }
 
   function selectQty(qty) {
     const max = getMaxConsentQty();
-    if (!isManualMode && max <= 0) {
+    if (max <= 0) {
       showToast('⚠️ All ordered qty already consented');
       return;
     }
-    if (!isManualMode && qty > max) {
+    if (qty > max) {
       showToast('⚠️ Cannot exceed remaining qty (' + max.toLocaleString() + ')');
       return;
     }
@@ -500,7 +484,7 @@ function Consent({ session, userName }) {
     setFullActive(false);
     const val = parseInt(value);
     const max = getMaxConsentQty();
-    if (!isManualMode && val > max) {
+    if (val > max) {
       showToast('⚠️ Cannot exceed remaining qty (' + max.toLocaleString() + ')');
       setSelectedQty(0);
       return;
@@ -510,10 +494,6 @@ function Consent({ session, userName }) {
   }
 
   function selectFull() {
-    if (isManualMode) {
-      showToast('⚠️ Manual mode — please key in qty');
-      return;
-    }
     const max = getMaxConsentQty();
     if (max <= 0) {
       showToast('⚠️ All ordered qty already consented');
@@ -524,9 +504,7 @@ function Consent({ session, userName }) {
     setFullActive(true);
   }
 
-  const maxQtyHint = isManualMode
-    ? '(Manual entry — enter any quantity)'
-    : '(Max: ' + remaining.toLocaleString() + ' remaining of ' + ordered.toLocaleString() + ' ordered)';
+  const maxQtyHint = '(Max: ' + remaining.toLocaleString() + ' remaining of ' + ordered.toLocaleString() + ' ordered)';
 
   // ════════════════ CONSENT HISTORY ════════════════
   async function loadConsentHistory(alNumber) {
@@ -571,18 +549,8 @@ function Consent({ session, userName }) {
   function proceedToSign() {
     if (selectedQty <= 0) return;
 
-    let titleText;
-    if (isManualMode) {
-      const name = manualName.trim();
-      if (!name) {
-        showToast('⚠️ Please enter customer name');
-        return;
-      }
-      titleText = (manualAL.trim() ? manualAL.trim() + ' — ' : '') + name + ' (Manual)';
-    } else {
-      if (!currentAL) return;
-      titleText = (currentAL.al_number || '') + ' — ' + (currentAL.customer_name || '');
-    }
+    if (!currentAL) return;
+    const titleText = (currentAL.al_number || '') + ' — ' + (currentAL.customer_name || '');
 
     setSignTitle(titleText);
     setSignQty(selectedQty);
@@ -606,54 +574,81 @@ function Consent({ session, userName }) {
   }
 
   // ════════════════ PHOTO + AI STICKER COUNT ════════════════
-  function openPhotoPicker() {
-    if (photoInputRef.current) photoInputRef.current.click();
+  // Takes a captured data URL (always from the live camera below, never a
+  // picked file) through compression and the AI sticker count, same
+  // pipeline regardless of device.
+  async function processCapturedPhoto(rawBase64) {
+    const base64 = await compressImage(rawBase64);
+    setPhotoBase64(base64);
+
+    /* No line: the AI count cannot run (the Gemini edge function is a
+       server call), and that is by design — the photo is kept, the count
+       is entered by hand, and the whole record queues like any other. */
+    if (!isOnline()) {
+      setAiScanning(false);
+      setAiResultShown(true);
+      setAiCountLabel('—');
+      setAiNotice('📴 No line — AI sticker count needs signal. Enter the count by hand.');
+      return;
+    }
+
+    setAiResultShown(false);
+    setAiScanning(true);
+    setAiNotice('');
+    try {
+      const result = await callGeminiScan(base64, 'image/jpeg', STICKER_PROMPT);
+      const count = result.sticker_count || 0;
+      setAiStickerCount(count);
+      setAiCountLabel(count.toLocaleString());
+      setAiScanning(false);
+      setAiResultShown(true);
+      if (result.confidence !== 'high') {
+        setAiNotice('⚠️ AI count may not be exact — please verify manually.');
+      } else {
+        setAiNotice('');
+      }
+    } catch (err) {
+      setAiScanning(false);
+      setAiResultShown(true);
+      setAiCountLabel('Error');
+      setAiNotice('⚠️ AI scan failed: ' + err.message);
+    }
   }
 
-  async function onPhotoFile(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      let base64 = ev.target.result;
-      base64 = await compressImage(base64);
-      setPhotoBase64(base64);
+  async function openPhotoPicker() {
+    setCameraOpen(true);
+    setCameraStatus('Starting camera…');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 } },
+      });
+      cameraStreamRef.current = stream;
+      if (cameraVideoRef.current) cameraVideoRef.current.srcObject = stream;
+      setCameraStatus('');
+    } catch (e) {
+      setCameraStatus('Camera error: ' + e.message + ' — camera access is required, no file upload is offered instead.');
+    }
+  }
 
-      /* No line: the AI count cannot run (the Gemini edge function is a
-         server call), and that is by design — the photo is kept, the count
-         is entered by hand, and the whole record queues like any other. */
-      if (!isOnline()) {
-        setAiScanning(false);
-        setAiResultShown(true);
-        setAiCountLabel('—');
-        setAiNotice('📴 No line — AI sticker count needs signal. Enter the count by hand.');
-        return;
-      }
+  function stopCamera() {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((t) => t.stop());
+      cameraStreamRef.current = null;
+    }
+    if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
+    setCameraOpen(false);
+  }
 
-      // Run AI scan
-      setAiResultShown(false);
-      setAiScanning(true);
-      setAiNotice('');
-      try {
-        const result = await callGeminiScan(base64, 'image/jpeg', STICKER_PROMPT);
-        const count = result.sticker_count || 0;
-        setAiStickerCount(count);
-        setAiCountLabel(count.toLocaleString());
-        setAiScanning(false);
-        setAiResultShown(true);
-        if (result.confidence !== 'high') {
-          setAiNotice('⚠️ AI count may not be exact — please verify manually.');
-        } else {
-          setAiNotice('');
-        }
-      } catch (err) {
-        setAiScanning(false);
-        setAiResultShown(true);
-        setAiCountLabel('Error');
-        setAiNotice('⚠️ AI scan failed: ' + err.message);
-      }
-    };
-    reader.readAsDataURL(file);
+  async function capturePhoto() {
+    const video = cameraVideoRef.current;
+    if (!video || !video.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    stopCamera();
+    await processCapturedPhoto(dataUrl);
   }
 
   function retakePhoto() {
@@ -662,10 +657,7 @@ function Consent({ session, userName }) {
     setAiScanning(false);
     setAiResultShown(false);
     setAiNotice('');
-    if (photoInputRef.current) {
-      photoInputRef.current.value = '';
-      photoInputRef.current.click();
-    }
+    openPhotoPicker();
   }
 
   // ════════════════ SUBMIT CONSENT ════════════════
@@ -673,7 +665,7 @@ function Consent({ session, userName }) {
 
   async function submitConsent() {
     if (selectedQty <= 0) return;
-    if (!isManualMode && !currentAL) return;
+    if (!currentAL) return;
     if (!photoBase64) {
       showToast('📷 Please take a photo of the seals/stickers first');
       return;
@@ -683,23 +675,9 @@ function Consent({ session, userName }) {
 
     const sigDataUrl = sigRef.current?.toDataURL() || '';
 
-    // Build identifying fields based on mode
-    let alNumber, orderNumber, customerName;
-    if (isManualMode) {
-      customerName = manualName.trim();
-      if (!customerName) {
-        showToast('⚠️ Customer name is required');
-        setSubmitting(false);
-        return;
-      }
-      const al = manualAL.trim();
-      alNumber = al || 'MANUAL-' + Date.now();
-      orderNumber = manualOrder.trim();
-    } else {
-      alNumber = currentAL.al_number;
-      orderNumber = currentAL.order_number || '';
-      customerName = currentAL.customer_name || '';
-    }
+    const alNumber = currentAL.al_number;
+    const orderNumber = currentAL.order_number || '';
+    const customerName = currentAL.customer_name || '';
 
     /* The whole save as one JOB — row plus photo — through sendConsent
        (mobileQueue.js), which uploads the photo and inserts. With no line,
@@ -739,23 +717,17 @@ function Consent({ session, userName }) {
 
     closeSignModal();
 
-    if (isManualMode) {
-      closeConsentModal();
-      // Refresh main list count map
-      loadActiveALs();
-    } else {
-      const al = currentAL;
-      // Update local count map
-      setConsentCountMap((prev) => ({ ...prev, [al.al_number]: (prev[al.al_number] || 0) + 1 }));
-      const newPrevTotal = totalPreviouslyConsented + selectedQty;
-      setTotalPreviouslyConsented(newPrevTotal);
+    const al = currentAL;
+    // Update local count map
+    setConsentCountMap((prev) => ({ ...prev, [al.al_number]: (prev[al.al_number] || 0) + 1 }));
+    const newPrevTotal = totalPreviouslyConsented + selectedQty;
+    setTotalPreviouslyConsented(newPrevTotal);
 
-      await loadConsentHistory(al.al_number);
+    await loadConsentHistory(al.al_number);
 
-      setSelectedQty(0);
-      setCustomQty('');
-      setFullActive(false);
-    }
+    setSelectedQty(0);
+    setCustomQty('');
+    setFullActive(false);
   }
 
   const s = CONSENT_STRINGS[consentLang];
@@ -785,16 +757,6 @@ function Consent({ session, userName }) {
             </button>
             <button className="shrink-0 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
               Search
-            </button>
-          </div>
-
-          {/* Manual Consent */}
-          <div className="flex justify-end mb-4">
-            <button
-              onClick={openManualConsent}
-              className="text-[11px] font-black text-amber-700 uppercase tracking-widest bg-amber-50 hover:bg-amber-100 px-5 py-2.5 rounded-xl border border-amber-200 cursor-pointer transition-colors"
-            >
-              + Manual Consent (No AL in System)
             </button>
           </div>
 
@@ -925,9 +887,6 @@ function Consent({ session, userName }) {
         </div>
       </div>
 
-      {/* Hidden camera input for sticker photo */}
-      <input ref={photoInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhotoFile} />
-
       {/* ══ CONSENT DETAIL MODAL ══ */}
       <div className={`modal-overlay ${detailOpen ? 'open' : ''}`} onClick={closeConsentModal}>
         <div className="modal-box" onClick={(e) => e.stopPropagation()}>
@@ -935,44 +894,18 @@ function Consent({ session, userName }) {
             <div>
               <div className="text-[10px] font-black text-emerald-300 uppercase tracking-widest mb-1">✍️ Customer Consent</div>
               <div className="text-base font-black text-white uppercase tracking-wide">
-                {isManualMode ? 'Manual Consent' : currentAL?.al_number || '—'}
+                {currentAL?.al_number || '—'}
               </div>
               <div className="text-base font-bold text-emerald-300 mt-1">
-                {isManualMode ? (manualName.trim() || 'Enter customer details below') : currentAL?.customer_name || '—'}
+                {currentAL?.customer_name || '—'}
               </div>
             </div>
             <button onClick={closeConsentModal} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4">×</button>
           </div>
 
           <div className="p-5 sm:p-6 space-y-5">
-            {/* Manual entry fields */}
-            {isManualMode && (
-              <div>
-                <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-3">⚠️ Manual Entry — AL Not Found in System</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Customer Name <span className="text-red-500">*</span></label>
-                    <input type="text" className="search-input text-sm w-full" style={{ padding: '10px 14px' }} placeholder="Enter customer name" value={manualName} onChange={(e) => setManualName(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">AL Number (optional)</label>
-                    <input type="text" className="search-input text-sm w-full" style={{ padding: '10px 14px' }} placeholder="e.g. AL-2026-XXXX" value={manualAL} onChange={(e) => setManualAL(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Order Number (optional)</label>
-                    <input type="text" className="search-input text-sm w-full" style={{ padding: '10px 14px' }} placeholder="e.g. ORD-XXXX" value={manualOrder} onChange={(e) => setManualOrder(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Notes (optional)</label>
-                    <input type="text" className="search-input text-sm w-full" style={{ padding: '10px 14px' }} placeholder="Any additional info" value={manualNotes} onChange={(e) => setManualNotes(e.target.value)} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Order details (hidden in manual mode) */}
-            {!isManualMode && (
-              <div>
+            {/* Order details */}
+            <div>
                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Order Details</div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {(() => {
@@ -1003,8 +936,7 @@ function Consent({ session, userName }) {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+            </div>
 
             {/* Sign consent for qty */}
             <div className="border-t border-slate-100 pt-5">
@@ -1025,7 +957,7 @@ function Consent({ session, userName }) {
                     className="search-input text-sm"
                     style={{ padding: '10px 14px', width: '140px' }}
                     value={customQty}
-                    max={isManualMode ? undefined : remaining}
+                    max={remaining}
                     onChange={(e) => selectCustomQty(e.target.value)}
                   />
                 </div>
@@ -1043,7 +975,7 @@ function Consent({ session, userName }) {
             {/* Consent history */}
             <div className="border-t border-slate-100 pt-5">
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">📋 Consent History</div>
-              <ConsentHistory history={history} err={historyErr} isManualMode={isManualMode} sealLogs={sealLogs} />
+              <ConsentHistory history={history} err={historyErr} sealLogs={sealLogs} />
             </div>
           </div>
 
@@ -1181,13 +1113,38 @@ function Consent({ session, userName }) {
         </div>
       </div>
 
+      {/* ══ STICKER PHOTO CAMERA MODAL — live capture only, no file picker ══ */}
+      <div className={`modal-overlay ${cameraOpen ? 'open' : ''}`} style={{ zIndex: 270 }} onClick={stopCamera}>
+        <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center" onClick={(e) => e.stopPropagation()}>
+          <div className="text-3xl mb-2">📷</div>
+          <div className="font-black text-slate-800 text-lg uppercase tracking-wide mb-1">Take Photo</div>
+          <div className="text-xs font-bold text-slate-400 mb-4">Point the camera at the seals / stickers</div>
+          <div className="rounded-2xl overflow-hidden bg-black mb-4" style={{ height: '260px', position: 'relative' }}>
+            <video ref={cameraVideoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+          {cameraStatus && (
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">{cameraStatus}</div>
+          )}
+          <div className="flex gap-3 justify-center">
+            <button onClick={stopCamera} className="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-full border border-slate-200 cursor-pointer transition-colors">Cancel</button>
+            <button
+              onClick={capturePhoto}
+              disabled={!!cameraStatus}
+              className="text-[10px] font-black text-white uppercase tracking-widest bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed px-7 py-3 rounded-full border-none cursor-pointer transition-colors"
+            >
+              📸 Capture
+            </button>
+          </div>
+        </div>
+      </div>
+
       <ToastHost />
     </>
   );
 }
 
 // ── Consent history table ──
-function ConsentHistory({ history, err, isManualMode, sealLogs = {} }) {
+function ConsentHistory({ history, err, sealLogs = {} }) {
   const [expanded, setExpanded] = useState(() => new Set());
   function toggleExpanded(id) {
     setExpanded((prev) => {
@@ -1204,14 +1161,6 @@ function ConsentHistory({ history, err, isManualMode, sealLogs = {} }) {
     return <div className="text-xs text-red-400 font-bold">{err}</div>;
   }
   if (!history.length) {
-    if (isManualMode) {
-      return (
-        <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-100">
-          <div className="text-2xl mb-2">✍️</div>
-          <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Manual consent — no prior history</div>
-        </div>
-      );
-    }
     return (
       <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-100">
         <div className="text-2xl mb-2">📋</div>
