@@ -56,6 +56,24 @@ function isGeneralWorker(w) {
 // plotMap (plot_name -> nursery_name) the same way DoRow already shows a
 // DO's nursery per line. Works for both a freshly-built save payload and a
 // row loaded back from shared_do_records — both carry plot_1..plot_5.
+/* MAIN NURSERY ONLY, and it is the company's own grouping that says which
+   those are — the Location card on the 555 Worker Portal's System Setting
+   files every section under Pre Nursery, Main Nursery or Estate. A DO is
+   loaded out of a main nursery: PN is the tray shed and UNE is the estate,
+   and neither has a gang that carries seedlings onto a lorry.
+
+   It RECOGNISES rather than lists, so BNN, UNN1 and UNN2 today and a BNN2
+   or a UNN3 the day somebody adds one. UNE is not caught by it: the estate
+   is UNE, not UNN.
+
+   SAME RULE as LOCATIONS.main in mjm-ai-system's shared/
+   shared_worker_locations.js and isMainNursery() in Barcode_Counter's
+   src/modules/do/useWorkerTick.js, which is where the test lives.
+   Change one, change the others. */
+function isMainNursery(key) {
+  return /^(BNN|UNN)\d*$/.test(String(key || ''));
+}
+
 function nurseriesOfDO(d, plotMap) {
   const keys = [];
   for (let i = 1; i <= 5; i++) {
@@ -516,7 +534,7 @@ function DoSigning({ session, userName }) {
   // Offered underneath, never above: a nursery nobody has opened is a
   // prompt, not a section. Sorted, so the row does not reshuffle itself.
   const wtOtherNurseries = Object.keys(workersByNurseryKey)
-    .filter((k) => !wtNurseries.includes(k))
+    .filter((k) => isMainNursery(k) && !wtNurseries.includes(k))
     .sort();
 
   function openWorkerTick(doRecord, { thenPrint = null } = {}) {
