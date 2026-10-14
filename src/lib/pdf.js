@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { formatSealRanges, rangeQty } from './sealRanges.js';
+import { formatSealRanges, rangeQty, SHOW_SEALS_ON_DO } from './sealRanges.js';
 
 // Company letterhead — the standardized DO identity block shared with the
 // Barcode Counter app and the Sales Web proforma invoice.
@@ -134,7 +134,7 @@ export function buildDOPdf(doRec, al = {}, staff = '—', sigDataUrl = null, pho
   // is issued off a scan card). Capped at four lines so a DO of many short
   // runs cannot push the acknowledgement off the page; the full list is in
   // the system.
-  const seals = Array.isArray(doRec.seal_ranges) ? doRec.seal_ranges : [];
+  const seals = SHOW_SEALS_ON_DO && Array.isArray(doRec.seal_ranges) ? doRec.seal_ranges : [];
   if (seals.length) {
     y += 11;
     doc.setFont('helvetica', 'bold');

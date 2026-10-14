@@ -6,7 +6,7 @@ import { DO_JOB, looksOffline, queueJob, sendDO } from '../lib/mobileQueue.js';
 import { isOnline } from '../lib/auth';
 import { printDOPdf } from '../lib/pdf';
 import { generateDONumber } from '../lib/doAttach';
-import { formatSealRanges, rangeQty } from '../lib/sealRanges.js';
+import { formatSealRanges, rangeQty, SHOW_SEALS_ON_DO } from '../lib/sealRanges.js';
 import AuthGate from '../components/AuthGate';
 import TopNav from '../components/TopNav';
 import SignaturePad from '../components/SignaturePad';
@@ -1097,7 +1097,7 @@ function DoRow({ d, plotMap, onPrint, onManageWorkers }) {
       <td>
         <span className={`font-black ${isCancelled ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{d.do_number || '—'}</span>
         {/* The seals scanned onto this DO at the lorry (FC Portal writes them). */}
-        {Array.isArray(d.seal_ranges) && d.seal_ranges.length > 0 && (
+        {SHOW_SEALS_ON_DO && Array.isArray(d.seal_ranges) && d.seal_ranges.length > 0 && (
           <div className="text-[10px] font-mono font-bold text-slate-500 mt-1 leading-snug break-words" style={{ maxWidth: '220px' }}>
             🔖 {formatSealRanges(d.seal_ranges)}
             <span className="font-sans text-slate-400"> · {(d.seal_qty ?? d.seal_ranges.reduce((s2, r) => s2 + (r.qty || rangeQty(r.start, r.end)), 0)).toLocaleString()} seals</span>
