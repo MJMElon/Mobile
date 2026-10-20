@@ -6,6 +6,7 @@ import { lastSync, startAutoSync, syncNow } from '../lib/adminSync.js';
 import BookCover from '../components/BookCover.jsx';
 import PortalBar from '../components/PortalBar.jsx';
 import NelosBlock from '../components/NelosBlock.jsx';
+import Icon from '../components/Icon.jsx';
 
 // The same 30-second rhythm the FC Portal and the audit module keep — see
 // adminSync.js for what a tick means on THIS portal.
@@ -51,8 +52,8 @@ function SyncCard() {
       disabled={busy}
       className="module-card p-5 flex items-center gap-4 text-left cursor-pointer disabled:cursor-default w-full"
     >
-      <div className={`w-14 h-14 bg-sky-100 rounded-2xl flex items-center justify-center text-3xl shrink-0 ${busy ? 'animate-spin' : ''}`}>
-        🔄
+      <div className="w-14 h-14 bg-sky-100 rounded-2xl flex items-center justify-center shrink-0 text-sky-600">
+        <Icon name="refresh" className={`w-7 h-7 ${busy ? 'animate-spin' : ''}`} />
       </div>
       <div className="flex-1 min-w-0">
         <h3 className="text-base font-black text-slate-800 uppercase tracking-wide leading-tight">Sync</h3>
@@ -266,10 +267,10 @@ export default function IndexPage() {
 
   if (screen === 'dash') {
     const modules = [
-      { href: 'do_signing.html', icon: '📋', bg: 'bg-emerald-100', title: 'Issue Collection DO' },
-      { href: 'consent.html', icon: '✍️', bg: 'bg-amber-100', title: 'Customer Consent' },
-      { href: 'booking.html', icon: '📅', bg: 'bg-blue-100', title: 'Customer Collection Time Slot Booking' },
-      { href: 'seal.html', icon: '🔖', bg: 'bg-slate-100', title: 'Seal Management' },
+      { href: 'do_signing.html', icon: 'clipboard', bg: 'bg-emerald-100', fg: 'text-emerald-600', title: 'Issue Collection DO' },
+      { href: 'consent.html', icon: 'pen', bg: 'bg-amber-100', fg: 'text-amber-600', title: 'Customer Consent' },
+      { href: 'booking.html', icon: 'calendar', bg: 'bg-blue-100', fg: 'text-blue-600', title: 'Customer Collection Time Slot Booking' },
+      { href: 'seal.html', icon: 'tag', bg: 'bg-slate-100', fg: 'text-slate-600', title: 'Seal Management' },
     ];
     return (
       <div className="fade-enter" style={{ background: '#f1f5f9', minHeight: '100vh' }}>
@@ -284,7 +285,9 @@ export default function IndexPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {modules.map((m) => (
               <a key={m.href} href={m.href} className="module-card p-5 flex items-center gap-4">
-                <div className={`w-14 h-14 ${m.bg} rounded-2xl flex items-center justify-center text-3xl shrink-0`}>{m.icon}</div>
+                <div className={`w-14 h-14 ${m.bg} rounded-2xl flex items-center justify-center shrink-0 ${m.fg}`}>
+                  <Icon name={m.icon} className="w-7 h-7" />
+                </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-base font-black text-slate-800 uppercase tracking-wide leading-tight">{m.title}</h3>
                   <div className="flex items-center gap-2 mt-2">
