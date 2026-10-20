@@ -30,6 +30,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import NelosCase from './NelosCase.jsx';
 import NelosNewCase from './NelosNewCase.jsx';
+import Icon from './Icon.jsx';
 
 /* No links out. A case opens in a sheet over this page (NelosCase) and is
    started, resolved, closed and commented on there, so an admin settles
@@ -360,7 +361,7 @@ export default function NelosBlock() {
         </button>
       </div>
 
-      {!rows.length && <div className="nelos-empty">Nothing pending ✓</div>}
+      {!rows.length && <div className="nelos-empty flex items-center justify-center gap-1.5">Nothing pending <Icon name="check" className="w-3.5 h-3.5" /></div>}
 
       {/* Overdue leads and says so. It is the one group whose heading shows
           even when it is the only one: "3 pending" and "3 overdue" are not

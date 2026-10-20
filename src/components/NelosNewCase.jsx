@@ -45,6 +45,7 @@
 import { useEffect, useRef, useState } from 'react';
 import CfSelect from './CfSelect.jsx';
 import { supabase } from '../lib/supabase';
+import Icon from './Icon.jsx';
 
 /* The four nurseries and the plots each one has, copied from
    audit/audit_pending.js in the hub — which itself copies the module
@@ -303,7 +304,7 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
             {/* The date, said rather than asked. */}
             <div className="nc-new-date">{todayLabel}</div>
           </div>
-          <button className="nc-x" onClick={() => onClose(false)} aria-label="Close">✕</button>
+          <button className="nc-x" onClick={() => onClose(false)} aria-label="Close"><Icon name="close" className="w-4 h-4" /></button>
         </div>
 
         {err && <div className="nc-flash nc-flash-bad">{err}</div>}
@@ -386,7 +387,7 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
         {photo ? (
           <div className="nc-photo">
             <img src={photo.url} alt="" />
-            <button type="button" className="nc-photo-x" onClick={dropPhoto} aria-label="Remove photo">✕</button>
+            <button type="button" className="nc-photo-x" onClick={dropPhoto} aria-label="Remove photo"><Icon name="close" className="w-4 h-4" /></button>
           </div>
         ) : (
           /* capture="environment" opens the camera straight onto the back
@@ -401,7 +402,7 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
               onChange={pickPhoto}
               hidden
             />
-            <span>📷 Take or upload a photo</span>
+            <span className="inline-flex items-center gap-1.5"><Icon name="camera" className="w-4 h-4" /> Take or upload a photo</span>
           </label>
         )}
 

@@ -30,6 +30,7 @@
    ══════════════════════════════════════════════════════════════════════ */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import Icon from './Icon.jsx';
 
 const SOURCE_LABEL = {
   operation: 'Seedling Stock System',
@@ -181,7 +182,7 @@ export default function NelosCase({ caseId, me, onClose }) {
     return sheet(
       <>
         <div className="nc-head">
-          <button className="nc-x" onClick={() => onClose(changed.current)} aria-label="Close">✕</button>
+          <button className="nc-x" onClick={() => onClose(changed.current)} aria-label="Close"><Icon name="close" className="w-4 h-4" /></button>
         </div>
         <div className="nelos-empty">{err}</div>
       </>,
@@ -216,7 +217,7 @@ export default function NelosCase({ caseId, me, onClose }) {
     <>
       <div className="nc-head">
         <span className="nc-no">{c.case_no || ''}</span>
-        <button className="nc-x" onClick={() => onClose(changed.current)} aria-label="Close">✕</button>
+        <button className="nc-x" onClick={() => onClose(changed.current)} aria-label="Close"><Icon name="close" className="w-4 h-4" /></button>
       </div>
 
       <div className="nc-sec">Case Details</div>
@@ -256,9 +257,9 @@ export default function NelosCase({ caseId, me, onClose }) {
       {flash && <div className={`nc-flash${flash.ok ? '' : ' nc-flash-bad'}`}>{flash.msg}</div>}
 
       <div className="nc-actions">
-        {s === 'resolved' && <button className="nc-act nc-act-close" disabled={busy} onClick={closeCase}>🔒 Close Case</button>}
+        {s === 'resolved' && <button className="nc-act nc-act-close" disabled={busy} onClick={closeCase}><Icon name="lock" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Close Case</button>}
         {(s === 'resolved' || s === 'closed') && (
-          <button className="nc-act nc-act-reopen" disabled={busy} onClick={reopen}>↩ Reopen</button>
+          <button className="nc-act nc-act-reopen" disabled={busy} onClick={reopen}><Icon name="undo" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Reopen</button>
         )}
         {!hasActions && <span className="nc-nothing">Nothing to do on this case.</span>}
       </div>
@@ -275,11 +276,11 @@ export default function NelosCase({ caseId, me, onClose }) {
           {shot ? (
             <div className="nc-shot-prev">
               <img src={URL.createObjectURL(shot)} alt="Photo of the fix" />
-              <button type="button" className="nc-shot-x" onClick={() => setShot(null)} aria-label="Remove photo">✕</button>
+              <button type="button" className="nc-shot-x" onClick={() => setShot(null)} aria-label="Remove photo"><Icon name="close" className="w-4 h-4" /></button>
             </div>
           ) : (
             <label className="nc-shot">
-              <span aria-hidden="true">📷</span>
+              <span aria-hidden="true"><Icon name="camera" className="w-6 h-6" /></span>
               <span>Take or attach a photo</span>
               <input type="file" accept="image/*" capture="environment"
                      onChange={(e) => setShot(e.target.files?.[0] || null)} />
