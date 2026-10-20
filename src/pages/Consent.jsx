@@ -119,6 +119,10 @@ function Consent({ session, userName }) {
   const liveSearchTokenRef = useRef(0);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 640);
   const [collapsedGroups, setCollapsedGroups] = useState(() => ({ emerald: true }));
+  // Which of the three ordinary groups to show -- 'all' | 'consent' |
+  // 'pending' | 'completed'. A search ignores this entirely (see groups
+  // below): it is only the unsearched browse view this narrows.
+  const [activeTab, setActiveTab] = useState('all');
 
   // ── Consent detail modal ──
   const [detailOpen, setDetailOpen] = useState(false);
@@ -459,13 +463,28 @@ function Consent({ session, userName }) {
     const matchedIds = new Set(matched.map((r) => r.id));
     liveMatches.forEach((r) => { if (!matchedIds.has(r.id)) matched.push(r); });
 
+    // Search Match is never narrowed by the tab — a search is a question
+    // about every record regardless of which one is open, so it always
+    // shows everything it finds. The tab only decides which of the three
+    // ordinary (unsearched) groups below it are worth drawing.
     const g = [];
     if (lower.length >= 1 && matched.length) g.push({ label: '🔍 Search Match', rows: matched, theme: 'amber' });
-    if (hasConsent.length) g.push({ label: '✅ Has Consent Records', rows: hasConsent, theme: 'emerald' });
-    if (noneYet.length) g.push({ label: '📋 Active AL — No Consent Yet', rows: noneYet, theme: 'blue' });
-    if (completedGroup.length) g.push({ label: '✔️ Completed (last ' + COMPLETED_WINDOW_DAYS + ' days)', rows: completedGroup, theme: 'slate' });
+    if ((activeTab === 'all' || activeTab === 'consent') && hasConsent.length) g.push({ label: '✅ Has Consent Records', rows: hasConsent, theme: 'emerald' });
+    if ((activeTab === 'all' || activeTab === 'pending') && noneYet.length) g.push({ label: '📋 Active AL — No Consent Yet', rows: noneYet, theme: 'blue' });
+    if ((activeTab === 'all' || activeTab === 'completed') && completedGroup.length) g.push({ label: '✔️ Completed (last ' + COMPLETED_WINDOW_DAYS + ' days)', rows: completedGroup, theme: 'slate' });
     return g;
-  }, [alData, completedData, liveMatches, consentCountMap, query]);
+  }, [alData, completedData, liveMatches, consentCountMap, query, activeTab]);
+
+  // Counts for the tab badges — the WHOLE list regardless of which tab is
+  // selected or what is in the search box, so switching tabs never moves
+  // another tab's own number.
+  const tabCounts = useMemo(() => {
+    let consent = 0, pending = 0;
+    alData.forEach((r) => {
+      if ((consentCountMap[r.al_number] || 0) > 0) consent++; else pending++;
+    });
+    return { all: alData.length + completedData.length, consent, pending, completed: completedData.length };
+  }, [alData, completedData, consentCountMap]);
 
   const themeMap = {
     amber: { header: 'bg-amber-50 text-amber-700 border-amber-200', row: 'bg-amber-50/60', bal: 'text-amber-700', border: 'border-l-4 border-amber-400' },
@@ -912,6 +931,15 @@ function Consent({ session, userName }) {
             <button className="shrink-0 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
               Search
             </button>
+          </div>
+
+          {/* Which of the three ordinary groups to browse -- a search box
+              above is not scoped to this, see the comment on `groups`. */}
+          <div className="tab-row mb-5">
+            <button className={`tab-btn ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>All Records ({tabCounts.all})</button>
+            <button className={`tab-btn ${activeTab === 'consent' ? 'active' : ''}`} onClick={() => setActiveTab('consent')}>Consent Records ({tabCounts.consent})</button>
+            <button className={`tab-btn ${activeTab === 'pending' ? 'active' : ''}`} onClick={() => setActiveTab('pending')}>Pending Records ({tabCounts.pending})</button>
+            <button className={`tab-btn ${activeTab === 'completed' ? 'active' : ''}`} onClick={() => setActiveTab('completed')}>Completed Records ({tabCounts.completed})</button>
           </div>
 
           {/* Legend */}
