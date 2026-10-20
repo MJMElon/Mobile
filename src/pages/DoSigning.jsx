@@ -6,6 +6,7 @@ import { DO_JOB, looksOffline, queueJob, sendDO } from '../lib/mobileQueue.js';
 import { isOnline } from '../lib/auth';
 import { printDOPdf } from '../lib/pdf';
 import { generateDONumber } from '../lib/doAttach';
+import { formatSealRanges, rangeQty, SHOW_SEALS_ON_DO } from '../lib/sealRanges.js';
 import AuthGate from '../components/AuthGate';
 import TopNav from '../components/TopNav';
 import SignaturePad from '../components/SignaturePad';
@@ -56,6 +57,24 @@ function isGeneralWorker(w) {
 // plotMap (plot_name -> nursery_name) the same way DoRow already shows a
 // DO's nursery per line. Works for both a freshly-built save payload and a
 // row loaded back from shared_do_records — both carry plot_1..plot_5.
+/* MAIN NURSERY ONLY, and it is the company's own grouping that says which
+   those are — the Location card on the 555 Worker Portal's System Setting
+   files every section under Pre Nursery, Main Nursery or Estate. A DO is
+   loaded out of a main nursery: PN is the tray shed and UNE is the estate,
+   and neither has a gang that carries seedlings onto a lorry.
+
+   It RECOGNISES rather than lists, so BNN, UNN1 and UNN2 today and a BNN2
+   or a UNN3 the day somebody adds one. UNE is not caught by it: the estate
+   is UNE, not UNN.
+
+   SAME RULE as LOCATIONS.main in mjm-ai-system's shared/
+   shared_worker_locations.js and isMainNursery() in Barcode_Counter's
+   src/modules/do/useWorkerTick.js, which is where the test lives.
+   Change one, change the others. */
+function isMainNursery(key) {
+  return /^(BNN|UNN)\d*$/.test(String(key || ''));
+}
+
 function nurseriesOfDO(d, plotMap) {
   const keys = [];
   for (let i = 1; i <= 5; i++) {
@@ -115,7 +134,16 @@ function DoSigning({ session, userName }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [wtOpen, setWtOpen] = useState(false);
   const [wtDO, setWtDO] = useState(null); // the DO (saved row or freshly-built payload+id) being ticked
-  const [wtNurseries, setWtNurseries] = useState([]);
+  /* WHERE THE SEEDLINGS WERE is not WHO CARRIED THEM. The DO's own plots
+     say which nursery they came out of, and that nursery is always open
+     because it is the answer nearly every time. It is not the only answer:
+     seedlings standing in BNN, on a DO issued against BNN, are regularly
+     loaded by a UNN 1 gang. So the DO's nurseries are the ones OPENED and
+     every other nursery with workers on the roster can be opened by hand.
+     SAME RULE IN Barcode_Counter's src/modules/do/useWorkerTick.js, which
+     is where the test for it lives — change one, change the other. */
+  const [wtOwn, setWtOwn] = useState([]);     // from the DO's plots, never closed
+  const [wtExtra, setWtExtra] = useState([]); // opened by hand
   const [wtPicked, setWtPicked] = useState({}); // { BNN: ['Name', ...], ... }
   const [wtSaving, setWtSaving] = useState(false);
   const wtThenPrintRef = useRef(null);
@@ -503,18 +531,42 @@ function DoSigning({ session, userName }) {
   // skipped step is never a dead end — see the user's own spec: skip closes
   // the window, Manage DOs is how you come back to fill it in.
   const wtLocked = !!wtDO?.worked_by_locked_at && !isAdmin;
+  const wtNurseries = wtOwn.concat(wtExtra.filter((k) => !wtOwn.includes(k)));
+  // Offered underneath, never above: a nursery nobody has opened is a
+  // prompt, not a section. Sorted, so the row does not reshuffle itself.
+  const wtOtherNurseries = Object.keys(workersByNurseryKey)
+    .filter((k) => isMainNursery(k) && !wtNurseries.includes(k))
+    .sort();
 
   function openWorkerTick(doRecord, { thenPrint = null } = {}) {
-    const keys = nurseriesOfDO(doRecord, plotMap);
+    const own = nurseriesOfDO(doRecord, plotMap);
+    const saved = doRecord.worked_by_by_nursery || {};
+    /* A nursery somebody ticked BY HAND last time has to come back open, or
+       the answer they gave is on the record and nowhere on the screen — and
+       the next save, built from the sections on screen, would drop it. */
+    const extra = Object.keys(saved).filter((k) => !own.includes(k) && (saved[k] || []).length);
     const seeded = {};
-    keys.forEach((k) => {
-      seeded[k] = (doRecord.worked_by_by_nursery || {})[k] || [];
-    });
+    own.concat(extra).forEach((k) => { seeded[k] = saved[k] || []; });
     setWtDO(doRecord);
-    setWtNurseries(keys);
+    setWtOwn(own);
+    setWtExtra(extra);
     setWtPicked(seeded);
     wtThenPrintRef.current = thenPrint;
     setWtOpen(true);
+  }
+
+  function addNursery(key) {
+    if (wtLocked || !key || wtNurseries.includes(key)) return;
+    setWtExtra((prev) => prev.concat([key]));
+    setWtPicked((prev) => (prev[key] ? prev : { ...prev, [key]: [] }));
+  }
+
+  // Only a hand-opened one can be closed again, and closing it drops its
+  // ticks — the DO's own nursery is not a choice anybody made.
+  function removeNursery(key) {
+    if (wtLocked || wtOwn.includes(key)) return;
+    setWtExtra((prev) => prev.filter((k) => k !== key));
+    setWtPicked((prev) => { const next = { ...prev }; delete next[key]; return next; });
   }
 
   function closeWorkerTick() {
@@ -917,15 +969,29 @@ function DoSigning({ session, userName }) {
               </div>
             )}
 
-            {!wtNurseries.length ? (
+            {!wtNurseries.length && !wtOtherNurseries.length ? (
               <div className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No nursery found on this DO's items.</div>
             ) : (
               wtNurseries.map((key) => {
                 const list = workersByNurseryKey[key] || [];
                 const picked = wtPicked[key] || [];
+                const own = wtOwn.includes(key);
                 return (
                   <div key={key}>
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{key}</div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{key}</span>
+                      {!own && <span className="text-[9px] font-bold text-slate-300">added by hand</span>}
+                      {!own && !wtLocked && (
+                        <button
+                          type="button"
+                          title={`Remove ${key}`}
+                          onClick={() => removeNursery(key)}
+                          className="w-5 h-5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-slate-700 text-[11px] font-black leading-none flex items-center justify-center cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                     {!list.length ? (
                       <div className="text-[11px] font-bold text-slate-300">No general workers registered for {key}.</div>
                     ) : (
@@ -951,6 +1017,29 @@ function DoSigning({ session, userName }) {
                   </div>
                 );
               })
+            )}
+
+            {/* ANOTHER NURSERY'S GANG. The seedlings stood in one nursery and
+                were loaded by another often enough that it cannot be an
+                edit-the-record job: every other nursery with workers on the
+                roster is one tap away, and tapping one opens its own list of
+                names underneath the DO's. */}
+            {!wtLocked && wtOtherNurseries.length > 0 && (
+              <div>
+                <div className="text-[10px] font-bold text-slate-400 mb-2">Loaded by another nursery gang? Add the nursery:</div>
+                <div className="flex flex-wrap gap-2">
+                  {wtOtherNurseries.map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => addNursery(key)}
+                      className="px-4 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-white text-xs font-black text-slate-500 uppercase tracking-wide hover:border-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
+                    >
+                      + {key}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 
@@ -1005,7 +1094,16 @@ function DoRow({ d, plotMap, onPrint, onManageWorkers }) {
   return (
     <tr className={isCancelled ? 'opacity-50' : ''}>
       <td className="text-slate-500 font-bold whitespace-nowrap">{dateFmt}</td>
-      <td><span className={`font-black ${isCancelled ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{d.do_number || '—'}</span></td>
+      <td>
+        <span className={`font-black ${isCancelled ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{d.do_number || '—'}</span>
+        {/* The seals scanned onto this DO at the lorry (FC Portal writes them). */}
+        {SHOW_SEALS_ON_DO && Array.isArray(d.seal_ranges) && d.seal_ranges.length > 0 && (
+          <div className="text-[10px] font-mono font-bold text-slate-500 mt-1 leading-snug break-words" style={{ maxWidth: '220px' }}>
+            🔖 {formatSealRanges(d.seal_ranges)}
+            <span className="font-sans text-slate-400"> · {(d.seal_qty ?? d.seal_ranges.reduce((s2, r) => s2 + (r.qty || rangeQty(r.start, r.end)), 0)).toLocaleString()} seals</span>
+          </div>
+        )}
+      </td>
       <td className="text-slate-600 text-xs">{lines.length ? lines.map((l, i) => <div key={i} className="leading-5">{l.nursery}</div>) : '—'}</td>
       <td className="text-slate-600 text-xs">{lines.length ? lines.map((l, i) => <div key={i} className="leading-5">{l.breed}</div>) : '—'}</td>
       <td>{lines.length ? lines.map((l, i) => <div key={i} className="leading-5 font-black text-emerald-700">{l.qty}</div>) : <span className="font-black text-emerald-700">{d.total_qty ?? '—'}</span>}</td>
@@ -1067,6 +1165,17 @@ function ConsentArea({ consents, err }) {
               <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 inline-flex items-center gap-2 mt-2">
                 <span className="text-[9px] font-black text-blue-700 uppercase tracking-widest">🤖 AI Count:</span>
                 <span className="font-black text-blue-700">{c.ai_sticker_count.toLocaleString()}</span>
+              </div>
+            )}
+            {Array.isArray(c.seal_ranges) && c.seal_ranges.length > 0 && (
+              <div className="mt-2">
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                  🔖 Seals Issued — {c.seal_ranges.reduce((sum, r) => sum + rangeQty(r.start, r.end), 0).toLocaleString()}
+                </div>
+                <div className="text-[11px] font-mono font-bold text-slate-600 break-words">{formatSealRanges(c.seal_ranges)}</div>
+                {c.seal_photo_url && (
+                  <img src={c.seal_photo_url} className="rounded-xl border border-slate-200 mt-1.5" style={{ maxHeight: '120px', maxWidth: '100%', objectFit: 'contain' }} alt="Customer received seals" />
+                )}
               </div>
             )}
             {c.photo_url && (

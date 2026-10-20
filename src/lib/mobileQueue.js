@@ -33,12 +33,15 @@ import { attachDOToOrder } from './doAttach';
 export const CONSENT_JOB = 'mobile_consent';
 export const BOOKING_JOB = 'mobile_booking';
 export const DO_JOB = 'mobile_do';
+export const SEAL_RECEIPT_JOB = 'seal_receipt';
 
 export { looksOffline, queueJob };
 
 /** Storage upload with the pages' long-standing fallback: on failure the
-    base64 itself becomes the "URL", exactly as the online path always did. */
-async function uploadPhoto(filePath, base64) {
+    base64 itself becomes the "URL", exactly as the online path always did.
+    Exported for the Seal Management page, whose receipt photos go up the
+    same way. */
+export async function uploadPhoto(filePath, base64) {
   try {
     const blob = await fetch(base64).then((r) => r.blob());
     const { error } = await supabase.storage
@@ -80,6 +83,12 @@ export async function sendConsent(job) {
   if (job.photoBase64) {
     const filePath = `consent_photos/${payload.al_number}/${Date.now()}.jpg`;
     payload.photo_url = await uploadPhoto(filePath, job.photoBase64);
+  }
+  // The customer receiving their seals — a second photo, only taken when
+  // seal ranges were keyed on the consent.
+  if (job.sealPhotoBase64) {
+    const filePath = `consent_photos/${payload.al_number}/seal_${Date.now()}.jpg`;
+    payload.seal_photo_url = await uploadPhoto(filePath, job.sealPhotoBase64);
   }
   const { error } = await supabase.from('mobile_consent_records').insert([payload]);
   if (error) throw new Error(error.message);
@@ -158,7 +167,26 @@ export async function sendDO(job) {
   return { id: dup[0].id };
 }
 
-/* One handler shape for all three: a network-looking failure leaves the job
+/* Seals arriving at UNN 1. client_ref is made on the phone when the form is
+   saved and is UNIQUE in seal_receipts, so a flush cut off after the insert
+   comes back 23505 on the retry — the receipt is already there, which is
+   success, not a refusal. Photos go to a folder named by client_ref, so a
+   retry overwrites (upsert) the same files rather than adding copies. */
+export async function sendSealReceipt(job) {
+  const payload = { ...job.payload };
+  const shots = job.photoBase64s || [];
+  if (shots.length) {
+    const urls = [];
+    for (let i = 0; i < shots.length; i++) {
+      urls.push(await uploadPhoto(`seal_receipts/${payload.client_ref}/${i + 1}.jpg`, shots[i]));
+    }
+    payload.photo_urls = urls;
+  }
+  const { error } = await supabase.from('seal_receipts').insert([payload]);
+  if (error && error.code !== '23505') throw new Error(error.message);
+}
+
+/* One handler shape for all of them: a network-looking failure leaves the job
    queued for the next flush; anything else is the server refusing the work
    itself, and retrying would only refuse it again. */
 export function flushMobileQueue() {
@@ -174,5 +202,6 @@ export function flushMobileQueue() {
     [CONSENT_JOB]: wrap(sendConsent),
     [BOOKING_JOB]: wrap(sendBooking),
     [DO_JOB]: wrap(sendDO),
+    [SEAL_RECEIPT_JOB]: wrap(sendSealReceipt),
   });
 }

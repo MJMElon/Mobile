@@ -6,7 +6,9 @@ import { isOnline } from '../lib/auth';
 import AuthGate from '../components/AuthGate';
 import TopNav from '../components/TopNav';
 import SignaturePad from '../components/SignaturePad';
+import SealRangeInput, { newSealRow, overlappingRows, readSealRow, sealRangesOf, useSealChecks } from '../components/SealRangeInput.jsx';
 import { useToast } from '../components/Toast';
+import { formatSealRanges, rangeQty } from '../lib/sealRanges.js';
 
 export default function ConsentPage() {
   return <AuthGate>{({ session, userName }) => <Consent session={session} userName={userName} />}</AuthGate>;
@@ -148,6 +150,17 @@ function Consent({ session, userName }) {
   const [aiNotice, setAiNotice] = useState(''); // '' = hidden
   const [submitting, setSubmitting] = useState(false);
   const sigRef = useRef(null);
+
+  // ── Seals issued with this consent ──
+  // Optional: a consent signed with no seals is the old flow and still
+  // saves. Once a range is keyed it has to be whole, and a photo of the
+  // customer receiving the seals goes with it.
+  const [sealRows, setSealRows] = useState(() => [newSealRow()]);
+  const [sealPhotoBase64, setSealPhotoBase64] = useState(null);
+  const [sealPopup, setSealPopup] = useState(null); // allocated hits to show
+  const sealPopped = useRef(new Set());
+  const sealPhotoInputRef = useRef(null);
+  const { checks: sealChecks, reset: resetSealChecks } = useSealChecks(sealRows, 'consent');
 
   // ── Barcode modal ──
   const [barcodeOpen, setBarcodeOpen] = useState(false);
@@ -558,6 +571,11 @@ function Consent({ session, userName }) {
     setAiCountLabel('0');
     setAiNotice('');
     setSubmitting(false);
+    setSealRows([newSealRow()]);
+    setSealPhotoBase64(null);
+    setSealPopup(null);
+    sealPopped.current = new Set();
+    resetSealChecks();
 
     setSignOpen(true);
   }
@@ -632,14 +650,59 @@ function Consent({ session, userName }) {
     }
   }
 
+  // ════════════════ SEALS ISSUED ════════════════
+  const sealRead = sealRows.map(readSealRow);
+  const sealRanges = sealRangesOf(sealRows);
+  const sealTotal = sealRanges.reduce((sum, r) => sum + rangeQty(r.start, r.end), 0);
+  const sealOverlaps = overlappingRows(sealRows);
+  const sealHits = (rd, kind) => {
+    const c = sealChecks[rd.key];
+    return c && c.state === 'done' ? (c.rows || []).filter((x) => x.problem === kind) : [];
+  };
+  // Seals that already belong to another consent block the save for as long
+  // as the range is on the form. A range the server says never arrived at
+  // UNN 1 only warns — receipts can be keyed late, and the trigger raises a
+  // case if it is still wrong when the row lands.
+  const sealAllocated = sealRead.filter((rd) => rd.key).flatMap((rd) => sealHits(rd, 'allocated'));
+  const sealIncomplete = sealRead.some((rd) => rd.bad);
+  const sealOk = !sealIncomplete && !sealOverlaps.size && !sealAllocated.length
+    && (!sealRanges.length || !!sealPhotoBase64);
+
+  // The popup, once per range, the moment the server names another owner.
+  useEffect(() => {
+    if (!signOpen) return;
+    const fresh = [];
+    sealRead.forEach((rd) => {
+      if (!rd.key || sealPopped.current.has(rd.key)) return;
+      const hits = sealHits(rd, 'allocated');
+      if (!hits.length) return;
+      sealPopped.current.add(rd.key);
+      fresh.push(...hits);
+    });
+    if (fresh.length) setSealPopup(fresh);
+  }, [sealChecks, signOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function onSealPhotoFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => setSealPhotoBase64(await compressImage(ev.target.result));
+    reader.readAsDataURL(file);
+  }
+
   // ════════════════ SUBMIT CONSENT ════════════════
-  const consentReady = agreed && hasSig && !!photoBase64 && selectedQty > 0;
+  const consentReady = agreed && hasSig && !!photoBase64 && selectedQty > 0 && sealOk;
 
   async function submitConsent() {
     if (selectedQty <= 0) return;
     if (!currentAL) return;
     if (!photoBase64) {
       showToast('📷 Please take a photo of the seals/stickers first');
+      return;
+    }
+    if (!sealOk) {
+      showToast('🔖 Fix the seal ranges first');
       return;
     }
 
@@ -667,7 +730,14 @@ function Consent({ session, userName }) {
         ai_sticker_count: aiStickerCount,
       },
       photoBase64: photoBase64 || null,
+      sealPhotoBase64: null,
     };
+    // Only written when seals were issued. Left off entirely otherwise, so
+    // the no-seal consent is the exact row it always was.
+    if (sealRanges.length) {
+      job.payload.seal_ranges = sealRanges;
+      job.sealPhotoBase64 = sealPhotoBase64;
+    }
 
     let queuedOffline = false;
     try {
@@ -1047,6 +1117,67 @@ function Consent({ session, userName }) {
               )}
             </div>
 
+            {/* Seals issued — keyed with the Bluetooth gun */}
+            <div className="border-t border-slate-100 pt-5">
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">🔖 Seals Issued</div>
+              <p className="text-[10px] font-bold text-slate-300 mb-3">Optional. Scan the first seal, then the last, for each roll handed to the customer.</p>
+              {signOpen && (
+                <SealRangeInput
+                  rows={sealRows}
+                  onChange={setSealRows}
+                  disabled={submitting}
+                  notes={(rd) => {
+                    const c = sealChecks[rd.key];
+                    if (!c) return null;
+                    if (c.state === 'checking') return <div className="text-[10px] font-bold text-slate-400 mt-1 pl-7">Checking…</div>;
+                    const owned = sealHits(rd, 'allocated');
+                    const missing = sealHits(rd, 'not_received');
+                    if (!owned.length && !missing.length) return null;
+                    return (
+                      <div className="mt-1.5 pl-7 space-y-1">
+                        {owned.map((h, i) => (
+                          <div key={'a' + i} className="text-[10px] font-black text-red-600">
+                            {h.from_code === h.to_code ? h.from_code : h.from_code + '–' + h.to_code} already belongs to {h.customer_name || '—'} ({h.al_number || '—'})
+                          </div>
+                        ))}
+                        {missing.map((h, i) => (
+                          <div key={'n' + i} className="text-[10px] font-bold text-amber-700">⚠ {h.detail}</div>
+                        ))}
+                      </div>
+                    );
+                  }}
+                />
+              )}
+              {sealTotal > 0 && sealTotal !== selectedQty && (
+                <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mt-3">
+                  ⚠️ Seal qty {sealTotal.toLocaleString()} ≠ consent qty {selectedQty.toLocaleString()}
+                </div>
+              )}
+
+              {sealRanges.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📷 Customer Received Seals <span className="text-red-500">*</span></div>
+                  <div className={`photo-area ${sealPhotoBase64 ? 'has-photo' : ''}`} onClick={() => sealPhotoInputRef.current && sealPhotoInputRef.current.click()}>
+                    {!sealPhotoBase64 ? (
+                      <div>
+                        <div className="text-xl mb-1">📷</div>
+                        <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Photo of the customer with the seals</div>
+                      </div>
+                    ) : (
+                      <img src={sealPhotoBase64} className="w-full rounded-xl" style={{ maxHeight: '220px', objectFit: 'contain' }} alt="Customer received seals" />
+                    )}
+                  </div>
+                  {sealPhotoBase64 && (
+                    <div className="flex gap-2 mt-3">
+                      <button className="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer transition-colors" onClick={() => sealPhotoInputRef.current && sealPhotoInputRef.current.click()}>
+                        📷 Retake
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Signature */}
             <div className="border-t border-slate-100 pt-5">
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">✍️ <span>{s.signTitle}</span></div>
@@ -1070,6 +1201,29 @@ function Consent({ session, userName }) {
         </div>
       </div>
 
+      {/* ══ SEAL ALREADY ISSUED ══ — above the sign modal, and it stays
+          until somebody presses OK: the range stays on the form and the
+          save stays blocked until it is fixed or removed. */}
+      <div className={`modal-overlay ${sealPopup ? 'open' : ''}`} style={{ zIndex: 270 }} onClick={() => setSealPopup(null)}>
+        <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="text-3xl mb-2 text-center">⛔</div>
+          <div className="font-black text-red-700 text-base uppercase tracking-wide mb-3 text-center">Seal already issued</div>
+          <div className="space-y-2 mb-4">
+            {(sealPopup || []).map((h, i) => (
+              <div key={i} className="text-sm font-bold text-slate-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 leading-snug">
+                Seal {h.from_code === h.to_code ? h.from_code : h.from_code + '–' + h.to_code} already belongs to{' '}
+                <span className="font-black">{h.customer_name || '—'}</span> ({h.al_number || '—'}). You are issuing to{' '}
+                <span className="font-black">{currentAL?.customer_name || '—'}</span> ({currentAL?.al_number || '—'}).
+              </div>
+            ))}
+          </div>
+          <div className="text-[11px] font-bold text-slate-500 mb-4 text-center">Fix or remove that range to save.</div>
+          <div className="text-center">
+            <button onClick={() => setSealPopup(null)} className="text-[11px] font-black text-white uppercase tracking-widest bg-red-600 hover:bg-red-700 px-8 py-3 rounded-full border-none cursor-pointer">OK</button>
+          </div>
+        </div>
+      </div>
+
       {/* ══ BARCODE SCANNER MODAL ══ */}
       <div className={`modal-overlay ${barcodeOpen ? 'open' : ''}`} style={{ zIndex: 260 }} onClick={stopBarcodeScan}>
         <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center" onClick={(e) => e.stopPropagation()}>
@@ -1088,6 +1242,7 @@ function Consent({ session, userName }) {
       {/* Opens the device's own camera app — zoom, flash, lens switch all
           come from there rather than being rebuilt in-page. */}
       <input ref={photoInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhotoFile} />
+      <input ref={sealPhotoInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onSealPhotoFile} />
 
       <ToastHost />
     </>
@@ -1158,6 +1313,21 @@ function ConsentHistory({ history, err, sealLogs = {} }) {
                   </tr>
                   <tr>
                     <td colSpan={5} style={{ padding: 0, background: '#f8fafc' }}>
+                      {Array.isArray(c.seal_ranges) && c.seal_ranges.length > 0 && (
+                        <div className="px-4 pt-2 flex items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                              🔖 Seals Issued — {c.seal_ranges.reduce((sum, r) => sum + rangeQty(r.start, r.end), 0).toLocaleString()}
+                            </div>
+                            <div className="text-[11px] font-mono font-bold text-slate-600 break-words">{formatSealRanges(c.seal_ranges)}</div>
+                          </div>
+                          {c.seal_photo_url && (
+                            <a href={c.seal_photo_url} target="_blank" rel="noreferrer" className="shrink-0">
+                              <img src={c.seal_photo_url} style={{ height: '44px', borderRadius: '6px', border: '1px solid #e2e8f0' }} alt="Customer received seals" />
+                            </a>
+                          )}
+                        </div>
+                      )}
                       <button
                         type="button"
                         onClick={() => toggleExpanded(c.id)}

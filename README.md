@@ -27,10 +27,10 @@ Function** so it never reaches the browser.
 
 ```
 index.html, auth.html, booking.html,        Vite entry HTML (one per page —
-consent.html, do_signing.html               keeps existing public URLs)
+consent.html, do_signing.html, seal.html    keeps existing public URLs)
 src/
   entries/      one mount file per page
-  pages/        Index, Auth, Booking, Consent, DoSigning
+  pages/        Index, Auth, Booking, Consent, DoSigning, Seal
   components/    AuthGate, TopNav, SignaturePad, Toast
   lib/          supabase, auth (ops gate), gemini (Edge Function client), pdf
   styles/index.css   Tailwind + shared classes
