@@ -420,7 +420,7 @@ function DoSigning({ session, userName }) {
     if (!scanDate) return alert('Please select a Delivery Date.');
     if (!collected.length) return alert('Please add at least one item row.');
     if (total <= 0) return alert('Total Qty must be greater than 0.');
-    if (total > (activeAL?.balance_quantity ?? 0)) return alert(`Total Qty (${total}) exceeds remaining balance (${activeAL.balance_quantity}).`);
+    if (total > (activeAL?.balance_quantity ?? 0)) return alert(`Total Qty (${total.toLocaleString()}) exceeds remaining balance (${activeAL.balance_quantity.toLocaleString()}).`);
     if (!scanSigRef.current?.hasSignature()) return alert('Please ask the customer to sign before saving.');
 
     const sigDataUrl = scanSigRef.current.toDataURL();
@@ -670,7 +670,7 @@ function DoSigning({ session, userName }) {
                         </div>
                         <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full border ${t.header}`}>{r.status || 'Unverified'}</span>
                       </div>
-                      <div className="text-xs font-bold text-slate-400 mb-3">📋 {r.order_number || '—'} &nbsp;·&nbsp; Qty: {r.quantity_ordered ?? '—'} &nbsp;·&nbsp; Bal: <span className={`${t.bal} font-black`}>{r.balance_quantity ?? '—'}</span></div>
+                      <div className="text-xs font-bold text-slate-400 mb-3">📋 {r.order_number || '—'} &nbsp;·&nbsp; Qty: {r.quantity_ordered != null ? r.quantity_ordered.toLocaleString() : '—'} &nbsp;·&nbsp; Bal: <span className={`${t.bal} font-black`}>{r.balance_quantity != null ? r.balance_quantity.toLocaleString() : '—'}</span></div>
                       <div className="flex gap-2">
                         <button className="btn-open flex-1 text-center" onClick={() => manageDOs(r.al_number)}>Manage DOs</button>
                         <button onClick={() => openCamera(r.al_number)} title="Add DO via camera scan" className="shrink-0 flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-xl border-none cursor-pointer transition-colors">
@@ -697,8 +697,8 @@ function DoSigning({ session, userName }) {
                             <td><span className="font-black text-slate-800">{r.al_number || '—'}</span></td>
                             <td>{r.order_number || '—'}</td>
                             <td>{r.customer_name || '—'}</td>
-                            <td>{r.quantity_ordered ?? '—'}</td>
-                            <td><span className={`font-black ${t.bal}`}>{r.balance_quantity ?? '—'}</span></td>
+                            <td>{r.quantity_ordered != null ? r.quantity_ordered.toLocaleString() : '—'}</td>
+                            <td><span className={`font-black ${t.bal}`}>{r.balance_quantity != null ? r.balance_quantity.toLocaleString() : '—'}</span></td>
                             <td className="whitespace-nowrap">
                               <button className="btn-open mr-1" onClick={() => manageDOs(r.al_number)}>Manage DOs</button>
                               <button onClick={() => openCamera(r.al_number)} title="Add DO via camera scan" className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white border-none cursor-pointer transition-colors align-middle">
@@ -739,8 +739,8 @@ function DoSigning({ session, userName }) {
                   ['Order Number', activeAL.order_number || '—'],
                   ['Customer Name', activeAL.customer_name || '—'],
                   ['Purchased Product', activeAL.product_name || '—'],
-                  ['Qty Ordered', activeAL.quantity_ordered ?? '—'],
-                  ['Balance to Collect', activeAL.balance_quantity ?? '—', true],
+                  ['Qty Ordered', activeAL.quantity_ordered != null ? activeAL.quantity_ordered.toLocaleString() : '—'],
+                  ['Balance to Collect', activeAL.balance_quantity != null ? activeAL.balance_quantity.toLocaleString() : '—', true],
                 ].map(([label, value, big]) => (
                   <div key={label} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                     <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</div>
@@ -776,7 +776,7 @@ function DoSigning({ session, userName }) {
               </div>
               {doRows && doRows.length > 0 && (
                 <div className="text-[10px] font-bold text-slate-400 mt-2 text-right">
-                  Total Issued: <span className="font-black text-slate-700">{totalIssued}</span> &nbsp;·&nbsp; Balance to Collect: <span className="font-black text-blue-700">{activeAL?.balance_quantity ?? '—'}</span>
+                  Total Issued: <span className="font-black text-slate-700">{Number(totalIssued || 0).toLocaleString()}</span> &nbsp;·&nbsp; Balance to Collect: <span className="font-black text-blue-700">{activeAL?.balance_quantity != null ? activeAL.balance_quantity.toLocaleString() : '—'}</span>
                 </div>
               )}
             </div>
@@ -919,8 +919,8 @@ function DoSigning({ session, userName }) {
                       </table>
                     </div>
                     <div className="text-[10px] font-bold text-slate-400 mt-2 text-right">
-                      Total Qty: <span className="font-black text-slate-700">{totalQty}</span>
-                      &nbsp;·&nbsp; Balance: <span className={`font-black ${balanceRemain < 0 ? 'text-red-600' : 'text-blue-700'}`}>{balanceRemain}</span>
+                      Total Qty: <span className="font-black text-slate-700">{totalQty.toLocaleString()}</span>
+                      &nbsp;·&nbsp; Balance: <span className={`font-black ${balanceRemain < 0 ? 'text-red-600' : 'text-blue-700'}`}>{balanceRemain.toLocaleString()}</span>
                     </div>
                   </div>
 

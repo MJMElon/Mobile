@@ -980,7 +980,7 @@ function Consent({ session, userName }) {
                                 )}
                               </div>
                               <div className="text-xs font-bold text-slate-400 mb-3">
-                                📋 {r.order_number || '—'} · Qty: {r.quantity_ordered ?? '—'} · Bal: <span className={`${t.bal} font-black`}>{r.balance_quantity ?? '—'}</span>
+                                📋 {r.order_number || '—'} · Qty: {r.quantity_ordered != null ? r.quantity_ordered.toLocaleString() : '—'} · Bal: <span className={`${t.bal} font-black`}>{r.balance_quantity != null ? r.balance_quantity.toLocaleString() : '—'}</span>
                                 {isCompleted && <span className="text-emerald-600"> (Completed)</span>}
                               </div>
                               <button className="btn-consent w-full text-center" onClick={() => openConsentModal(r.al_number)}>
@@ -1024,9 +1024,9 @@ function Consent({ session, userName }) {
                                   <td><span className="font-black text-slate-800">{r.al_number || '—'}</span></td>
                                   <td>{r.order_number || '—'}</td>
                                   <td>{r.customer_name || '—'}</td>
-                                  <td>{r.quantity_ordered ?? '—'}</td>
+                                  <td>{r.quantity_ordered != null ? r.quantity_ordered.toLocaleString() : '—'}</td>
                                   <td>
-                                    <span className={`font-black ${t.bal}`}>{r.balance_quantity ?? '—'}</span>
+                                    <span className={`font-black ${t.bal}`}>{r.balance_quantity != null ? r.balance_quantity.toLocaleString() : '—'}</span>
                                     {isCompleted && <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider"> Completed</span>}
                                   </td>
                                   <td>{count > 0 ? <span className="badge-signed">{count} signed</span> : <span className="badge-pending">None</span>}</td>
@@ -1090,8 +1090,8 @@ function Consent({ session, userName }) {
                     );
                   })()}
                   {[
-                    ['Qty Ordered', currentAL?.quantity_ordered ?? '—'],
-                    ['Balance to Collect', currentAL?.balance_quantity ?? '—', true],
+                    ['Qty Ordered', currentAL?.quantity_ordered != null ? currentAL.quantity_ordered.toLocaleString() : '—'],
+                    ['Balance to Collect', currentAL?.balance_quantity != null ? currentAL.balance_quantity.toLocaleString() : '—', true],
                   ].map(([label, value, big]) => (
                     <div key={label} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                       <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</div>

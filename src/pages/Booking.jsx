@@ -1063,7 +1063,7 @@ function Booking({ session, userName }) {
                       bkAlResults.map((r) => (
                         <div key={r.id || r.al_number} className="al-dropdown-item" onClick={() => selectAL(r.al_number)}>
                           <span className="al-num">{r.al_number || ''}</span> — <span className="al-cust">{r.customer_name || ''}</span>
-                          <div className="text-[10px] text-slate-400">{r.order_number || ''} · Bal: {r.balance_quantity ?? 0}</div>
+                          <div className="text-[10px] text-slate-400">{r.order_number || ''} · Bal: {Number(r.balance_quantity || 0).toLocaleString()}</div>
                         </div>
                       ))
                     )}
@@ -1079,8 +1079,8 @@ function Booking({ session, userName }) {
                   {[
                     { label: 'Order Number', value: selectedAL.order_number || '—' },
                     { label: 'Product', value: selectedAL.product_name || '—' },
-                    { label: 'Qty Ordered', value: selectedAL.quantity_ordered ?? '—' },
-                    { label: 'Balance', value: selectedAL.balance_quantity ?? '—', blue: true },
+                    { label: 'Qty Ordered', value: selectedAL.quantity_ordered != null ? selectedAL.quantity_ordered.toLocaleString() : '—' },
+                    { label: 'Balance', value: selectedAL.balance_quantity != null ? selectedAL.balance_quantity.toLocaleString() : '—', blue: true },
                   ].map((f) => (
                     <div key={f.label} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                       <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{f.label}</div>
@@ -1284,7 +1284,7 @@ function Booking({ session, userName }) {
                           detAlResults.map((r) => (
                             <div key={r.id || r.al_number} className="al-dropdown-item" onClick={() => selectALForConfirm(r.al_number)}>
                               <span className="al-num">{r.al_number || ''}</span> — <span className="al-cust">{r.customer_name || ''}</span>
-                              <div className="text-[10px] text-slate-400">{r.order_number || ''} · Bal: {r.balance_quantity ?? 0}</div>
+                              <div className="text-[10px] text-slate-400">{r.order_number || ''} · Bal: {Number(r.balance_quantity || 0).toLocaleString()}</div>
                             </div>
                           ))
                         )}
@@ -1293,7 +1293,7 @@ function Booking({ session, userName }) {
                   </div>
                   {matchedALForConfirm && (
                     <div className="mt-2 text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2">
-                      ✅ Matched: <strong>{matchedALForConfirm.al_number}</strong> — {matchedALForConfirm.customer_name || ''} (Order: {matchedALForConfirm.order_number || '—'}, Balance: {matchedALForConfirm.balance_quantity || 0})
+                      ✅ Matched: <strong>{matchedALForConfirm.al_number}</strong> — {matchedALForConfirm.customer_name || ''} (Order: {matchedALForConfirm.order_number || '—'}, Balance: {Number(matchedALForConfirm.balance_quantity || 0).toLocaleString()})
                     </div>
                   )}
                 </div>
