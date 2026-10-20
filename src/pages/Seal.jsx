@@ -9,6 +9,7 @@ import TopNav from '../components/TopNav';
 import CfSelect from '../components/CfSelect.jsx';
 import SealRangeInput, { newSealRow, overlappingRows, readSealRow, sealRangesOf, useSealChecks } from '../components/SealRangeInput.jsx';
 import { useToast } from '../components/Toast';
+import Icon from '../components/Icon.jsx';
 
 export default function SealPage() {
   return <AuthGate>{({ session, userName }) => <Seal session={session} userName={userName} />}</AuthGate>;
@@ -313,12 +314,12 @@ function Seal({ session, userName }) {
           onClick={openReceive}
           className="w-full flex items-center justify-center gap-3 py-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm uppercase tracking-widest border-none cursor-pointer shadow-lg transition-colors"
         >
-          <span className="text-2xl">📦</span> Receive Seals
+          <Icon name="box" className="w-6 h-6" /> Receive Seals
         </button>
 
         <div className="tab-row">
-          <button className={`tab-btn ${tab === 'seals' ? 'active' : ''}`} onClick={() => setTab('seals')}>🔖 Seals</button>
-          <button className={`tab-btn ${tab === 'receipts' ? 'active' : ''}`} onClick={() => setTab('receipts')}>📥 Receipts</button>
+          <button className={`tab-btn ${tab === 'seals' ? 'active' : ''}`} onClick={() => setTab('seals')}><Icon name="tag" className="w-3.5 h-3.5 inline-block align-[-2px]" /> Seals</button>
+          <button className={`tab-btn ${tab === 'receipts' ? 'active' : ''}`} onClick={() => setTab('receipts')}><Icon name="download" className="w-3.5 h-3.5 inline-block align-[-2px]" /> Receipts</button>
         </div>
 
         {tab === 'seals' ? (
@@ -351,7 +352,7 @@ function Seal({ session, userName }) {
 
             {cachedAt && (
               <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-3">
-                📴 No line — showing saved list from {fmtWhen(cachedAt)}
+                <Icon name="offline" className="w-3.5 h-3.5 inline-block align-[-3px]" /> No line — showing saved list from {fmtWhen(cachedAt)}
               </div>
             )}
             {listErr && <div className="text-xs font-bold text-red-500 mb-3">{listErr}</div>}
@@ -360,7 +361,7 @@ function Seal({ session, userName }) {
               <div className="text-center py-8 text-slate-400 text-xs font-bold uppercase tracking-widest">Loading…</div>
             ) : !shown.length ? (
               <div className="text-center py-10">
-                <div className="text-3xl mb-2">🔖</div>
+                <Icon name="tag" className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                 <div className="text-[11px] font-black text-slate-300 uppercase tracking-widest">
                   {search.trim() ? 'No seals match ' + search.trim() : 'No seals yet'}
                 </div>
@@ -390,7 +391,7 @@ function Seal({ session, userName }) {
                           : r.consent_at && <span>Consent {fmtDate(r.consent_at)}</span>}
                         {r.do_number && <span>DO <span className="text-slate-600">{r.do_number}</span></span>}
                         {probs > 0 && (
-                          <span className="text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5 font-black">⚠ {probs} problem{probs === 1 ? '' : 's'}</span>
+                          <span className="text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5 font-black inline-flex items-center gap-1"><Icon name="warning" className="w-3 h-3" /> {probs} problem{probs === 1 ? '' : 's'}</span>
                         )}
                       </div>
                     </div>
@@ -403,14 +404,14 @@ function Seal({ session, userName }) {
           <div className="dash-card p-4 sm:p-6">
             {receiptsCachedAt && (
               <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-3">
-                📴 No line — showing saved receipts from {fmtWhen(receiptsCachedAt)}
+                <Icon name="offline" className="w-3.5 h-3.5 inline-block align-[-3px]" /> No line — showing saved receipts from {fmtWhen(receiptsCachedAt)}
               </div>
             )}
             {receipts === null ? (
               <div className="text-center py-8 text-slate-400 text-xs font-bold uppercase tracking-widest">Loading…</div>
             ) : !receipts.length ? (
               <div className="text-center py-10">
-                <div className="text-3xl mb-2">📥</div>
+                <Icon name="download" className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                 <div className="text-[11px] font-black text-slate-300 uppercase tracking-widest">No receipts yet</div>
               </div>
             ) : (
@@ -457,7 +458,7 @@ function Seal({ session, userName }) {
         <div className="modal-box" style={{ maxWidth: '640px' }} onClick={(e) => e.stopPropagation()}>
           <div style={{ background: 'linear-gradient(135deg,#064e3b,#065f46)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
             <div>
-              <div className="text-[10px] font-black text-emerald-300 uppercase tracking-widest mb-1">📦 Receive Seals</div>
+              <div className="text-[10px] font-black text-emerald-300 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Icon name="box" className="w-3.5 h-3.5" /> Receive Seals</div>
               <div className="text-base font-black text-white">Seals arriving at UNN 1</div>
             </div>
             <button onClick={() => setRecvOpen(false)} disabled={saving} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center shrink-0 ml-4 border-none cursor-pointer">×</button>
@@ -465,7 +466,7 @@ function Seal({ session, userName }) {
 
           <div className="p-5 sm:p-6 space-y-5">
             <div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">🔖 Seal ranges</div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Icon name="tag" className="w-3.5 h-3.5" /> Seal ranges</div>
               <p className="text-[10px] font-bold text-slate-400 mb-3">Scan the first seal, then the last. Enter moves on by itself.</p>
               {recvOpen && (
                 <SealRangeInput
@@ -493,7 +494,7 @@ function Seal({ session, userName }) {
             </div>
 
             <div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">🧾 Seal order (optional)</div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Icon name="receipt" className="w-3.5 h-3.5" /> Seal order (optional)</div>
               <CfSelect value={orderId} onChange={(e) => setOrderId(e.target.value)}>
                 <option value="">— Not linked to an order —</option>
                 {orders.map((o) => (
@@ -504,11 +505,11 @@ function Seal({ session, userName }) {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📅 Received date</div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Icon name="calendar" className="w-3.5 h-3.5" /> Received date</div>
                 <input type="date" className="search-input text-sm" style={{ padding: '10px 14px' }} value={recvDate} onChange={(e) => setRecvDate(e.target.value)} />
               </div>
               <div>
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📝 Remark</div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Icon name="pencilNote" className="w-3.5 h-3.5" /> Remark</div>
                 <input type="text" className="search-input text-sm" style={{ padding: '10px 14px' }} value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="Optional" />
               </div>
             </div>
@@ -522,7 +523,7 @@ function Seal({ session, userName }) {
             </label>
 
             <div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📷 Photos <span className="text-red-500">*</span></div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Icon name="camera" className="w-3.5 h-3.5" /> Photos <span className="text-red-500">*</span></div>
               <div className="flex flex-wrap gap-2">
                 {photos.map((p, i) => (
                   <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border border-slate-200">
