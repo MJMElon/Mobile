@@ -469,22 +469,11 @@ function Consent({ session, userName }) {
     // ordinary (unsearched) groups below it are worth drawing.
     const g = [];
     if (lower.length >= 1 && matched.length) g.push({ label: '🔍 Search Match', rows: matched, theme: 'amber' });
-    if ((activeTab === 'all' || activeTab === 'consent') && hasConsent.length) g.push({ label: '✅ Has Consent Records', rows: hasConsent, theme: 'emerald' });
-    if ((activeTab === 'all' || activeTab === 'pending') && noneYet.length) g.push({ label: '📋 Active AL — No Consent Yet', rows: noneYet, theme: 'blue' });
-    if ((activeTab === 'all' || activeTab === 'completed') && completedGroup.length) g.push({ label: '✔️ Completed (last ' + COMPLETED_WINDOW_DAYS + ' days)', rows: completedGroup, theme: 'slate' });
+    if ((activeTab === 'all' || activeTab === 'consent') && hasConsent.length) g.push({ label: '✅ Consent Issued', rows: hasConsent, theme: 'emerald' });
+    if ((activeTab === 'all' || activeTab === 'pending') && noneYet.length) g.push({ label: '📋 Awaiting Consent', rows: noneYet, theme: 'blue' });
+    if ((activeTab === 'all' || activeTab === 'completed') && completedGroup.length) g.push({ label: '✔️ Completed - Last ' + COMPLETED_WINDOW_DAYS + ' days', rows: completedGroup, theme: 'slate' });
     return g;
   }, [alData, completedData, liveMatches, consentCountMap, query, activeTab]);
-
-  // Counts for the tab badges — the WHOLE list regardless of which tab is
-  // selected or what is in the search box, so switching tabs never moves
-  // another tab's own number.
-  const tabCounts = useMemo(() => {
-    let consent = 0, pending = 0;
-    alData.forEach((r) => {
-      if ((consentCountMap[r.al_number] || 0) > 0) consent++; else pending++;
-    });
-    return { all: alData.length + completedData.length, consent, pending, completed: completedData.length };
-  }, [alData, completedData, consentCountMap]);
 
   const themeMap = {
     amber: { header: 'bg-amber-50 text-amber-700 border-amber-200', row: 'bg-amber-50/60', bal: 'text-amber-700', border: 'border-l-4 border-amber-400' },
@@ -936,18 +925,10 @@ function Consent({ session, userName }) {
           {/* Which of the three ordinary groups to browse -- a search box
               above is not scoped to this, see the comment on `groups`. */}
           <div className="tab-row mb-5">
-            <button className={`tab-btn ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>All Records ({tabCounts.all})</button>
-            <button className={`tab-btn ${activeTab === 'consent' ? 'active' : ''}`} onClick={() => setActiveTab('consent')}>Consent Records ({tabCounts.consent})</button>
-            <button className={`tab-btn ${activeTab === 'pending' ? 'active' : ''}`} onClick={() => setActiveTab('pending')}>Pending Records ({tabCounts.pending})</button>
-            <button className={`tab-btn ${activeTab === 'completed' ? 'active' : ''}`} onClick={() => setActiveTab('completed')}>Completed Records ({tabCounts.completed})</button>
-          </div>
-
-          {/* Legend */}
-          <div className="flex flex-wrap gap-3 mb-5">
-            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-amber-700"><span className="w-3 h-3 rounded bg-amber-400 inline-block"></span>Search Match</span>
-            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700"><span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span>Has Consent Records</span>
-            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-blue-700"><span className="w-3 h-3 rounded bg-blue-400 inline-block"></span>Active AL — No Consent Yet</span>
-            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-600"><span className="w-3 h-3 rounded bg-slate-400 inline-block"></span>Completed</span>
+            <button className={`tab-btn ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>All</button>
+            <button className={`tab-btn ${activeTab === 'consent' ? 'active' : ''}`} onClick={() => setActiveTab('consent')}>Consented</button>
+            <button className={`tab-btn ${activeTab === 'pending' ? 'active' : ''}`} onClick={() => setActiveTab('pending')}>Pending</button>
+            <button className={`tab-btn ${activeTab === 'completed' ? 'active' : ''}`} onClick={() => setActiveTab('completed')}>Completed</button>
           </div>
 
           {/* Shown whenever loadCompletedALs() could not finish — an empty
@@ -978,7 +959,7 @@ function Consent({ session, userName }) {
                       className={`text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl border mb-3 cursor-pointer select-none ${t.header}`}
                       onClick={() => toggleGroup(g.theme)}
                     >
-                      {g.label} ({g.rows.length}) {collapsed ? '▸' : '▾'}
+                      {g.label} ({g.rows.length} Records) {collapsed ? '▸' : '▾'}
                     </div>
                     {!collapsed && (
                       <div>
@@ -1029,7 +1010,7 @@ function Consent({ session, userName }) {
                         <tbody>
                           <tr>
                             <td colSpan={7} className={`py-2 px-4 text-[9px] font-black uppercase tracking-widest cursor-pointer select-none ${t.header} border-b`} onClick={() => toggleGroup(g.theme)}>
-                              {g.label} ({g.rows.length}) {collapsed ? '▸' : '▾'}
+                              {g.label} ({g.rows.length} Records) {collapsed ? '▸' : '▾'}
                             </td>
                           </tr>
                         </tbody>
