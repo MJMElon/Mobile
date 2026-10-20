@@ -1378,11 +1378,18 @@ function Consent({ session, userName }) {
               download
               target="_blank"
               rel="noreferrer"
-              className="flex-1 text-center text-[10px] font-black text-emerald-700 uppercase tracking-widest bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl py-3"
+              className="flex-1 flex items-center justify-center gap-1.5 text-[10px] font-black text-emerald-700 uppercase tracking-widest bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl py-3 px-6"
             >
-              ⬇️ Download
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              Download
             </a>
-            <button onClick={() => setPhotoViewer(null)} className="flex-1 text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-xl border border-slate-200 cursor-pointer transition-colors">Close</button>
+            <button
+              onClick={() => setPhotoViewer(null)}
+              className="flex-1 flex items-center justify-center gap-1.5 text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-xl border border-slate-200 cursor-pointer transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              Close
+            </button>
           </div>
         </div>
       </div>
@@ -1541,32 +1548,41 @@ function ConsentHistory({ history, err, sealLogs = {}, isAdmin = false, onEditSe
                       {Array.isArray(c.seal_ranges) && c.seal_ranges.length > 0 ? (
                         <div className="px-4 pt-2 flex items-start gap-3">
                           <div className="flex-1 min-w-0">
-                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 flex-wrap">
-                              <span>🔖 Seals Issued — {c.seal_ranges.reduce((sum, r) => sum + rangeQty(r.start, r.end), 0).toLocaleString()}</span>
-                              {isAdmin && (
-                                <button
-                                  type="button"
-                                  onClick={() => onEditSeals(c)}
-                                  className="normal-case tracking-normal font-bold text-[10px] text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md px-2 py-0.5"
-                                  style={{ cursor: 'pointer' }}
-                                >
-                                  ✏️ Edit
-                                </button>
-                              )}
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                              🔖 Seals Issued — {c.seal_ranges.reduce((sum, r) => sum + rangeQty(r.start, r.end), 0).toLocaleString()}
                             </div>
                             <div className="text-[11px] font-mono font-bold text-slate-600 break-words">{formatSealRanges(c.seal_ranges)}</div>
                           </div>
-                          {c.seal_photo_url && (
-                            <button
-                              type="button"
-                              onClick={() => onViewPhoto(c.seal_photo_url)}
-                              title="View seal receipt photo"
-                              className="shrink-0 w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-500"
-                              style={{ cursor: 'pointer' }}
-                            >
-                              👁️
-                            </button>
-                          )}
+                          {/* Edit sits beside View -- both are icon-only,
+                              same size, so the two actions on this row read
+                              as one group. */}
+                          <div className="shrink-0 flex items-center gap-2">
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => onEditSeals(c)}
+                                title="Edit seal numbers"
+                                className="w-9 h-9 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 flex items-center justify-center text-blue-600"
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              </button>
+                            )}
+                            {c.seal_photo_url && (
+                              <button
+                                type="button"
+                                onClick={() => onViewPhoto(c.seal_photo_url)}
+                                title="View seal receipt photo"
+                                className="w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-500"
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         isAdmin && (c.consent_qty || 0) > 0 && (
@@ -1574,10 +1590,10 @@ function ConsentHistory({ history, err, sealLogs = {}, isAdmin = false, onEditSe
                             <button
                               type="button"
                               onClick={() => onEditSeals(c)}
-                              className="text-[10px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md px-3 py-1.5 uppercase tracking-widest"
+                              className="text-[10px] font-black text-slate-500 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-full border border-slate-200 uppercase tracking-widest"
                               style={{ cursor: 'pointer' }}
                             >
-                              ✏️ Add Seal Numbers
+                              + Seal Number
                             </button>
                           </div>
                         )
