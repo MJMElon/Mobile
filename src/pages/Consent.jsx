@@ -8,7 +8,7 @@ import TopNav from '../components/TopNav';
 import SignaturePad from '../components/SignaturePad';
 import SealRangeInput, { newSealRow, overlappingRows, readSealRow, sealRangesOf, useSealChecks } from '../components/SealRangeInput.jsx';
 import { useToast } from '../components/Toast';
-import { formatSealRanges, rangeQty } from '../lib/sealRanges.js';
+import { formatSealRanges, rangeQty, sealNo } from '../lib/sealRanges.js';
 
 export default function ConsentPage() {
   return <AuthGate>{({ session, userName }) => <Consent session={session} userName={userName} />}</AuthGate>;
@@ -161,6 +161,118 @@ function Consent({ session, userName }) {
   const sealPopped = useRef(new Set());
   const sealPhotoInputRef = useRef(null);
   const { checks: sealChecks, reset: resetSealChecks } = useSealChecks(sealRows, 'consent');
+
+  // ── Admin: edit seal numbers after the fact, view the receipt photo ──
+  // Same top-level admin flag DoSigning.jsx checks (shared_profiles
+  // permissions.manage_users -- the same flag mjm-ai-system's own pages
+  // check) reused here rather than inventing a separate one.
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: profile } = await supabase
+        .from('shared_profiles')
+        .select('permissions')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (!cancelled) setIsAdmin(!!profile?.permissions?.manage_users);
+    })();
+    return () => { cancelled = true; };
+  }, [session]);
+
+  const [photoViewer, setPhotoViewer] = useState(null); // a seal_photo_url, or null
+
+  // The consent row currently being corrected, or null. Seeded from its own
+  // seal_ranges on open, so cancelling just drops this state and touches
+  // nothing.
+  const [editingConsent, setEditingConsent] = useState(null);
+  const [editRows, setEditRows] = useState(() => [newSealRow()]);
+  // Keys present when the editor opened -- a row still carrying one of
+  // these is the consent's OWN existing allocation, not something to warn
+  // about (see coveredByOriginal below, for the case where a row changed
+  // but still overlaps what was already its own).
+  const [editOriginalKeys, setEditOriginalKeys] = useState(() => new Set());
+  const [editSaving, setEditSaving] = useState(false);
+  // Checked only for rows that are NEW or CHANGED -- an unedited row would
+  // otherwise come back "already belongs to" itself, since its own
+  // allocation is still sitting in seal_allocations until the save lands.
+  const editRowsToCheck = editRows.filter((r) => !editOriginalKeys.has(readSealRow(r).key));
+  const { checks: editChecks, reset: resetEditChecks } = useSealChecks(editRowsToCheck, 'consent');
+
+  function openEditSeals(c) {
+    const rows = Array.isArray(c.seal_ranges) && c.seal_ranges.length
+      ? c.seal_ranges.map((r) => ({ ...newSealRow(), start: r.start, end: r.end }))
+      : [newSealRow()];
+    setEditingConsent(c);
+    setEditRows(rows);
+    setEditOriginalKeys(new Set(rows.map((r) => readSealRow(r).key).filter(Boolean)));
+    resetEditChecks();
+  }
+  function closeEditSeals() {
+    setEditingConsent(null);
+  }
+
+  // A conflict hit that falls entirely inside one of the consent's OWN
+  // original ranges is this consent's own allocation, not another one's --
+  // seal_check_range has no consent_id to filter on, so this is read off
+  // the numbers themselves.
+  function coveredByOriginal(fromCode, toCode) {
+    const f = sealNo(fromCode), t = sealNo(toCode);
+    if (f == null || t == null || !editingConsent) return false;
+    return (editingConsent.seal_ranges || []).some((r) => {
+      const rs = sealNo(r.start), re = sealNo(r.end);
+      return rs != null && re != null && f >= rs && t <= re;
+    });
+  }
+
+  const editRead = editRows.map(readSealRow);
+  const editRanges = sealRangesOf(editRows);
+  const editTotal = editRanges.reduce((sum, r) => sum + rangeQty(r.start, r.end), 0);
+  const editOverlaps = overlappingRows(editRows);
+  const editIncomplete = editRead.some((rd) => rd.bad);
+  const editConflicts = editRead
+    .filter((rd) => rd.key && !editOriginalKeys.has(rd.key))
+    .flatMap((rd) => {
+      const c = editChecks[rd.key];
+      return c && c.state === 'done'
+        ? (c.rows || []).filter((x) => x.problem === 'allocated' && !coveredByOriginal(x.from_code, x.to_code))
+        : [];
+    });
+  // A consent's seal tracking is optional (see the comment on sealRows
+  // above) -- clearing every range is a valid "no seal data" state and is
+  // not held to the qty rule below. Any ranges left on the form DO have to
+  // sum to exactly what this consent was for: an edit corrects WHICH
+  // seals, never how many.
+  const editQtyMismatch = editRanges.length > 0 && editingConsent && editTotal !== (editingConsent.consent_qty || 0);
+  const editReady = !!editingConsent && !editIncomplete && !editOverlaps.size && !editConflicts.length && !editQtyMismatch;
+
+  async function saveEditSeals() {
+    if (!editingConsent || !editReady || editSaving) return;
+    if (!isOnline()) {
+      showToast('📴 You need a connection to save a seal number correction');
+      return;
+    }
+    setEditSaving(true);
+    const consent = editingConsent;
+    try {
+      const { error } = await supabase
+        .from('mobile_consent_records')
+        .update({ seal_ranges: editRanges })
+        .eq('id', consent.id);
+      if (error) throw error;
+      // The seal_sync_consent trigger re-derives seal_allocations from the
+      // new seal_ranges the instant this UPDATE lands -- the FC Portal's
+      // scan screen and the Seal Management page both read off that table
+      // (or the consent row itself), so neither needs a separate push.
+      showToast('✅ Seal numbers updated');
+      setEditingConsent(null);
+      await loadConsentHistory(consent.al_number);
+    } catch (e) {
+      showToast('❌ Could not update: ' + (e && e.message ? e.message : e));
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   // ── Barcode modal ──
   const [barcodeOpen, setBarcodeOpen] = useState(false);
@@ -1017,7 +1129,14 @@ function Consent({ session, userName }) {
             {/* Consent history */}
             <div className="border-t border-slate-100 pt-5">
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">📋 Consent History</div>
-              <ConsentHistory history={history} err={historyErr} sealLogs={sealLogs} />
+              <ConsentHistory
+                history={history}
+                err={historyErr}
+                sealLogs={sealLogs}
+                isAdmin={isAdmin}
+                onEditSeals={openEditSeals}
+                onViewPhoto={setPhotoViewer}
+              />
             </div>
           </div>
 
@@ -1239,6 +1358,103 @@ function Consent({ session, userName }) {
         </div>
       </div>
 
+      {/* ══ SEAL RECEIPT PHOTO VIEWER ══ */}
+      <div className={`modal-overlay ${photoViewer ? 'open' : ''}`} style={{ zIndex: 280 }} onClick={() => setPhotoViewer(null)}>
+        <div className="bg-white rounded-3xl p-5 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">📷 Seal Receipt Photo</div>
+          {photoViewer && <img src={photoViewer} style={{ width: '100%', borderRadius: '14px', border: '1px solid #e2e8f0' }} alt="Customer received seals" />}
+          <div className="flex gap-2 mt-4">
+            <a
+              href={photoViewer || '#'}
+              download
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 text-center text-[10px] font-black text-emerald-700 uppercase tracking-widest bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl py-3"
+            >
+              ⬇️ Download
+            </a>
+            <button onClick={() => setPhotoViewer(null)} className="flex-1 text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-xl border border-slate-200 cursor-pointer transition-colors">Close</button>
+          </div>
+        </div>
+      </div>
+
+      {/* ══ EDIT SEAL NUMBERS (ADMIN) ══ — corrects which seals this
+          consent's seal_ranges names, never how many: the qty rule below
+          holds the total to what the customer actually consented for.
+          Saving writes straight to mobile_consent_records.seal_ranges,
+          which the seal_sync_consent trigger already re-derives
+          seal_allocations from on every UPDATE -- the FC Portal's scan
+          screen and the Seal Management page both read off that, so an
+          amendment here reaches both without a separate push. */}
+      <div className={`modal-overlay ${editingConsent ? 'open' : ''}`} style={{ zIndex: 255 }} onClick={closeEditSeals}>
+        <div className="modal-box" style={{ maxWidth: '560px' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ background: 'linear-gradient(135deg,#0f172a,#1e293b)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
+            <div>
+              <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">✏️ Edit Seal Numbers</div>
+              <div className="text-lg font-black text-white">{editingConsent ? (editingConsent.al_number + ' — ' + (editingConsent.customer_name || '')) : '—'}</div>
+              <div className="text-[11px] font-bold text-slate-400 mt-1">
+                Consent qty: <span className="text-blue-400">{(editingConsent?.consent_qty || 0).toLocaleString()}</span> seedlings
+              </div>
+            </div>
+            <button onClick={closeEditSeals} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4">×</button>
+          </div>
+
+          <div className="p-5 sm:p-6 space-y-4">
+            <p className="text-[10px] font-bold text-slate-400">
+              Correcting a seal number that was scanned or keyed wrong. Clearing every row removes seal
+              tracking from this consent; any ranges left on the form must sum to the consent qty above.
+            </p>
+
+            {editingConsent && (
+              <SealRangeInput
+                rows={editRows}
+                onChange={setEditRows}
+                disabled={editSaving}
+                notes={(rd) => {
+                  const c = editChecks[rd.key];
+                  if (!c) return null;
+                  if (c.state === 'checking') return <div className="text-[10px] font-bold text-slate-400 mt-1 pl-7">Checking…</div>;
+                  const hits = (c.rows || []).filter((x) => x.problem === 'allocated' && !coveredByOriginal(x.from_code, x.to_code));
+                  if (!hits.length) return null;
+                  return (
+                    <div className="mt-1.5 pl-7 space-y-1">
+                      {hits.map((h, i) => (
+                        <div key={i} className="text-[10px] font-black text-red-600">
+                          {h.from_code === h.to_code ? h.from_code : h.from_code + '–' + h.to_code} already belongs to {h.customer_name || '—'} ({h.al_number || '—'})
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }}
+              />
+            )}
+
+            {editQtyMismatch && (
+              <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+                ⚠️ Seal qty {editTotal.toLocaleString()} must equal the consent qty {(editingConsent?.consent_qty || 0).toLocaleString()}
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={closeEditSeals}
+                disabled={editSaving}
+                className="flex-1 text-[11px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3.5 rounded-xl border border-slate-200 cursor-pointer transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEditSeals}
+                disabled={!editReady || editSaving}
+                className="flex-1 text-[11px] font-black text-white uppercase tracking-widest bg-blue-600 hover:bg-blue-700 px-6 py-3.5 rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {editSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Opens the device's own camera app — zoom, flash, lens switch all
           come from there rather than being rebuilt in-page. */}
       <input ref={photoInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhotoFile} />
@@ -1250,7 +1466,7 @@ function Consent({ session, userName }) {
 }
 
 // ── Consent history table ──
-function ConsentHistory({ history, err, sealLogs = {} }) {
+function ConsentHistory({ history, err, sealLogs = {}, isAdmin = false, onEditSeals, onViewPhoto }) {
   const [expanded, setExpanded] = useState(() => new Set());
   function toggleExpanded(id) {
     setExpanded((prev) => {
@@ -1313,20 +1529,49 @@ function ConsentHistory({ history, err, sealLogs = {} }) {
                   </tr>
                   <tr>
                     <td colSpan={5} style={{ padding: 0, background: '#f8fafc' }}>
-                      {Array.isArray(c.seal_ranges) && c.seal_ranges.length > 0 && (
+                      {Array.isArray(c.seal_ranges) && c.seal_ranges.length > 0 ? (
                         <div className="px-4 pt-2 flex items-start gap-3">
                           <div className="flex-1 min-w-0">
-                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              🔖 Seals Issued — {c.seal_ranges.reduce((sum, r) => sum + rangeQty(r.start, r.end), 0).toLocaleString()}
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 flex-wrap">
+                              <span>🔖 Seals Issued — {c.seal_ranges.reduce((sum, r) => sum + rangeQty(r.start, r.end), 0).toLocaleString()}</span>
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => onEditSeals(c)}
+                                  className="normal-case tracking-normal font-bold text-[10px] text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md px-2 py-0.5"
+                                  style={{ cursor: 'pointer' }}
+                                >
+                                  ✏️ Edit
+                                </button>
+                              )}
                             </div>
                             <div className="text-[11px] font-mono font-bold text-slate-600 break-words">{formatSealRanges(c.seal_ranges)}</div>
                           </div>
                           {c.seal_photo_url && (
-                            <a href={c.seal_photo_url} target="_blank" rel="noreferrer" className="shrink-0">
-                              <img src={c.seal_photo_url} style={{ height: '44px', borderRadius: '6px', border: '1px solid #e2e8f0' }} alt="Customer received seals" />
-                            </a>
+                            <button
+                              type="button"
+                              onClick={() => onViewPhoto(c.seal_photo_url)}
+                              title="View seal receipt photo"
+                              className="shrink-0 w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-500"
+                              style={{ cursor: 'pointer' }}
+                            >
+                              👁️
+                            </button>
                           )}
                         </div>
+                      ) : (
+                        isAdmin && (c.consent_qty || 0) > 0 && (
+                          <div className="px-4 pt-2">
+                            <button
+                              type="button"
+                              onClick={() => onEditSeals(c)}
+                              className="text-[10px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md px-3 py-1.5 uppercase tracking-widest"
+                              style={{ cursor: 'pointer' }}
+                            >
+                              ✏️ Add Seal Numbers
+                            </button>
+                          </div>
+                        )
                       )}
                       <button
                         type="button"
