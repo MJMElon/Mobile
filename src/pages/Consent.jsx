@@ -9,6 +9,7 @@ import SignaturePad from '../components/SignaturePad';
 import SealRangeInput, { newSealRow, overlappingRows, readSealRow, sealRangesOf, useSealChecks } from '../components/SealRangeInput.jsx';
 import { useToast } from '../components/Toast';
 import { formatSealRanges, rangeQty, sealNo } from '../lib/sealRanges.js';
+import Icon from '../components/Icon.jsx';
 
 export default function ConsentPage() {
   return <AuthGate>{({ session, userName }) => <Consent session={session} userName={userName} />}</AuthGate>;
@@ -468,10 +469,10 @@ function Consent({ session, userName }) {
     // shows everything it finds. The tab only decides which of the three
     // ordinary (unsearched) groups below it are worth drawing.
     const g = [];
-    if (lower.length >= 1 && matched.length) g.push({ label: '🔍 Search Match', rows: matched, theme: 'amber' });
-    if ((activeTab === 'all' || activeTab === 'consent') && hasConsent.length) g.push({ label: '✅ Consent Issued', rows: hasConsent, theme: 'emerald' });
-    if ((activeTab === 'all' || activeTab === 'pending') && noneYet.length) g.push({ label: '📋 Awaiting Consent', rows: noneYet, theme: 'blue' });
-    if ((activeTab === 'all' || activeTab === 'completed') && completedGroup.length) g.push({ label: '✔️ Completed - Last ' + COMPLETED_WINDOW_DAYS + ' days', rows: completedGroup, theme: 'slate' });
+    if (lower.length >= 1 && matched.length) g.push({ icon: 'search', label: 'Search Match', rows: matched, theme: 'amber' });
+    if ((activeTab === 'all' || activeTab === 'consent') && hasConsent.length) g.push({ icon: 'checkCircle', label: 'Consent Issued', rows: hasConsent, theme: 'emerald' });
+    if ((activeTab === 'all' || activeTab === 'pending') && noneYet.length) g.push({ icon: 'clipboard', label: 'Awaiting Consent', rows: noneYet, theme: 'blue' });
+    if ((activeTab === 'all' || activeTab === 'completed') && completedGroup.length) g.push({ icon: 'check', label: 'Completed - Last ' + COMPLETED_WINDOW_DAYS + ' days', rows: completedGroup, theme: 'slate' });
     return g;
   }, [alData, completedData, liveMatches, consentCountMap, query, activeTab]);
 
@@ -719,7 +720,7 @@ function Consent({ session, userName }) {
       setAiScanning(false);
       setAiResultShown(true);
       setAiCountLabel('—');
-      setAiNotice('📴 No line — AI sticker count needs signal. Enter the count by hand.');
+      setAiNotice('No line — AI sticker count needs signal. Enter the count by hand.');
       return;
     }
 
@@ -734,7 +735,7 @@ function Consent({ session, userName }) {
       setAiScanning(false);
       setAiResultShown(true);
       if (result.confidence !== 'high') {
-        setAiNotice('⚠️ AI count may not be exact — please verify manually.');
+        setAiNotice('AI count may not be exact — please verify manually.');
       } else {
         setAiNotice('');
       }
@@ -742,7 +743,7 @@ function Consent({ session, userName }) {
       setAiScanning(false);
       setAiResultShown(true);
       setAiCountLabel('Error');
-      setAiNotice('⚠️ AI scan failed: ' + err.message);
+      setAiNotice('AI scan failed: ' + err.message);
     }
   }
 
@@ -902,7 +903,7 @@ function Consent({ session, userName }) {
 
       <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 space-y-5" style={{ background: '#f1f5f9', minHeight: 'calc(100vh - 65px)' }}>
         <div className="dash-card p-5 sm:p-6">
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">🔍 Search Order Number / Customer Name</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5"><Icon name="search" className="w-3.5 h-3.5" /> Search Order Number / Customer Name</div>
           <div className="flex gap-3 mb-5">
             <input
               type="text"
@@ -934,8 +935,8 @@ function Consent({ session, userName }) {
           {/* Shown whenever loadCompletedALs() could not finish — an empty
               Completed group and a FAILED one otherwise look identical. */}
           {completedLoadError && (
-            <div className="mb-4 p-3 rounded-xl border border-rose-300 bg-rose-50 text-rose-700 text-xs font-bold">
-              ⚠️ Completed list: {completedLoadError}
+            <div className="mb-4 p-3 rounded-xl border border-rose-300 bg-rose-50 text-rose-700 text-xs font-bold flex items-start gap-1.5">
+              <Icon name="warning" className="w-4 h-4 shrink-0 mt-px" /> <span>Completed list: {completedLoadError}</span>
             </div>
           )}
 
@@ -946,7 +947,7 @@ function Consent({ session, userName }) {
               <div className="text-center py-8 text-red-400 text-xs font-bold">{loadErr}</div>
             ) : !groups.length ? (
               <div className="text-center py-12">
-                <div className="text-4xl mb-3">📭</div>
+                <Icon name="inboxEmpty" className="w-10 h-10 mx-auto mb-3 text-slate-300" />
                 <div className="text-[11px] font-black text-slate-300 uppercase tracking-widest">No active approval letters found</div>
               </div>
             ) : isMobile ? (
@@ -959,7 +960,7 @@ function Consent({ session, userName }) {
                       className={`text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl border mb-3 cursor-pointer select-none ${t.header}`}
                       onClick={() => toggleGroup(g.theme)}
                     >
-                      {g.label} ({g.rows.length} Records) {collapsed ? '▸' : '▾'}
+                      <Icon name={g.icon} className="w-3 h-3 inline-block align-[-2px]" /> {g.label} ({g.rows.length} Records) {collapsed ? '▸' : '▾'}
                     </div>
                     {!collapsed && (
                       <div>
@@ -980,11 +981,11 @@ function Consent({ session, userName }) {
                                 )}
                               </div>
                               <div className="text-xs font-bold text-slate-400 mb-3">
-                                📋 {r.order_number || '—'} · Qty: {r.quantity_ordered != null ? r.quantity_ordered.toLocaleString() : '—'} · Bal: <span className={`${t.bal} font-black`}>{r.balance_quantity != null ? r.balance_quantity.toLocaleString() : '—'}</span>
+                                <Icon name="clipboard" className="w-3 h-3 inline-block align-[-1px]" /> {r.order_number || '—'} · Qty: {r.quantity_ordered != null ? r.quantity_ordered.toLocaleString() : '—'} · Bal: <span className={`${t.bal} font-black`}>{r.balance_quantity != null ? r.balance_quantity.toLocaleString() : '—'}</span>
                                 {isCompleted && <span className="text-emerald-600"> (Completed)</span>}
                               </div>
                               <button className="btn-consent w-full text-center" onClick={() => openConsentModal(r.al_number)}>
-                                {isCompleted ? '📃 View Consent Log' : '✍️ Sign Consent'}
+                                {isCompleted ? (<><Icon name="document" className="w-3.5 h-3.5 inline-block align-[-3px]" /> View Consent Log</>) : (<><Icon name="pen" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Sign Consent</>)}
                               </button>
                             </div>
                           );
@@ -1010,7 +1011,7 @@ function Consent({ session, userName }) {
                         <tbody>
                           <tr>
                             <td colSpan={7} className={`py-2 px-4 text-[9px] font-black uppercase tracking-widest cursor-pointer select-none ${t.header} border-b`} onClick={() => toggleGroup(g.theme)}>
-                              {g.label} ({g.rows.length} Records) {collapsed ? '▸' : '▾'}
+                              <Icon name={g.icon} className="w-3 h-3 inline-block align-[-2px]" /> {g.label} ({g.rows.length} Records) {collapsed ? '▸' : '▾'}
                             </td>
                           </tr>
                         </tbody>
@@ -1032,7 +1033,7 @@ function Consent({ session, userName }) {
                                   <td>{count > 0 ? <span className="badge-signed">{count} signed</span> : <span className="badge-pending">None</span>}</td>
                                   <td>
                                     <button className="btn-consent" onClick={() => openConsentModal(r.al_number)}>
-                                      {isCompleted ? '📃 View Consent Log' : '✍️ Sign Consent'}
+                                      {isCompleted ? (<><Icon name="document" className="w-3.5 h-3.5 inline-block align-[-3px]" /> View Consent Log</>) : (<><Icon name="pen" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Sign Consent</>)}
                                     </button>
                                   </td>
                                 </tr>
@@ -1055,7 +1056,7 @@ function Consent({ session, userName }) {
         <div className="modal-box" onClick={(e) => e.stopPropagation()}>
           <div style={{ background: 'linear-gradient(135deg,#064e3b,#065f46)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
             <div>
-              <div className="text-[10px] font-black text-emerald-300 uppercase tracking-widest mb-1">✍️ Customer Consent</div>
+              <div className="text-[10px] font-black text-emerald-300 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Icon name="pen" className="w-3.5 h-3.5" /> Customer Consent</div>
               <div className="text-base font-black text-white uppercase tracking-wide">
                 {currentAL?.al_number || '—'}
               </div>
@@ -1103,7 +1104,7 @@ function Consent({ session, userName }) {
 
             {/* Sign consent for qty */}
             <div className="border-t border-slate-100 pt-5">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">✍️ Sign Consent For</div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5"><Icon name="pen" className="w-3.5 h-3.5" /> Sign Consent For</div>
               <p className="text-xs font-bold text-slate-400 mb-4">
                 Select the quantity of seedlings for this collection trip. <span className="text-red-500 font-black">{maxQtyHint}</span>
               </p>
@@ -1129,7 +1130,7 @@ function Consent({ session, userName }) {
                 <div className="text-sm font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
                   Consent Qty: <span>{selectedQty.toLocaleString()}</span> seedlings
                   <button onClick={proceedToSign} className="ml-4 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
-                    Proceed to Sign →
+                    Proceed to Sign <Icon name="chevronRight" className="w-3.5 h-3.5 inline-block align-[-3px]" />
                   </button>
                 </div>
               )}
@@ -1137,7 +1138,7 @@ function Consent({ session, userName }) {
 
             {/* Consent history */}
             <div className="border-t border-slate-100 pt-5">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">📋 Consent History</div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5"><Icon name="clipboard" className="w-3.5 h-3.5" /> Consent History</div>
               <ConsentHistory
                 history={history}
                 err={historyErr}
@@ -1160,7 +1161,7 @@ function Consent({ session, userName }) {
         <div className="modal-box" style={{ maxWidth: '640px' }} onClick={(e) => e.stopPropagation()}>
           <div style={{ background: 'linear-gradient(135deg,#0f172a,#1e293b)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
             <div>
-              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">✍️ Sign Collection Consent</div>
+              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Icon name="pen" className="w-3.5 h-3.5" /> Sign Collection Consent</div>
               <div className="text-lg font-black text-white">{signTitle}</div>
               <div className="text-[11px] font-bold text-slate-400 mt-1">Qty: <span className="text-emerald-400">{signQty.toLocaleString()}</span> seedlings</div>
             </div>
@@ -1171,7 +1172,7 @@ function Consent({ session, userName }) {
             {/* T&C */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📋 <span>{s.tcHeader}</span></div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Icon name="clipboard" className="w-3.5 h-3.5" /> <span>{s.tcHeader}</span></div>
                 <div className="flex gap-1">
                   <button type="button" onClick={() => setConsentLang('en')} className={`cs-lang-btn ${consentLang === 'en' ? 'active' : ''}`}>EN</button>
                   <button type="button" onClick={() => setConsentLang('ms')} className={`cs-lang-btn ${consentLang === 'ms' ? 'active' : ''}`}>BM</button>
@@ -1193,12 +1194,12 @@ function Consent({ session, userName }) {
 
             {/* Photo section — stacked above Signature, not side by side */}
             <div className="border-t border-slate-100 pt-5">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">📷 <span>{s.photoTitle}</span> <span className="text-red-500">*</span></div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5"><Icon name="camera" className="w-3.5 h-3.5" /> <span>{s.photoTitle}</span> <span className="text-red-500">*</span></div>
 
               <div className={`photo-area ${photoBase64 ? 'has-photo' : ''}`} onClick={openPhotoPicker}>
                 {!photoBase64 ? (
                   <div>
-                    <div className="text-xl mb-1">📷</div>
+                    <Icon name="camera" className="w-6 h-6 mx-auto mb-1 text-slate-400" />
                     <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{s.tapTitle}</div>
                     <div className="text-[10px] font-bold text-slate-300 mt-0.5">{s.tapSub}</div>
                   </div>
@@ -1212,7 +1213,7 @@ function Consent({ session, userName }) {
               {photoBase64 && (
                 <div className="flex gap-2 mt-3">
                   <button className="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer transition-colors" onClick={(e) => { e.stopPropagation(); retakePhoto(); }}>
-                    📷 Retake
+                    <Icon name="camera" className="w-3 h-3 inline-block align-[-2px]" /> Retake
                   </button>
                 </div>
               )}
@@ -1222,7 +1223,7 @@ function Consent({ session, userName }) {
                 <div className="mt-4">
                   {aiScanning && (
                     <div className="text-center py-5">
-                      <div className="text-3xl mb-2">🤖</div>
+                      <Icon name="sparkles" className="w-8 h-8 mx-auto mb-2 text-slate-400" />
                       <div className="text-[11px] font-black text-slate-500 uppercase tracking-widest">AI is counting stickers…</div>
                       <div className="text-[10px] font-bold text-slate-300 mt-1">Analyzing photo with Google AI</div>
                     </div>
@@ -1231,13 +1232,13 @@ function Consent({ session, userName }) {
                     <div>
                       <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
                         <div>
-                          <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">✨ AI Sticker Count</div>
+                          <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1 flex items-center gap-1"><Icon name="sparkles" className="w-3 h-3" /> AI Sticker Count</div>
                           <div className="text-2xl font-black text-emerald-700">{aiCountLabel}</div>
                         </div>
-                        <div className="text-4xl">🤖</div>
+                        <Icon name="sparkles" className="w-10 h-10 text-emerald-300" />
                       </div>
                       {aiNotice && (
-                        <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mt-2">{aiNotice}</div>
+                        <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mt-2 flex items-start gap-1.5"><Icon name="warning" className="w-3.5 h-3.5 shrink-0 mt-px" /> <span>{aiNotice}</span></div>
                       )}
                     </div>
                   )}
@@ -1247,7 +1248,7 @@ function Consent({ session, userName }) {
 
             {/* Seals issued — keyed with the Bluetooth gun */}
             <div className="border-t border-slate-100 pt-5">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">🔖 Seals Issued</div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Icon name="tag" className="w-3.5 h-3.5" /> Seals Issued</div>
               <p className="text-[10px] font-bold text-slate-300 mb-3">Optional. Scan the first seal, then the last, for each roll handed to the customer.</p>
               {signOpen && (
                 <SealRangeInput
@@ -1269,7 +1270,7 @@ function Consent({ session, userName }) {
                           </div>
                         ))}
                         {missing.map((h, i) => (
-                          <div key={'n' + i} className="text-[10px] font-bold text-amber-700">⚠ {h.detail}</div>
+                          <div key={'n' + i} className="text-[10px] font-bold text-amber-700 flex items-start gap-1"><Icon name="warning" className="w-3 h-3 shrink-0 mt-px" /> <span>{h.detail}</span></div>
                         ))}
                       </div>
                     );
@@ -1278,17 +1279,17 @@ function Consent({ session, userName }) {
               )}
               {sealTotal > 0 && sealTotal !== selectedQty && (
                 <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mt-3">
-                  ⚠️ Seal qty {sealTotal.toLocaleString()} ≠ consent qty {selectedQty.toLocaleString()}
+                  <Icon name="warning" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Seal qty {sealTotal.toLocaleString()} ≠ consent qty {selectedQty.toLocaleString()}
                 </div>
               )}
 
               {sealRanges.length > 0 && (
                 <div className="mt-4">
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📷 Customer Received Seals <span className="text-red-500">*</span></div>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Icon name="camera" className="w-3.5 h-3.5" /> Customer Received Seals <span className="text-red-500">*</span></div>
                   <div className={`photo-area ${sealPhotoBase64 ? 'has-photo' : ''}`} onClick={() => sealPhotoInputRef.current && sealPhotoInputRef.current.click()}>
                     {!sealPhotoBase64 ? (
                       <div>
-                        <div className="text-xl mb-1">📷</div>
+                        <Icon name="camera" className="w-6 h-6 mx-auto mb-1 text-slate-400" />
                         <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Photo of the customer with the seals</div>
                       </div>
                     ) : (
@@ -1298,7 +1299,7 @@ function Consent({ session, userName }) {
                   {sealPhotoBase64 && (
                     <div className="flex gap-2 mt-3">
                       <button className="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer transition-colors" onClick={() => sealPhotoInputRef.current && sealPhotoInputRef.current.click()}>
-                        📷 Retake
+                        <Icon name="camera" className="w-3 h-3 inline-block align-[-2px]" /> Retake
                       </button>
                     </div>
                   )}
@@ -1308,7 +1309,7 @@ function Consent({ session, userName }) {
 
             {/* Signature */}
             <div className="border-t border-slate-100 pt-5">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">✍️ <span>{s.signTitle}</span></div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Icon name="pen" className="w-3.5 h-3.5" /> <span>{s.signTitle}</span></div>
               <p className="text-[10px] font-bold text-slate-300 mb-3">{s.signHelp}</p>
               {signOpen && (
                 <SignaturePad ref={sigRef} height={150} hint="Sign here" onSignedAt={() => setHasSig(true)} />
@@ -1322,7 +1323,7 @@ function Consent({ session, userName }) {
           <div className="px-5 sm:px-6 pb-6 flex flex-col sm:flex-row gap-3 justify-end border-t border-slate-100 pt-5">
             <button onClick={closeSignModal} className="w-full sm:w-auto h-11 px-8 text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 rounded-full border border-slate-200 cursor-pointer transition-colors">{s.cancel}</button>
             <button onClick={submitConsent} disabled={!consentReady || submitting} className="group w-full sm:w-auto h-11 flex items-stretch overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed rounded-full border-none cursor-pointer">
-              <span className="flex items-center justify-center w-11 bg-emerald-800 text-white text-base shrink-0 transition-colors group-hover:bg-emerald-900">⬇️</span>
+              <span className="flex items-center justify-center w-11 bg-emerald-800 text-white shrink-0 transition-colors group-hover:bg-emerald-900"><Icon name="download" className="w-4 h-4" /></span>
               <span className="flex items-center justify-center px-8 grow sm:grow-0 bg-emerald-600 text-white font-black text-[11px] uppercase tracking-widest transition-colors group-hover:bg-emerald-700">{submitting ? 'Saving…' : s.save}</span>
             </button>
           </div>
@@ -1334,7 +1335,7 @@ function Consent({ session, userName }) {
           save stays blocked until it is fixed or removed. */}
       <div className={`modal-overlay ${sealPopup ? 'open' : ''}`} style={{ zIndex: 270 }} onClick={() => setSealPopup(null)}>
         <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
-          <div className="text-3xl mb-2 text-center">⛔</div>
+          <Icon name="blocked" className="w-9 h-9 mx-auto mb-2 text-red-500" />
           <div className="font-black text-red-700 text-base uppercase tracking-wide mb-3 text-center">Seal already issued</div>
           <div className="space-y-2 mb-4">
             {(sealPopup || []).map((h, i) => (
@@ -1355,7 +1356,7 @@ function Consent({ session, userName }) {
       {/* ══ BARCODE SCANNER MODAL ══ */}
       <div className={`modal-overlay ${barcodeOpen ? 'open' : ''}`} style={{ zIndex: 260 }} onClick={stopBarcodeScan}>
         <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center" onClick={(e) => e.stopPropagation()}>
-          <div className="text-3xl mb-2">🔍</div>
+          <Icon name="search" className="w-9 h-9 mx-auto mb-2 text-slate-400" />
           <div className="font-black text-slate-800 text-lg uppercase tracking-wide mb-1">Scan Barcode</div>
           <div className="text-xs font-bold text-slate-400 mb-4">Point your camera at the AL barcode</div>
           <div className="rounded-2xl overflow-hidden bg-black mb-4" style={{ height: '260px', position: 'relative' }}>
@@ -1370,7 +1371,7 @@ function Consent({ session, userName }) {
       {/* ══ SEAL RECEIPT PHOTO VIEWER ══ */}
       <div className={`modal-overlay ${photoViewer ? 'open' : ''}`} style={{ zIndex: 280 }} onClick={() => setPhotoViewer(null)}>
         <div className="bg-white rounded-3xl p-5 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">📷 Seal Receipt Photo</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center flex items-center justify-center gap-1.5"><Icon name="camera" className="w-3.5 h-3.5" /> Seal Receipt Photo</div>
           {photoViewer && <img src={photoViewer} style={{ width: '100%', borderRadius: '14px', border: '1px solid #e2e8f0' }} alt="Customer received seals" />}
           <div className="flex gap-2 mt-4">
             <a
@@ -1406,7 +1407,7 @@ function Consent({ session, userName }) {
         <div className="modal-box" style={{ maxWidth: '560px' }} onClick={(e) => e.stopPropagation()}>
           <div style={{ background: 'linear-gradient(135deg,#0f172a,#1e293b)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
             <div>
-              <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">✏️ Edit Seal Numbers</div>
+              <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Icon name="pen" className="w-3.5 h-3.5" /> Edit Seal Numbers</div>
               <div className="text-lg font-black text-white">{editingConsent ? (editingConsent.al_number + ' — ' + (editingConsent.customer_name || '')) : '—'}</div>
               <div className="text-[11px] font-bold text-slate-400 mt-1">
                 Consent qty: <span className="text-blue-400">{(editingConsent?.consent_qty || 0).toLocaleString()}</span> seedlings
@@ -1447,7 +1448,7 @@ function Consent({ session, userName }) {
 
             {editQtyMismatch && (
               <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
-                ⚠️ Seal qty {editTotal.toLocaleString()} must equal the consent qty {(editingConsent?.consent_qty || 0).toLocaleString()}
+                <Icon name="warning" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Seal qty {editTotal.toLocaleString()} must equal the consent qty {(editingConsent?.consent_qty || 0).toLocaleString()}
               </div>
             )}
 
@@ -1501,7 +1502,7 @@ function ConsentHistory({ history, err, sealLogs = {}, isAdmin = false, onEditSe
   if (!history.length) {
     return (
       <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-100">
-        <div className="text-2xl mb-2">📋</div>
+        <Icon name="clipboard" className="w-7 h-7 mx-auto mb-2 text-slate-300" />
         <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No consent records yet</div>
         <div className="text-[10px] font-bold text-slate-300 mt-1">Select a quantity above to sign the first consent.</div>
       </div>
@@ -1549,7 +1550,7 @@ function ConsentHistory({ history, err, sealLogs = {}, isAdmin = false, onEditSe
                         <div className="px-4 pt-2 flex items-start gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              🔖 Seals Issued — {c.seal_ranges.reduce((sum, r) => sum + rangeQty(r.start, r.end), 0).toLocaleString()}
+                              <Icon name="tag" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Seals Issued — {c.seal_ranges.reduce((sum, r) => sum + rangeQty(r.start, r.end), 0).toLocaleString()}
                             </div>
                             <div className="text-[11px] font-mono font-bold text-slate-600 break-words">{formatSealRanges(c.seal_ranges)}</div>
                           </div>
@@ -1604,7 +1605,7 @@ function ConsentHistory({ history, err, sealLogs = {}, isAdmin = false, onEditSe
                         className="w-full text-left px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"
                         style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                       >
-                        🔖 Seal Log — {seals.length} entr{seals.length === 1 ? 'y' : 'ies'} {isOpen ? '▲' : '▼'}
+                        <Icon name="tag" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Seal Log — {seals.length} entr{seals.length === 1 ? 'y' : 'ies'} {isOpen ? '▲' : '▼'}
                       </button>
                       {isOpen && (
                         seals.length ? (
