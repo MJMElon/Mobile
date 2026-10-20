@@ -56,6 +56,25 @@ async function uploadPhoto(filePath, base64) {
   }
 }
 
+/** Same upload, PNG rather than JPEG — the signature pad's own format.
+    Used so the row carries a reusable signature URL, same as image_url,
+    rather than the signature living only inside the one-off PDF
+    attachDOToOrder generates (see sendDO below). */
+async function uploadSignature(filePath, base64) {
+  try {
+    const blob = await fetch(base64).then((r) => r.blob());
+    const { error } = await supabase.storage
+      .from('documents')
+      .upload(filePath, blob, { contentType: 'image/png', upsert: true });
+    if (error) return base64;
+    const { data } = supabase.storage.from('documents').getPublicUrl(filePath);
+    return (data && data.publicUrl) || base64;
+  } catch (e) {
+    if (looksOffline(e)) throw e;
+    return base64;
+  }
+}
+
 export async function sendConsent(job) {
   const payload = { ...job.payload };
   if (job.photoBase64) {
@@ -96,6 +115,10 @@ export async function sendDO(job) {
     if (job.photoBase64) {
       const filePath = `do_photos/${payload.al_number}/${payload.do_number}_${Date.now()}.jpg`;
       payload.image_url = await uploadPhoto(filePath, job.photoBase64);
+    }
+    if (job.sigDataUrl) {
+      const sigPath = `do_signatures/${payload.al_number}/${payload.do_number}_${Date.now()}.png`;
+      payload.signature_url = await uploadSignature(sigPath, job.sigDataUrl);
     }
     const { data: inserted, error } = await supabase.from('shared_do_records').insert([payload]).select().single();
     if (error) throw new Error(error.message);
