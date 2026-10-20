@@ -653,12 +653,6 @@ function DoSigning({ session, userName }) {
             <button className={`tab-btn ${activeTab === 'pending' ? 'active' : ''}`} onClick={() => setActiveTab('pending')}>Pending</button>
           </div>
 
-          <div className="flex flex-wrap gap-3 mb-5">
-            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-amber-700"><span className="w-3 h-3 rounded bg-amber-400 inline-block"></span>Search Match</span>
-            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700"><span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span>Consent Signed — Awaiting Collection</span>
-            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-red-700"><span className="w-3 h-3 rounded bg-red-400 inline-block"></span>Active AL — Pending Consent</span>
-          </div>
-
           {loading ? (
             <div className="text-center py-8 text-slate-400 text-xs font-bold uppercase tracking-widest">Loading…</div>
           ) : loadErr ? (
