@@ -100,8 +100,8 @@ function DoSigning({ session, userName }) {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 640);
-  // Which of the two ordinary groups to show -- 'ready' | 'pending'. A
-  // search ignores this entirely (see groups below), same rule Consent.jsx
+  // Which of the two ordinary groups to show -- 'all' | 'ready' | 'pending'.
+  // A search ignores this entirely (see groups below), same rule Consent.jsx
   // follows: the tab only narrows the unsearched browse view.
   const [activeTab, setActiveTab] = useState('ready');
 
@@ -249,8 +249,8 @@ function DoSigning({ session, userName }) {
     });
     const g = [];
     if (lower.length >= 1 && matched.length) g.push({ icon: 'search', label: 'Search Match', rows: matched, theme: 'amber' });
-    if (activeTab === 'ready' && consentSigned.length) g.push({ icon: 'checkCircle', label: 'Consent Signed — Awaiting Collection', rows: consentSigned, theme: 'emerald' });
-    if (activeTab === 'pending' && activePending.length) g.push({ icon: 'clipboard', label: 'Active AL — Pending Consent', rows: activePending, theme: 'red' });
+    if ((activeTab === 'all' || activeTab === 'ready') && consentSigned.length) g.push({ icon: 'checkCircle', label: 'Consent Signed — Awaiting Collection', rows: consentSigned, theme: 'emerald' });
+    if ((activeTab === 'all' || activeTab === 'pending') && activePending.length) g.push({ icon: 'clipboard', label: 'Active AL — Pending Consent', rows: activePending, theme: 'red' });
     return g;
   }, [alData, consentALSet, query, activeTab]);
 
@@ -649,6 +649,7 @@ function DoSigning({ session, userName }) {
           {/* Which of the two ordinary groups to browse -- a search box
               above is not scoped to this, see the comment on `groups`. */}
           <div className="tab-row mb-5">
+            <button className={`tab-btn ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>All</button>
             <button className={`tab-btn ${activeTab === 'ready' ? 'active' : ''}`} onClick={() => setActiveTab('ready')}>Ready</button>
             <button className={`tab-btn ${activeTab === 'pending' ? 'active' : ''}`} onClick={() => setActiveTab('pending')}>Pending</button>
           </div>
