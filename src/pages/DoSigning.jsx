@@ -100,6 +100,10 @@ function DoSigning({ session, userName }) {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 640);
+  // Which of the two ordinary groups to show -- 'ready' | 'pending'. A
+  // search ignores this entirely (see groups below), same rule Consent.jsx
+  // follows: the tab only narrows the unsearched browse view.
+  const [activeTab, setActiveTab] = useState('ready');
 
   // ── Manage modal ──
   const [activeAL, setActiveAL] = useState(null);
@@ -245,10 +249,10 @@ function DoSigning({ session, userName }) {
     });
     const g = [];
     if (lower.length >= 1 && matched.length) g.push({ icon: 'search', label: 'Search Match', rows: matched, theme: 'amber' });
-    if (consentSigned.length) g.push({ icon: 'checkCircle', label: 'Consent Signed — Awaiting Collection', rows: consentSigned, theme: 'emerald' });
-    if (activePending.length) g.push({ icon: 'clipboard', label: 'Active AL — Consent Pending', rows: activePending, theme: 'blue' });
+    if (activeTab === 'ready' && consentSigned.length) g.push({ icon: 'checkCircle', label: 'Consent Signed — Awaiting Collection', rows: consentSigned, theme: 'emerald' });
+    if (activeTab === 'pending' && activePending.length) g.push({ icon: 'clipboard', label: 'Active AL — Consent Pending', rows: activePending, theme: 'blue' });
     return g;
-  }, [alData, consentALSet, query]);
+  }, [alData, consentALSet, query, activeTab]);
 
   const themeMap = {
     amber: { header: 'bg-amber-50 text-amber-700 border-amber-200', row: 'bg-amber-50/60', bal: 'text-amber-700', border: 'border-l-4 border-amber-400' },
@@ -641,6 +645,13 @@ function DoSigning({ session, userName }) {
             </button>
           </div>
 
+          {/* Which of the two ordinary groups to browse -- a search box
+              above is not scoped to this, see the comment on `groups`. */}
+          <div className="tab-row mb-5">
+            <button className={`tab-btn ${activeTab === 'ready' ? 'active' : ''}`} onClick={() => setActiveTab('ready')}>Ready</button>
+            <button className={`tab-btn ${activeTab === 'pending' ? 'active' : ''}`} onClick={() => setActiveTab('pending')}>Pending</button>
+          </div>
+
           <div className="flex flex-wrap gap-3 mb-5">
             <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-amber-700"><span className="w-3 h-3 rounded bg-amber-400 inline-block"></span>Search Match</span>
             <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700"><span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span>Consent Signed — Awaiting Collection</span>
@@ -673,7 +684,9 @@ function DoSigning({ session, userName }) {
                       </div>
                       <div className="text-xs font-bold text-slate-400 mb-3"><Icon name="clipboard" className="w-3 h-3 inline-block align-[-1px]" /> {r.order_number || '—'} &nbsp;·&nbsp; Qty: {r.quantity_ordered != null ? r.quantity_ordered.toLocaleString() : '—'} &nbsp;·&nbsp; Bal: <span className={`${t.bal} font-black`}>{r.balance_quantity != null ? r.balance_quantity.toLocaleString() : '—'}</span></div>
                       <div className="flex gap-2">
-                        <button className="btn-open flex-1 text-center" onClick={() => manageDOs(r.al_number)}>Manage DOs</button>
+                        <button className="btn-open flex-1 flex items-center justify-center" onClick={() => manageDOs(r.al_number)} title="Manage DOs" aria-label="Manage DOs">
+                          <Icon name="clipboard" className="w-4 h-4" />
+                        </button>
                         <button onClick={() => openCamera(r.al_number)} title="Add DO via camera scan" className="shrink-0 flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-xl border-none cursor-pointer transition-colors">
                           <CameraIcon />
                         </button>
@@ -701,7 +714,14 @@ function DoSigning({ session, userName }) {
                             <td>{r.quantity_ordered != null ? r.quantity_ordered.toLocaleString() : '—'}</td>
                             <td><span className={`font-black ${t.bal}`}>{r.balance_quantity != null ? r.balance_quantity.toLocaleString() : '—'}</span></td>
                             <td className="whitespace-nowrap">
-                              <button className="btn-open mr-1" onClick={() => manageDOs(r.al_number)}>Manage DOs</button>
+                              <button
+                                onClick={() => manageDOs(r.al_number)}
+                                title="Manage DOs"
+                                aria-label="Manage DOs"
+                                className="btn-open mr-1 inline-flex items-center justify-center align-middle"
+                              >
+                                <Icon name="clipboard" className="w-4 h-4" />
+                              </button>
                               <button onClick={() => openCamera(r.al_number)} title="Add DO via camera scan" className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white border-none cursor-pointer transition-colors align-middle">
                                 <CameraIcon />
                               </button>
