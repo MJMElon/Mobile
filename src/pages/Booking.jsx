@@ -5,6 +5,7 @@ import AuthGate from '../components/AuthGate';
 import TopNav from '../components/TopNav';
 import CfSelect from '../components/CfSelect.jsx';
 import { useToast } from '../components/Toast';
+import Icon from '../components/Icon.jsx';
 
 export default function BookingPage() {
   return <AuthGate>{({ session, userName }) => <Booking session={session} userName={userName} />}</AuthGate>;
@@ -105,7 +106,9 @@ function hoursNeeded(qty) {
 }
 
 const W_CODES = { 0: 'Clear', 1: 'Mainly Clear', 2: 'Partly Cloudy', 3: 'Overcast', 45: 'Foggy', 48: 'Fog', 51: 'Lt Drizzle', 53: 'Drizzle', 55: 'Hvy Drizzle', 61: 'Lt Rain', 63: 'Rain', 65: 'Hvy Rain', 80: 'Lt Showers', 81: 'Showers', 82: 'Hvy Showers', 95: 'T-Storm', 96: 'T-Storm+Hail', 99: 'Hvy T-Storm' };
-const W_ICONS = { 0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️', 45: '🌫️', 48: '🌫️', 51: '🌦️', 53: '🌧️', 55: '🌧️', 61: '🌦️', 63: '🌧️', 65: '🌧️', 80: '🌦️', 81: '🌧️', 82: '⛈️', 95: '⚡', 96: '⚡', 99: '⚡' };
+// Vector icon NAMES (src/components/Icon.jsx), not emoji -- rendered at
+// the one call site (the weather strip) via <Icon name={w.icon} />.
+const W_ICONS = { 0: 'sun', 1: 'sunCloud', 2: 'sunCloud', 3: 'cloudy', 45: 'fog', 48: 'fog', 51: 'rain', 53: 'rain', 55: 'rain', 61: 'rain', 63: 'rain', 65: 'rain', 80: 'rain', 81: 'rain', 82: 'storm', 95: 'bolt', 96: 'bolt', 99: 'bolt' };
 
 // ════════════════════════════════════════════════════════
 //  PAGE-SPECIFIC STYLES (carried over from legacy booking.html)
@@ -347,7 +350,7 @@ function Booking({ session, userName }) {
         isToday: ds === fs,
         name: dl,
         date: dd,
-        icon: W_ICONS[code] || '☁️',
+        icon: W_ICONS[code] || 'cloudy',
         desc: W_CODES[code] || 'Cloudy',
         hi,
         lo,
@@ -690,7 +693,8 @@ function Booking({ session, userName }) {
     setSelectedBooking(null);
   }
 
-  const detStatusMap = { booked: '🟢 Booked', completed: '🟦 Collected', cancelled: '🟥 Cancelled', pending: '⏳ Pending' };
+  const detStatusMap = { booked: 'Booked', completed: 'Collected', cancelled: 'Cancelled', pending: 'Pending' };
+  const DET_STATUS_DOT = { booked: 'bg-emerald-500', completed: 'bg-blue-500', cancelled: 'bg-red-500', pending: 'bg-amber-400' };
   const detIsDone = selectedBooking && (selectedBooking.status === 'completed' || selectedBooking.status === 'cancelled');
   const detIsPending = selectedBooking && selectedBooking.status === 'pending';
 
@@ -808,9 +812,9 @@ function Booking({ session, userName }) {
 
   const boardColumns = useMemo(() => {
     const nurseries = nurseryOptions.slice(0, 3);
-    const cols = [{ id: 'pending', label: '⏳ Pending', type: 'pending', nurseryName: null }];
+    const cols = [{ id: 'pending', icon: 'clock', label: 'Pending', type: 'pending', nurseryName: null }];
     nurseries.forEach((n) => {
-      cols.push({ id: 'nursery-' + n.replace(/[^a-zA-Z0-9]/g, '_'), label: '🌱 ' + n, type: 'nursery', nurseryName: n });
+      cols.push({ id: 'nursery-' + n.replace(/[^a-zA-Z0-9]/g, '_'), icon: 'seedling', label: n, type: 'nursery', nurseryName: n });
     });
     return cols;
   }, [nurseryOptions]);
@@ -933,9 +937,9 @@ function Booking({ session, userName }) {
                 <div key={w.ds} className={`weather-day ${w.isToday ? 'today' : ''}`}>
                   <div className="weather-day-name">{w.name}</div>
                   <div style={{ fontSize: '8px', color: '#cbd5e1', fontWeight: 700 }}>{w.date}</div>
-                  <div className="weather-day-icon">{w.icon}</div>
+                  <div className="weather-day-icon"><Icon name={w.icon} className="w-6 h-6 mx-auto text-slate-500" /></div>
                   <div className="weather-day-temp">{w.hi}°/{w.lo}°</div>
-                  <div className={`weather-day-rain ${w.rainHigh ? 'high' : ''}`}>💧 {w.rain}%</div>
+                  <div className={`weather-day-rain ${w.rainHigh ? 'high' : ''}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}><Icon name="drop" className="w-3 h-3" /> {w.rain}%</div>
                   <div className="weather-day-desc">{w.desc}</div>
                 </div>
               ))}
@@ -1016,7 +1020,7 @@ function Booking({ session, userName }) {
         <div className="modal-box" onClick={(e) => e.stopPropagation()}>
           <div style={{ background: 'linear-gradient(135deg,#064e3b,#065f46)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
             <div>
-              <div className="text-base font-black text-emerald-300 uppercase tracking-widest mb-1">📅 Collection Time Slot Booking</div>
+              <div className="text-base font-black text-emerald-300 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Icon name="calendar" className="w-4 h-4" /> Collection Time Slot Booking</div>
             </div>
             <button onClick={closeBookingModal} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4">×</button>
           </div>
@@ -1165,7 +1169,7 @@ function Booking({ session, userName }) {
           <div className="px-5 sm:px-6 pb-6 flex flex-col sm:flex-row gap-3 justify-end border-t border-slate-100 pt-5">
             <button onClick={closeBookingModal} className="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-full border border-slate-200 cursor-pointer transition-colors">Cancel</button>
             <button onClick={submitBooking} disabled={!bookingReady || bkSaving} className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-[11px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
-              {bkSaving ? 'Saving…' : '📅 Confirm Booking'}
+              {bkSaving ? 'Saving…' : (<><Icon name="calendar" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Confirm Booking</>)}
             </button>
           </div>
         </div>
@@ -1176,7 +1180,7 @@ function Booking({ session, userName }) {
         <div className="modal-box" style={{ maxWidth: '560px' }} onClick={(e) => e.stopPropagation()}>
           <div style={{ background: 'linear-gradient(135deg,#1e3a8a,#1d4ed8)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
             <div>
-              <div className="text-[10px] font-black text-blue-300 uppercase tracking-widest mb-1">📅 Edit Booking</div>
+              <div className="text-[10px] font-black text-blue-300 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Icon name="calendar" className="w-3.5 h-3.5" /> Edit Booking</div>
               <div className="text-lg font-black text-white">{selectedBooking?.customer_name || '—'}</div>
             </div>
             <button onClick={closeDetailModal} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4">×</button>
@@ -1190,11 +1194,14 @@ function Booking({ session, userName }) {
                   { label: 'AL Number', value: selectedBooking.al_number || '—' },
                   { label: 'Order #', value: selectedBooking.order_number || '—' },
                   { label: 'Customer', value: selectedBooking.customer_name || '—' },
-                  { label: 'Status', value: detStatusMap[selectedBooking.status] || selectedBooking.status },
+                  { label: 'Status', value: detStatusMap[selectedBooking.status] || selectedBooking.status, dot: DET_STATUS_DOT[selectedBooking.status] },
                 ].map((f) => (
                   <div key={f.label} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                     <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{f.label}</div>
-                    <div className="font-black text-slate-800 text-sm leading-snug">{f.value}</div>
+                    <div className="font-black text-slate-800 text-sm leading-snug flex items-center gap-1.5">
+                      {f.dot && <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${f.dot}`} />}
+                      {f.value}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1257,7 +1264,7 @@ function Booking({ session, userName }) {
             {detIsPending && (
               <div className="border-t border-amber-200 pt-4">
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-3">
-                  <div className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-2">⚠️ Pending Customer Booking — Match with AL</div>
+                  <div className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Icon name="warning" className="w-3.5 h-3.5" /> Pending Customer Booking — Match with AL</div>
                   <p className="text-xs font-bold text-amber-600 mb-3">
                     Customer entered: <span className="text-slate-800 font-black">{selectedBooking?.customer_name || '—'}</span>. Match to an existing AL before confirming.
                   </p>
@@ -1293,7 +1300,7 @@ function Booking({ session, userName }) {
                   </div>
                   {matchedALForConfirm && (
                     <div className="mt-2 text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2">
-                      ✅ Matched: <strong>{matchedALForConfirm.al_number}</strong> — {matchedALForConfirm.customer_name || ''} (Order: {matchedALForConfirm.order_number || '—'}, Balance: {Number(matchedALForConfirm.balance_quantity || 0).toLocaleString()})
+                      <Icon name="checkCircle" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Matched: <strong>{matchedALForConfirm.al_number}</strong> — {matchedALForConfirm.customer_name || ''} (Order: {matchedALForConfirm.order_number || '—'}, Balance: {Number(matchedALForConfirm.balance_quantity || 0).toLocaleString()})
                     </div>
                   )}
                 </div>
@@ -1303,17 +1310,17 @@ function Booking({ session, userName }) {
 
           <div className="px-5 sm:px-6 pb-6 flex flex-col sm:flex-row gap-3 justify-end border-t border-slate-100 pt-5">
             {!detIsDone && (
-              <button onClick={cancelBooking} className="text-[10px] font-black text-red-600 hover:text-white hover:bg-red-600 uppercase tracking-widest bg-red-50 px-5 py-3 rounded-xl border border-red-200 cursor-pointer transition-colors">❌ Cancel Booking</button>
+              <button onClick={cancelBooking} className="text-[10px] font-black text-red-600 hover:text-white hover:bg-red-600 uppercase tracking-widest bg-red-50 px-5 py-3 rounded-xl border border-red-200 cursor-pointer transition-colors flex items-center gap-1.5"><Icon name="close" className="w-3.5 h-3.5" /> Cancel Booking</button>
             )}
             <button onClick={closeDetailModal} className="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-5 py-3 rounded-full border border-slate-200 cursor-pointer transition-colors">Close</button>
             {!detIsDone && (
               <button onClick={saveBookingEdit} disabled={detSaving} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-[10px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
-                {detSaving ? 'Saving…' : '💾 Save Changes'}
+                {detSaving ? 'Saving…' : (<><Icon name="save" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Save Changes</>)}
               </button>
             )}
             {detIsPending && (
               <button onClick={confirmPendingBooking} disabled={!matchedALForConfirm || detConfirming} className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors" style={{ opacity: matchedALForConfirm ? 1 : 0.4 }}>
-                {detConfirming ? 'Confirming…' : '✅ Confirm Booking'}
+                {detConfirming ? 'Confirming…' : (<><Icon name="checkCircle" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Confirm Booking</>)}
               </button>
             )}
           </div>
@@ -1325,7 +1332,7 @@ function Booking({ session, userName }) {
         <div className="modal-box" style={{ maxWidth: '900px' }} onClick={(e) => e.stopPropagation()}>
           <div style={{ background: 'linear-gradient(135deg,#0f172a,#1e293b)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
             <div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">📅 Day View — Nursery Allocation</div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Icon name="calendar" className="w-3.5 h-3.5" /> Day View — Nursery Allocation</div>
               <div className="text-lg font-black text-white">{dayModalTitle}</div>
             </div>
             <div className="flex items-center gap-2">
@@ -1351,8 +1358,8 @@ function Booking({ session, userName }) {
                       onDragLeave={(e) => boardDragLeave(e, col.id)}
                       onDrop={(e) => boardDrop(e, col.nurseryName || '')}
                     >
-                      <div className="alloc-col-header">
-                        {col.label}
+                      <div className="alloc-col-header flex items-center gap-1.5">
+                        <Icon name={col.icon} className="w-3.5 h-3.5 shrink-0" /> {col.label}
                         <span className="alloc-count">({colBookings.length})</span>
                       </div>
                       {totalQty > 0 && (
@@ -1372,7 +1379,7 @@ function Booking({ session, userName }) {
                         return (
                           <div key={b.id}>
                             {showSep && (
-                              <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest px-2 py-1 mt-1 bg-slate-100 rounded-md">⏰ {timeLabel}</div>
+                              <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest px-2 py-1 mt-1 bg-slate-100 rounded-md flex items-center gap-1"><Icon name="clock" className="w-2.5 h-2.5" /> {timeLabel}</div>
                             )}
                             <div
                               className={`alloc-card ${b.status === 'pending' ? 'status-pending' : 'status-booked'} ${draggingId === b.id ? 'dragging' : ''}`}
@@ -1408,8 +1415,8 @@ function Booking({ session, userName }) {
                                   ))}
                                 </CfSelect>
                               </div>
-                              {b.plot_name && <div className="text-[9px] font-bold text-emerald-600 mt-1">📍 {b.plot_name}</div>}
-                              {b.status === 'pending' && <div className="text-[9px] font-black text-amber-600 mt-1">⚠️ Awaiting confirmation</div>}
+                              {b.plot_name && <div className="text-[9px] font-bold text-emerald-600 mt-1 flex items-center gap-1"><Icon name="pin" className="w-2.5 h-2.5" /> {b.plot_name}</div>}
+                              {b.status === 'pending' && <div className="text-[9px] font-black text-amber-600 mt-1 flex items-center gap-1"><Icon name="warning" className="w-2.5 h-2.5" /> Awaiting confirmation</div>}
                             </div>
                           </div>
                         );

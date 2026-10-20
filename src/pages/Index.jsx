@@ -63,7 +63,7 @@ function SyncCard() {
           ) : busy ? (
             <span className="text-[10px] font-black text-sky-600 uppercase tracking-widest">Syncing…</span>
           ) : stamp ? (
-            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">✓ Last sync: {fmtWhen(stamp.at)}</span>
+            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest inline-flex items-center gap-1"><Icon name="check" className="w-3 h-3" /> Last sync: {fmtWhen(stamp.at)}</span>
           ) : (
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Not synced yet</span>
           )}

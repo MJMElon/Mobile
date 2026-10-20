@@ -106,7 +106,7 @@ function dueText(d) {
     /* keep the ISO string */
   }
   return d < todayISO()
-    ? <span className="nelos-due-over">⏰ overdue {label}</span>
+    ? <span className="nelos-due-over inline-flex items-center gap-1"><Icon name="clock" className="w-3 h-3" /> overdue {label}</span>
     : <span className="whitespace-nowrap">due {label}</span>;
 }
 
@@ -368,7 +368,7 @@ export default function NelosBlock() {
           the same news. */}
       {!!over.length && (
         <>
-          <div className="nelos-sec nelos-sec-over">⏰ Overdue · {over.length}</div>
+          <div className="nelos-sec nelos-sec-over flex items-center gap-1.5"><Icon name="clock" className="w-3.5 h-3.5" /> Overdue · {over.length}</div>
           {over.map((c) => <Row key={c.id} c={c} onOpen={setOpenId} />)}
         </>
       )}
