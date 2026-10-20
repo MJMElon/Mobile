@@ -471,7 +471,7 @@ function Consent({ session, userName }) {
     const g = [];
     if (lower.length >= 1 && matched.length) g.push({ icon: 'search', label: 'Search Match', rows: matched, theme: 'amber' });
     if ((activeTab === 'all' || activeTab === 'consent') && hasConsent.length) g.push({ icon: 'checkCircle', label: 'Consent Issued', rows: hasConsent, theme: 'emerald' });
-    if ((activeTab === 'all' || activeTab === 'pending') && noneYet.length) g.push({ icon: 'clipboard', label: 'Awaiting Consent', rows: noneYet, theme: 'blue' });
+    if ((activeTab === 'all' || activeTab === 'pending') && noneYet.length) g.push({ icon: 'clipboard', label: 'Awaiting Consent', rows: noneYet, theme: 'red' });
     if ((activeTab === 'all' || activeTab === 'completed') && completedGroup.length) g.push({ icon: 'check', label: 'Completed - Last ' + COMPLETED_WINDOW_DAYS + ' days', rows: completedGroup, theme: 'slate' });
     return g;
   }, [alData, completedData, liveMatches, consentCountMap, query, activeTab]);
@@ -480,6 +480,7 @@ function Consent({ session, userName }) {
     amber: { header: 'bg-amber-50 text-amber-700 border-amber-200', row: 'bg-amber-50/60', bal: 'text-amber-700', border: 'border-l-4 border-amber-400' },
     emerald: { header: 'bg-emerald-50 text-emerald-700 border-emerald-200', row: 'bg-emerald-50/50', bal: 'text-emerald-700', border: 'border-l-4 border-emerald-500' },
     blue: { header: 'bg-blue-50 text-blue-700 border-blue-200', row: 'bg-blue-50/50', bal: 'text-blue-700', border: 'border-l-4 border-blue-400' },
+    red: { header: 'bg-red-50 text-red-700 border-red-200', row: 'bg-red-50/50', bal: 'text-red-700', border: 'border-l-4 border-red-400' },
     slate: { header: 'bg-slate-100 text-slate-600 border-slate-300', row: 'bg-slate-50/60', bal: 'text-slate-500', border: 'border-l-4 border-slate-300' },
   };
 
@@ -1032,8 +1033,13 @@ function Consent({ session, userName }) {
                                   </td>
                                   <td>{count > 0 ? <span className="badge-signed">{count} signed</span> : <span className="badge-pending">None</span>}</td>
                                   <td>
-                                    <button className="btn-consent" onClick={() => openConsentModal(r.al_number)}>
-                                      {isCompleted ? (<><Icon name="document" className="w-3.5 h-3.5 inline-block align-[-3px]" /> View Consent Log</>) : (<><Icon name="pen" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Sign Consent</>)}
+                                    <button
+                                      className="btn-consent inline-flex items-center justify-center"
+                                      onClick={() => openConsentModal(r.al_number)}
+                                      title={isCompleted ? 'View Consent Log' : 'Sign Consent'}
+                                      aria-label={isCompleted ? 'View Consent Log' : 'Sign Consent'}
+                                    >
+                                      <Icon name={isCompleted ? 'document' : 'pen'} className="w-4 h-4" />
                                     </button>
                                   </td>
                                 </tr>
