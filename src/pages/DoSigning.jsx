@@ -11,6 +11,7 @@ import AuthGate from '../components/AuthGate';
 import TopNav from '../components/TopNav';
 import SignaturePad from '../components/SignaturePad';
 import { useToast } from '../components/Toast';
+import Icon from '../components/Icon.jsx';
 
 export default function DoSigningPage() {
   return <AuthGate>{({ session, userName }) => <DoSigning session={session} userName={userName} />}</AuthGate>;
@@ -243,9 +244,9 @@ function DoSigning({ session, userName }) {
       else activePending.push(r);
     });
     const g = [];
-    if (lower.length >= 1 && matched.length) g.push({ label: '🔍 Search Match', rows: matched, theme: 'amber' });
-    if (consentSigned.length) g.push({ label: '✅ Consent Signed — Awaiting Collection', rows: consentSigned, theme: 'emerald' });
-    if (activePending.length) g.push({ label: '📋 Active AL — Consent Pending', rows: activePending, theme: 'blue' });
+    if (lower.length >= 1 && matched.length) g.push({ icon: 'search', label: 'Search Match', rows: matched, theme: 'amber' });
+    if (consentSigned.length) g.push({ icon: 'checkCircle', label: 'Consent Signed — Awaiting Collection', rows: consentSigned, theme: 'emerald' });
+    if (activePending.length) g.push({ icon: 'clipboard', label: 'Active AL — Consent Pending', rows: activePending, theme: 'blue' });
     return g;
   }, [alData, consentALSet, query]);
 
@@ -626,7 +627,7 @@ function DoSigning({ session, userName }) {
 
       <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-8 space-y-5" style={{ background: '#f1f5f9', minHeight: 'calc(100vh - 65px)' }}>
         <div className="dash-card p-5 sm:p-6">
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">🔍 Search Order Number / Customer Name</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5"><Icon name="search" className="w-3.5 h-3.5" /> Search Order Number / Customer Name</div>
           <div className="flex gap-3 mb-5">
             <input
               type="text"
@@ -652,7 +653,7 @@ function DoSigning({ session, userName }) {
             <div className="text-center py-8 text-red-400 text-xs font-bold">{loadErr}</div>
           ) : !groups.length ? (
             <div className="text-center py-12">
-              <div className="text-4xl mb-3">📭</div>
+              <Icon name="inboxEmpty" className="w-10 h-10 mx-auto mb-3 text-slate-300" />
               <div className="text-[11px] font-black text-slate-300 uppercase tracking-widest">No active approval letters found</div>
             </div>
           ) : isMobile ? (
@@ -660,7 +661,7 @@ function DoSigning({ session, userName }) {
               const t = themeMap[g.theme];
               return (
                 <div className="mb-5" key={g.label}>
-                  <div className={`text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl border mb-3 ${t.header}`}>{g.label} ({g.rows.length})</div>
+                  <div className={`text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl border mb-3 ${t.header}`}><Icon name={g.icon} className="w-3 h-3 inline-block align-[-2px]" /> {g.label} ({g.rows.length})</div>
                   {g.rows.map((r) => (
                     <div key={r.id} className={`bg-white rounded-2xl p-4 mb-2 shadow-sm border border-slate-200 ${t.border}`}>
                       <div className="flex justify-between items-start mb-2">
@@ -670,7 +671,7 @@ function DoSigning({ session, userName }) {
                         </div>
                         <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full border ${t.header}`}>{r.status || 'Unverified'}</span>
                       </div>
-                      <div className="text-xs font-bold text-slate-400 mb-3">📋 {r.order_number || '—'} &nbsp;·&nbsp; Qty: {r.quantity_ordered != null ? r.quantity_ordered.toLocaleString() : '—'} &nbsp;·&nbsp; Bal: <span className={`${t.bal} font-black`}>{r.balance_quantity != null ? r.balance_quantity.toLocaleString() : '—'}</span></div>
+                      <div className="text-xs font-bold text-slate-400 mb-3"><Icon name="clipboard" className="w-3 h-3 inline-block align-[-1px]" /> {r.order_number || '—'} &nbsp;·&nbsp; Qty: {r.quantity_ordered != null ? r.quantity_ordered.toLocaleString() : '—'} &nbsp;·&nbsp; Bal: <span className={`${t.bal} font-black`}>{r.balance_quantity != null ? r.balance_quantity.toLocaleString() : '—'}</span></div>
                       <div className="flex gap-2">
                         <button className="btn-open flex-1 text-center" onClick={() => manageDOs(r.al_number)}>Manage DOs</button>
                         <button onClick={() => openCamera(r.al_number)} title="Add DO via camera scan" className="shrink-0 flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-xl border-none cursor-pointer transition-colors">
@@ -691,7 +692,7 @@ function DoSigning({ session, userName }) {
                     const t = themeMap[g.theme];
                     return (
                       <Fragment key={g.label}>
-                        <tr><td colSpan={6} className={`py-2 px-4 text-[9px] font-black uppercase tracking-widest ${t.header} border-b`}>{g.label} &nbsp;({g.rows.length})</td></tr>
+                        <tr><td colSpan={6} className={`py-2 px-4 text-[9px] font-black uppercase tracking-widest ${t.header} border-b`}><Icon name={g.icon} className="w-3 h-3 inline-block align-[-2px]" /> {g.label} &nbsp;({g.rows.length})</td></tr>
                         {g.rows.map((r) => (
                           <tr key={r.id} className={t.row}>
                             <td><span className="font-black text-slate-800">{r.al_number || '—'}</span></td>
@@ -725,10 +726,10 @@ function DoSigning({ session, userName }) {
         <div className="modal-box" onClick={(e) => e.stopPropagation()}>
           <div style={{ background: 'linear-gradient(135deg,#1e3a8a,#1d4ed8)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
             <div>
-              <div className="text-[10px] font-black text-blue-300 uppercase tracking-widest mb-1">📋 Delivery Orders</div>
+              <div className="text-[10px] font-black text-blue-300 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Icon name="clipboard" className="w-3.5 h-3.5" /> Delivery Orders</div>
               <div className="text-xl font-black text-white tracking-wide">Manage DOs for {activeAL?.al_number || '—'}</div>
             </div>
-            <button onClick={() => setManageOpen(false)} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4">✕</button>
+            <button onClick={() => setManageOpen(false)} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4"><Icon name="close" className="w-4 h-4" /></button>
           </div>
 
           <div className="p-5 sm:p-6 space-y-6">
@@ -767,7 +768,7 @@ function DoSigning({ session, userName }) {
                     ) : doErr ? (
                       <tr><td colSpan={6} className="text-center py-6 text-red-400 text-xs font-bold">{doErr}</td></tr>
                     ) : !doRows.length ? (
-                      <tr><td colSpan={6} className="text-center py-10"><div className="text-3xl mb-2">📭</div><div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No DOs issued yet for this AL</div></td></tr>
+                      <tr><td colSpan={6} className="text-center py-10"><Icon name="inboxEmpty" className="w-8 h-8 mx-auto mb-2 text-slate-300" /><div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No DOs issued yet for this AL</div></td></tr>
                     ) : (
                       doRows.map((d) => <DoRow key={d.id} d={d} plotMap={plotMap} onPrint={() => doPrint(d)} onManageWorkers={() => openWorkerTick(d)} />)
                     )}
@@ -783,7 +784,7 @@ function DoSigning({ session, userName }) {
 
             {/* Consents */}
             <div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">✍️ Signed Consent Records</div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5"><Icon name="pen" className="w-3.5 h-3.5" /> Signed Consent Records</div>
               <ConsentArea consents={consents} err={consentErr} />
             </div>
           </div>
@@ -797,7 +798,7 @@ function DoSigning({ session, userName }) {
       {/* CHOICE MODAL */}
       <div className={`modal-overlay ${choiceOpen ? 'open' : ''}`} onClick={() => setChoiceOpen(false)}>
         <div className="bg-white rounded-3xl p-7 w-full max-w-sm shadow-2xl text-center" onClick={(e) => e.stopPropagation()}>
-          <div className="text-3xl mb-2">📋</div>
+          <Icon name="clipboard" className="w-9 h-9 mx-auto mb-2 text-slate-400" />
           <div className="font-black text-slate-800 text-lg uppercase tracking-wide mb-1">Add New DO</div>
           <div className="text-xs font-bold text-slate-400 mb-1">{activeAL?.al_number || '—'} · {activeAL?.customer_name || '—'}</div>
           <div className="text-[11px] font-bold text-slate-300 mb-6">Order: {activeAL?.order_number || '—'}</div>
@@ -820,17 +821,17 @@ function DoSigning({ session, userName }) {
         <div className="modal-box" style={{ maxWidth: '720px' }} onClick={(e) => e.stopPropagation()}>
           <div style={{ background: 'linear-gradient(135deg,#0f172a,#1e293b)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
             <div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{scanPhoto ? '📷 AI-Powered Scan' : '✏️ Manual Entry'}</div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">{scanPhoto ? (<><Icon name="camera" className="w-3.5 h-3.5" /> AI-Powered Scan</>) : (<><Icon name="pen" className="w-3.5 h-3.5" /> Manual Entry</>)}</div>
               <div className="text-xl font-black text-white">New Delivery Order</div>
               <div className="text-[11px] font-bold text-slate-400 mt-1">
                 <span className="text-white font-black">{activeAL?.al_number || '—'}</span>
-                <span className="text-amber-400 mx-2">✦</span>
+                <span className="text-amber-400 mx-2">&middot;</span>
                 <span className="text-slate-300">{activeAL?.customer_name || '—'}</span>
-                <span className="text-amber-400 mx-2">✦</span>
+                <span className="text-amber-400 mx-2">&middot;</span>
                 <span className="text-slate-300">{activeAL?.order_number || '—'}</span>
               </div>
             </div>
-            <button onClick={closeScanModal} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4">✕</button>
+            <button onClick={closeScanModal} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4"><Icon name="close" className="w-4 h-4" /></button>
           </div>
 
           <div className="p-5 sm:p-6 space-y-5">
@@ -845,14 +846,14 @@ function DoSigning({ session, userName }) {
 
             {scanLoading ? (
               <div className="text-center py-8">
-                <div className="text-4xl mb-3">🤖</div>
+                <Icon name="sparkles" className="w-10 h-10 mx-auto mb-3 text-slate-400" />
                 <div className="text-[11px] font-black text-slate-500 uppercase tracking-widest">AI is reading the document…</div>
                 <div className="text-[10px] font-bold text-slate-300 mt-1">Extracting nursery, breed &amp; quantity</div>
               </div>
             ) : (
               <>
-                {scanNotice && <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">⚠️ AI could not read all fields — please fill in or correct manually below.</div>}
-                {scanAiBadge && <div className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 uppercase tracking-wider">✨ AI scan complete — verify the details below before saving.</div>}
+                {scanNotice && <div className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-1.5"><Icon name="warning" className="w-3.5 h-3.5 shrink-0 mt-px" /> <span>AI could not read all fields — please fill in or correct manually below.</span></div>}
+                {scanAiBadge && <div className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 uppercase tracking-wider flex items-start gap-1.5"><Icon name="sparkles" className="w-3.5 h-3.5 shrink-0 mt-px" /> <span>AI scan complete — verify the details below before saving.</span></div>}
 
                 <div className="space-y-5">
                   <div className="grid grid-cols-2 gap-4">
@@ -872,7 +873,7 @@ function DoSigning({ session, userName }) {
                       <input value={scanCustomer} onChange={(e) => setScanCustomer(e.target.value)} className="search-input text-sm flex-1" style={{ padding: '10px 14px' }} />
                       {customerMatch !== null && (
                         <div className={`shrink-0 text-[10px] font-black px-3 py-2 rounded-xl border ${customerMatch ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-amber-700 bg-amber-50 border-amber-200'}`}>
-                          {customerMatch ? '✓ Match' : '⚠ Mismatch'}
+                          {customerMatch ? (<><Icon name="check" className="w-3 h-3 inline-block align-[-2px]" /> Match</>) : (<><Icon name="warning" className="w-3 h-3 inline-block align-[-2px]" /> Mismatch</>)}
                         </div>
                       )}
                     </div>
@@ -902,7 +903,7 @@ function DoSigning({ session, userName }) {
                               <td className="p-2 text-center text-[10px] font-black text-slate-400 w-6">{i + 1}</td>
                               <td className="p-1.5">
                                 <input list="nursery-list" value={it.nursery} onChange={(e) => updateItem(it.id, 'nursery', e.target.value)} placeholder="Nursery / Farm" className="search-input text-xs w-full" style={{ padding: '7px 10px' }} />
-                                {it.aiTagged && <span className="text-[9px] text-emerald-600 font-black"> ✨AI</span>}
+                                {it.aiTagged && <span className="text-[9px] text-emerald-600 font-black inline-flex items-center gap-0.5"> <Icon name="sparkles" className="w-2.5 h-2.5" />AI</span>}
                               </td>
                               <td className="p-1.5">
                                 <input list="breed-list" value={it.breed} onChange={(e) => updateItem(it.id, 'breed', e.target.value)} placeholder="Breed / Plant" className="search-input text-xs w-full" style={{ padding: '7px 10px' }} />
@@ -925,18 +926,18 @@ function DoSigning({ session, userName }) {
                   </div>
 
                   <div className="border-t border-slate-100 pt-5">
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">✍️ Customer Signature</div>
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Icon name="pen" className="w-3.5 h-3.5" /> Customer Signature</div>
                     <p className="text-[10px] font-bold text-slate-300 mb-3">By signing, the customer acknowledges receipt of the above items in good condition.</p>
                     {scanOpen && <SignaturePad ref={scanSigRef} height={160} hint="Touch or click here to sign" onSignedAt={(d) => setScanSigTime(d.toLocaleDateString('en-MY') + ' ' + d.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' }))} />}
                     <div className="flex justify-between items-center mt-2">
-                      <button onClick={() => { scanSigRef.current?.clear(); setScanSigTime(''); }} className="text-[10px] font-black text-slate-400 hover:text-red-500 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer transition-colors">✕ Clear</button>
+                      <button onClick={() => { scanSigRef.current?.clear(); setScanSigTime(''); }} className="text-[10px] font-black text-slate-400 hover:text-red-500 uppercase tracking-widest bg-slate-50 px-4 py-2 rounded-full border border-slate-200 cursor-pointer transition-colors"><Icon name="close" className="w-3 h-3 inline-block align-[-2px]" /> Clear</button>
                       <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{scanSigTime}</span>
                     </div>
                   </div>
 
                   <div className="flex gap-3 justify-end pt-1 border-t border-slate-100">
                     <button onClick={closeScanModal} className="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-5 py-2.5 rounded-full border border-slate-200 cursor-pointer transition-colors">Cancel</button>
-                    <button onClick={saveScanDO} disabled={savingScan} className="text-[10px] font-black text-white uppercase tracking-widest bg-emerald-600 hover:bg-emerald-700 px-7 py-2.5 rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50">{savingScan ? 'Saving…' : '💾 Save & Sign DO'}</button>
+                    <button onClick={saveScanDO} disabled={savingScan} className="text-[10px] font-black text-white uppercase tracking-widest bg-emerald-600 hover:bg-emerald-700 px-7 py-2.5 rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50">{savingScan ? 'Saving…' : (<><Icon name="save" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Save & Sign DO</>)}</button>
                   </div>
                 </div>
               </>
@@ -950,22 +951,22 @@ function DoSigning({ session, userName }) {
         <div className="modal-box" style={{ maxWidth: '640px' }} onClick={(e) => e.stopPropagation()}>
           <div style={{ background: 'linear-gradient(135deg,#065f46,#059669)' }} className="p-6 rounded-t-[24px] flex justify-between items-start">
             <div>
-              <div className="text-[10px] font-black text-emerald-200 uppercase tracking-widest mb-1">👷 Who Loaded This DO</div>
+              <div className="text-[10px] font-black text-emerald-200 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Icon name="worker" className="w-3.5 h-3.5" /> Who Loaded This DO</div>
               <div className="text-lg font-black text-white">{wtDO?.do_number || '—'}</div>
-              <div className="text-[11px] font-bold text-emerald-200 mt-1">Leave blank if nobody has been ticked yet — Manage DOs' 👷 button brings you back here.</div>
+              <div className="text-[11px] font-bold text-emerald-200 mt-1">Leave blank if nobody has been ticked yet — Manage DOs' worker button brings you back here.</div>
             </div>
-            <button onClick={() => !wtSaving && skipWorkerTick()} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4">✕</button>
+            <button onClick={() => !wtSaving && skipWorkerTick()} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-lg flex items-center justify-center transition-colors shrink-0 ml-4"><Icon name="close" className="w-4 h-4" /></button>
           </div>
 
           <div className="p-5 sm:p-6 space-y-5">
             {wtDO?.worked_by_locked_at && !isAdmin && (
               <div className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                🔒 Locked — saved by {wtDO.worked_by_locked_by || 'someone'} on {new Date(wtDO.worked_by_locked_at).toLocaleString('en-MY')}. Only an admin can change this.
+                <Icon name="lock" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Locked — saved by {wtDO.worked_by_locked_by || 'someone'} on {new Date(wtDO.worked_by_locked_at).toLocaleString('en-MY')}. Only an admin can change this.
               </div>
             )}
             {wtDO?.worked_by_locked_at && isAdmin && (
               <div className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-                🔓 Normally locked (saved by {wtDO.worked_by_locked_by || 'someone'} on {new Date(wtDO.worked_by_locked_at).toLocaleString('en-MY')}) — you can change it as an admin.
+                <Icon name="unlock" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Normally locked (saved by {wtDO.worked_by_locked_by || 'someone'} on {new Date(wtDO.worked_by_locked_at).toLocaleString('en-MY')}) — you can change it as an admin.
               </div>
             )}
 
@@ -988,7 +989,7 @@ function DoSigning({ session, userName }) {
                           onClick={() => removeNursery(key)}
                           className="w-5 h-5 rounded-md bg-white border border-slate-200 text-slate-400 hover:text-slate-700 text-[11px] font-black leading-none flex items-center justify-center cursor-pointer"
                         >
-                          ✕
+                          <Icon name="close" className="w-3 h-3" />
                         </button>
                       )}
                     </div>
@@ -1007,7 +1008,7 @@ function DoSigning({ session, userName }) {
                                 on ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-200 text-slate-700'
                               } ${wtLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                             >
-                              {on && '✓ '}
+                              {on && <Icon name="check" className="w-3 h-3 inline-block align-[-2px] mr-0.5" />}
                               {w.full_name}
                             </button>
                           );
@@ -1046,7 +1047,7 @@ function DoSigning({ session, userName }) {
           <div className="px-5 sm:px-6 pb-6 flex flex-col sm:flex-row gap-3 justify-end border-t border-slate-100 pt-5">
             <button onClick={skipWorkerTick} disabled={wtSaving} className="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 px-6 py-3 rounded-full border border-slate-200 cursor-pointer transition-colors disabled:opacity-50">Skip for now</button>
             <button onClick={saveWorkerTick} disabled={wtSaving || wtLocked} className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-[11px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">
-              {wtSaving ? 'Saving…' : '💾 Save & Lock'}
+              {wtSaving ? 'Saving…' : (<><Icon name="save" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Save & Lock</>)}
             </button>
           </div>
         </div>
@@ -1055,12 +1056,12 @@ function DoSigning({ session, userName }) {
       {/* PRINT PROMPT */}
       <div className={`modal-overlay ${printPrompt ? 'open' : ''}`}>
         <div className="bg-white rounded-3xl p-7 w-full max-w-sm shadow-2xl text-center">
-          <div className="text-4xl mb-3">🖨️</div>
+          <Icon name="printer" className="w-10 h-10 mx-auto mb-3 text-slate-400" />
           <div className="font-black text-slate-800 text-lg uppercase tracking-wide mb-1">DO Saved!</div>
           <div className="text-sm font-bold text-slate-500 mb-1">{printPrompt?.doNum || '—'}</div>
           <div className="text-xs font-bold text-slate-400 mb-6">Print this DO for the customer?</div>
           <div className="flex flex-col gap-3">
-            <button onClick={() => { const p = printPrompt; setPrintPrompt(null); if (p) doPrint(p.rec, p.sig, p.photo); }} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors">🖨️ Yes — Print PDF</button>
+            <button onClick={() => { const p = printPrompt; setPrintPrompt(null); if (p) doPrint(p.rec, p.sig, p.photo); }} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] uppercase tracking-widest rounded-xl border-none cursor-pointer transition-colors flex items-center justify-center gap-1.5"><Icon name="printer" className="w-4 h-4" /> Yes — Print PDF</button>
             <button onClick={() => { setPrintPrompt(null); showToast('DO saved!'); }} className="w-full py-2.5 text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest bg-slate-50 border border-slate-200 rounded-xl cursor-pointer transition-colors">Maybe Later</button>
           </div>
         </div>
@@ -1099,7 +1100,7 @@ function DoRow({ d, plotMap, onPrint, onManageWorkers }) {
         {/* The seals scanned onto this DO at the lorry (FC Portal writes them). */}
         {SHOW_SEALS_ON_DO && Array.isArray(d.seal_ranges) && d.seal_ranges.length > 0 && (
           <div className="text-[10px] font-mono font-bold text-slate-500 mt-1 leading-snug break-words" style={{ maxWidth: '220px' }}>
-            🔖 {formatSealRanges(d.seal_ranges)}
+            <Icon name="tag" className="w-3 h-3 inline-block align-[-2px]" /> {formatSealRanges(d.seal_ranges)}
             <span className="font-sans text-slate-400"> · {(d.seal_qty ?? d.seal_ranges.reduce((s2, r) => s2 + (r.qty || rangeQty(r.start, r.end)), 0)).toLocaleString()} seals</span>
           </div>
         )}
@@ -1120,9 +1121,9 @@ function DoRow({ d, plotMap, onPrint, onManageWorkers }) {
             <PrintIcon />
           </button>
           <button onClick={onManageWorkers} title={workersTitle} className={`w-11 h-11 rounded-lg border flex items-center justify-center cursor-pointer transition-colors shrink-0 relative ${d.worked_by_locked_at ? 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100' : 'border-slate-200 bg-slate-50 hover:border-amber-400 hover:bg-amber-50'}`}>
-            <span className="text-lg leading-none">👷</span>
+            <Icon name="worker" className="w-4 h-4" />
             {d.worked_by_locked_at ? (
-              <span className="absolute -top-1 -right-1 text-[10px]">🔒</span>
+              <Icon name="lock" className="w-3 h-3 absolute -top-1 -right-1 text-emerald-700 bg-white rounded-full" />
             ) : !workerCount ? (
               <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border border-white" />
             ) : null}
@@ -1139,7 +1140,7 @@ function ConsentArea({ consents, err }) {
   if (!consents.length)
     return (
       <div className="text-center py-5 bg-slate-50 rounded-xl border border-slate-100">
-        <div className="text-2xl mb-2">📋</div>
+        <Icon name="clipboard" className="w-7 h-7 mx-auto mb-2 text-slate-300" />
         <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No consent records for this AL</div>
       </div>
     );
@@ -1163,14 +1164,14 @@ function ConsentArea({ consents, err }) {
             </div>
             {c.ai_sticker_count != null && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 inline-flex items-center gap-2 mt-2">
-                <span className="text-[9px] font-black text-blue-700 uppercase tracking-widest">🤖 AI Count:</span>
+                <span className="text-[9px] font-black text-blue-700 uppercase tracking-widest flex items-center gap-1"><Icon name="sparkles" className="w-3 h-3" /> AI Count:</span>
                 <span className="font-black text-blue-700">{c.ai_sticker_count.toLocaleString()}</span>
               </div>
             )}
             {Array.isArray(c.seal_ranges) && c.seal_ranges.length > 0 && (
               <div className="mt-2">
                 <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                  🔖 Seals Issued — {c.seal_ranges.reduce((sum, r) => sum + rangeQty(r.start, r.end), 0).toLocaleString()}
+                  <Icon name="tag" className="w-3 h-3 inline-block align-[-2px]" /> Seals Issued — {c.seal_ranges.reduce((sum, r) => sum + rangeQty(r.start, r.end), 0).toLocaleString()}
                 </div>
                 <div className="text-[11px] font-mono font-bold text-slate-600 break-words">{formatSealRanges(c.seal_ranges)}</div>
                 {c.seal_photo_url && (
@@ -1180,13 +1181,13 @@ function ConsentArea({ consents, err }) {
             )}
             {c.photo_url && (
               <div className="mt-2">
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">📷 Sticker Photo</div>
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1"><Icon name="camera" className="w-3 h-3" /> Sticker Photo</div>
                 <img src={c.photo_url} className="rounded-xl border border-slate-200" style={{ maxHeight: '120px', maxWidth: '100%', objectFit: 'contain' }} alt="Sticker" />
               </div>
             )}
             {c.signature_data && (
               <div className="mt-2">
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">✍️ Signature</div>
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1"><Icon name="pen" className="w-3 h-3" /> Signature</div>
                 <img src={c.signature_data} style={{ height: '48px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc' }} alt="Signature" />
               </div>
             )}
