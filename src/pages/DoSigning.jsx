@@ -250,7 +250,7 @@ function DoSigning({ session, userName }) {
     const g = [];
     if (lower.length >= 1 && matched.length) g.push({ icon: 'search', label: 'Search Match', rows: matched, theme: 'amber' });
     if (activeTab === 'ready' && consentSigned.length) g.push({ icon: 'checkCircle', label: 'Consent Signed — Awaiting Collection', rows: consentSigned, theme: 'emerald' });
-    if (activeTab === 'pending' && activePending.length) g.push({ icon: 'clipboard', label: 'Active AL — Consent Pending', rows: activePending, theme: 'blue' });
+    if (activeTab === 'pending' && activePending.length) g.push({ icon: 'clipboard', label: 'Active AL — Pending Consent', rows: activePending, theme: 'red' });
     return g;
   }, [alData, consentALSet, query, activeTab]);
 
@@ -258,6 +258,7 @@ function DoSigning({ session, userName }) {
     amber: { header: 'bg-amber-50 text-amber-700 border-amber-200', row: 'bg-amber-50/60', bal: 'text-amber-700', border: 'border-l-4 border-amber-400' },
     emerald: { header: 'bg-emerald-50 text-emerald-700 border-emerald-200', row: 'bg-emerald-50/50', bal: 'text-emerald-700', border: 'border-l-4 border-emerald-500' },
     blue: { header: 'bg-blue-50 text-blue-700 border-blue-200', row: 'bg-blue-50/50', bal: 'text-blue-700', border: 'border-l-4 border-blue-400' },
+    red: { header: 'bg-red-50 text-red-700 border-red-200', row: 'bg-red-50/50', bal: 'text-red-700', border: 'border-l-4 border-red-400' },
   };
 
   // ── Manage DOs ──
@@ -655,7 +656,7 @@ function DoSigning({ session, userName }) {
           <div className="flex flex-wrap gap-3 mb-5">
             <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-amber-700"><span className="w-3 h-3 rounded bg-amber-400 inline-block"></span>Search Match</span>
             <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700"><span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span>Consent Signed — Awaiting Collection</span>
-            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-blue-700"><span className="w-3 h-3 rounded bg-blue-400 inline-block"></span>Active AL — Consent Pending</span>
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-red-700"><span className="w-3 h-3 rounded bg-red-400 inline-block"></span>Active AL — Pending Consent</span>
           </div>
 
           {loading ? (
@@ -672,7 +673,7 @@ function DoSigning({ session, userName }) {
               const t = themeMap[g.theme];
               return (
                 <div className="mb-5" key={g.label}>
-                  <div className={`text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl border mb-3 ${t.header}`}><Icon name={g.icon} className="w-3 h-3 inline-block align-[-2px]" /> {g.label} ({g.rows.length})</div>
+                  <div className={`text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-xl border mb-3 ${t.header}`}><Icon name={g.icon} className="w-3 h-3 inline-block align-[-2px]" /> {g.label} ({g.rows.length} Records)</div>
                   {g.rows.map((r) => (
                     <div key={r.id} className={`bg-white rounded-2xl p-4 mb-2 shadow-sm border border-slate-200 ${t.border}`}>
                       <div className="flex justify-between items-start mb-2">
@@ -705,7 +706,7 @@ function DoSigning({ session, userName }) {
                     const t = themeMap[g.theme];
                     return (
                       <Fragment key={g.label}>
-                        <tr><td colSpan={6} className={`py-2 px-4 text-[9px] font-black uppercase tracking-widest ${t.header} border-b`}><Icon name={g.icon} className="w-3 h-3 inline-block align-[-2px]" /> {g.label} &nbsp;({g.rows.length})</td></tr>
+                        <tr><td colSpan={6} className={`py-2 px-4 text-[9px] font-black uppercase tracking-widest ${t.header} border-b`}><Icon name={g.icon} className="w-3 h-3 inline-block align-[-2px]" /> {g.label} &nbsp;({g.rows.length} Records)</td></tr>
                         {g.rows.map((r) => (
                           <tr key={r.id} className={t.row}>
                             <td><span className="font-black text-slate-800">{r.al_number || '—'}</span></td>
