@@ -50,11 +50,37 @@ export function hasOpsAccess(profile) {
   return false;
 }
 
+/* ── Which of the Admin Portal's three screens this person may open ──────
+ *
+ * Granted from the office: 555 MJM Team → User Access → Admin Portal, which
+ * writes `permissions.mobile_actions.<page>.view` — the same shape every
+ * other module on that site stores per-page access in, and the same shape
+ * MJMAccess.canDo('mobile', page, 'view') reads back there. This is this
+ * app's copy of that read. SHARED RULE: mjm-ai-system scan/scan_user_access
+ * .html is the screen that writes it. Change one, change the other.
+ *
+ * ABSENT MEANS NOBODY HAS BEEN ASKED, and that is a yes — the house rule
+ * everywhere in this system (see "Access fails OPEN" in CLAUDE.md). Three
+ * tiles that have been open to every ops account since this app was written
+ * must not close themselves the day a screen to tick them appears; they
+ * close when somebody actually unticks one.
+ */
+export function canOpenAdminPage(profile, page) {
+  if (!page) return true;
+  const acts = ((profile && profile.permissions) || {}).mobile_actions;
+  const entry = acts && acts[page];
+  if (!entry || typeof entry !== 'object') return true;
+  return !!entry.view;
+}
+
 // Read the profile and decide access. `failClosed` controls the default when
 // the profile read errors: entry points (login) fail closed so customers
 // don't slip through; interior pages fail open so a brief Supabase hiccup
 // doesn't lock real admins out.
-export async function checkOpsAccess(session, { failClosed = false } = {}) {
+//
+// `page` narrows it to one screen of the portal — holding the portal is not
+// the same question as being allowed this part of it.
+export async function checkOpsAccess(session, { failClosed = false, page = null } = {}) {
   let profile = null;
   let readOk = false;
   try {
@@ -71,7 +97,26 @@ export async function checkOpsAccess(session, { failClosed = false } = {}) {
     console.warn('[mjm-gate] profile read failed:', e);
   }
   if (!readOk) return !failClosed; // fail open/closed per caller
-  return hasOpsAccess(profile);
+  if (!hasOpsAccess(profile)) return false;
+  return canOpenAdminPage(profile, page);
+}
+
+/* The signed-in person's profile, for the dashboard — which has to decide
+   which tiles to draw and cannot do that from the session alone. Null on any
+   failure, and every caller treats null as "nobody has been asked", so a
+   failed read draws the portal as it has always been rather than an empty
+   screen. */
+export async function loadOpsProfile(session) {
+  try {
+    const resp = await supabase
+      .from('shared_profiles')
+      .select('role, user_type, permissions')
+      .eq('id', session.user.id)
+      .maybeSingle();
+    return resp && !resp.error ? resp.data : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 export function rememberUser(session) {

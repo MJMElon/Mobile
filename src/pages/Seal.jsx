@@ -12,7 +12,7 @@ import { useToast } from '../components/Toast';
 import Icon from '../components/Icon.jsx';
 
 export default function SealPage() {
-  return <AuthGate>{({ session, userName }) => <Seal session={session} userName={userName} />}</AuthGate>;
+  return <AuthGate page="seal">{({ session, userName }) => <Seal session={session} userName={userName} />}</AuthGate>;
 }
 
 /* What happens to a seal, in order: received at UNN 1 (in stock), put on a

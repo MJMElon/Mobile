@@ -8,7 +8,7 @@ import { useToast } from '../components/Toast';
 import Icon from '../components/Icon.jsx';
 
 export default function BookingPage() {
-  return <AuthGate>{({ session, userName }) => <Booking session={session} userName={userName} />}</AuthGate>;
+  return <AuthGate page="booking">{({ session, userName }) => <Booking session={session} userName={userName} />}</AuthGate>;
 }
 
 // ════════════════════════════════════════════════════════

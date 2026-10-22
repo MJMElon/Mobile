@@ -12,7 +12,7 @@ import { formatSealRanges, rangeQty, sealNo } from '../lib/sealRanges.js';
 import Icon from '../components/Icon.jsx';
 
 export default function ConsentPage() {
-  return <AuthGate>{({ session, userName }) => <Consent session={session} userName={userName} />}</AuthGate>;
+  return <AuthGate page="consent">{({ session, userName }) => <Consent session={session} userName={userName} />}</AuthGate>;
 }
 
 // AI sticker-count prompt — preserved verbatim from the legacy page.

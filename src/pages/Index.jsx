@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { checkOpsAccess, rememberUser, displayName, signOutLocal, cachedSession, isOnline } from '../lib/auth';
+import {
+  checkOpsAccess, rememberUser, displayName, signOutLocal, cachedSession, isOnline,
+  loadOpsProfile, canOpenAdminPage,
+} from '../lib/auth';
 import { hasOffline, openOffline, sealOffline } from '../lib/offlineVault.js';
 import { lastSync, startAutoSync, syncNow } from '../lib/adminSync.js';
 import BookCover from '../components/BookCover.jsx';
@@ -96,6 +99,8 @@ export default function IndexPage() {
   );
   const [btnLabel, setBtnLabel] = useState('Login');
   const [busy, setBusy] = useState(false);
+  // null until the profile is read, and null is "nobody has been asked".
+  const [profile, setProfile] = useState(null);
 
   const nameRef = useRef(null);
   const emailRef = useRef(null);
@@ -117,6 +122,14 @@ export default function IndexPage() {
       }
       setSession(s);
       setScreen('dash');
+      /* Which of the three tiles this person may open — 555 MJM Team → User
+         Access → Admin Portal. Read AFTER the dashboard is on screen rather
+         than before it: the gate above has already said they belong here,
+         and holding the portal open on a blank screen while a second read
+         goes out is how a slow signal reads as a broken app. A null profile
+         draws all three, which is what they have always been. */
+      const prof = await loadOpsProfile(s);
+      if (!loggingOut.current) setProfile(prof);
     }
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
@@ -266,19 +279,23 @@ export default function IndexPage() {
   }
 
   if (screen === 'dash') {
+    /* `page` is the key the office ticks against — mobile_actions.<page> —
+       and it is what AuthGate asks on the screen behind each tile. One name
+       for one screen, in both places, so a tile that is drawn always opens
+       and a tile that is not is a door that would have refused anyway. */
     const modules = [
-      { href: 'do_signing.html', icon: 'clipboard', bg: 'bg-emerald-100', fg: 'text-emerald-600', title: 'Issue Collection DO' },
-      { href: 'consent.html', icon: 'pen', bg: 'bg-amber-100', fg: 'text-amber-600', title: 'Customer Consent' },
-      { href: 'booking.html', icon: 'calendar', bg: 'bg-blue-100', fg: 'text-blue-600', title: 'Customer Collection Time Slot Booking' },
-      { href: 'seal.html', icon: 'tag', bg: 'bg-slate-100', fg: 'text-slate-600', title: 'Seal Management' },
-    ];
+      { page: 'do_signing', href: 'do_signing.html', icon: 'clipboard', bg: 'bg-emerald-100', fg: 'text-emerald-600', title: 'Issue Collection DO' },
+      { page: 'consent', href: 'consent.html', icon: 'pen', bg: 'bg-amber-100', fg: 'text-amber-600', title: 'Customer Consent' },
+      { page: 'booking', href: 'booking.html', icon: 'calendar', bg: 'bg-blue-100', fg: 'text-blue-600', title: 'Customer Collection Time Slot Booking' },
+      { page: 'seal', href: 'seal.html', icon: 'tag', bg: 'bg-slate-100', fg: 'text-slate-600', title: 'Seal Management' },
+    ].filter((m) => canOpenAdminPage(profile, m.page));
     return (
       <div className="fade-enter" style={{ background: '#f1f5f9', minHeight: '100vh' }}>
         <PortalBar user={displayName(session)} onSignOut={handleLogout} />
         <div className="max-w-[900px] mx-auto px-6 py-8">
           {/* What is waiting, above what you came here to open. The module
-              cards are a chooser and are always the same four; the cases
-              are the only thing on this page that changes day to day, so
+              cards are a chooser and change only when the office changes
+              somebody's access; the cases are what changes day to day, so
               they go first. Renders nothing at all if the case log is
               unreachable — see NelosBlock. */}
           <NelosBlock />
