@@ -12,7 +12,7 @@ import SignaturePad from '../components/SignaturePad';
 import { useToast } from '../components/Toast';
 
 export default function DoSigningPage() {
-  return <AuthGate>{({ session, userName }) => <DoSigning session={session} userName={userName} />}</AuthGate>;
+  return <AuthGate page="do_signing">{({ session, userName }) => <DoSigning session={session} userName={userName} />}</AuthGate>;
 }
 
 const SCAN_PROMPT = `You are an AI assistant for MJM Nursery Malaysia.

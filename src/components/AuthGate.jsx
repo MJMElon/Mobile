@@ -11,7 +11,7 @@ startAutoSync();
 // rendering children. No session → bounce to login. Session but no access →
 // bounce to auth.html (which shows the Pending Access notice). Fails open on
 // profile-read errors so a Supabase hiccup doesn't lock admins out.
-export default function AuthGate({ children }) {
+export default function AuthGate({ page = null, children }) {
   const [session, setSession] = useState(null);
   const [ready, setReady] = useState(false);
 
@@ -33,10 +33,23 @@ export default function AuthGate({ children }) {
         return;
       }
       rememberUser(useSess);
-      const ok = await checkOpsAccess(useSess, { failClosed: false });
+      /* Two different refusals, and they must not land in the same place.
+         No ops access at all is somebody who does not belong in the portal,
+         and auth.html is where the Pending Access notice lives. Ops access
+         but not THIS screen is somebody who belongs here and was sent to a
+         door the office closed — their other tiles are on the dashboard, so
+         that is where they go. Bouncing them to auth.html would read as
+         being thrown out of the portal entirely. */
+      const inPortal = await checkOpsAccess(useSess, { failClosed: false });
+      if (cancelled) return;
+      if (!inPortal) {
+        window.location.replace('auth.html');
+        return;
+      }
+      const ok = await checkOpsAccess(useSess, { failClosed: false, page });
       if (cancelled) return;
       if (!ok) {
-        window.location.replace('auth.html');
+        window.location.replace('index.html');
         return;
       }
       setSession(useSess);

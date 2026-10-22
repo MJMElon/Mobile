@@ -7,7 +7,7 @@ import CfSelect from '../components/CfSelect.jsx';
 import { useToast } from '../components/Toast';
 
 export default function BookingPage() {
-  return <AuthGate>{({ session, userName }) => <Booking session={session} userName={userName} />}</AuthGate>;
+  return <AuthGate page="booking">{({ session, userName }) => <Booking session={session} userName={userName} />}</AuthGate>;
 }
 
 // ════════════════════════════════════════════════════════
