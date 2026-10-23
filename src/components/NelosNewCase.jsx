@@ -75,6 +75,12 @@ const MAX_PHOTO = 8 * 1024 * 1024;
 export default function NelosNewCase({ module: sourceModule, me, onClose }) {
   const [modules, setModules] = useState(FALLBACK_MODULES);
   const [cats, setCats] = useState([]);
+  /* THE RULES THE OFFICE SET ON CASE ROUTING. Read because this form writes
+     assigned_module itself, and nelos_route_case() returns early on a case
+     that already names its queue — so without them every rule on that
+     screen is dead for anything raised here. Fails soft: no table, no
+     rules, and the destination stays wherever the person left it. */
+  const [routes, setRoutes] = useState([]);
   const [people, setPeople] = useState([]);
 
   const [assignTo, setAssignTo] = useState('');
@@ -120,6 +126,11 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
       });
 
     supabase
+      .from('nelos_routes')
+      .select('source_module,category,to_module,to_user_id,to_user_name')
+      .then(({ data, error }) => { if (alive && !error) setRoutes(data || []); });
+
+    supabase
       .from('nelos_categories')
       .select('name,module_key,default_priority,default_days')
       .eq('active', true)
@@ -157,7 +168,33 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
   // Revoke the preview's object URL rather than leaking it.
   useEffect(() => () => { if (photo?.url) URL.revokeObjectURL(photo.url); }, [photo]);
 
-  const worksFor = assignTo ? cats.filter((c) => c.module_key === assignTo) : [];
+  /* WHICH LIST THE WORK DROPDOWN IS FILLED FROM, and it is the system
+     RAISING the case, not the one it is being sent to.
+
+     It was the destination, and the office walked into what that means:
+     choosing "give this to Admin" offered ADMIN's titles, so a title set up
+     under THIS system on Case Routing — with a rule saying who solves it —
+     could not be chosen here at all. The screen that lists titles under the
+     system that raises them and a form that asked it the other way round
+     were two answers to one question. The destination falls out of the work
+     now, from the rule, which is what that screen is for.
+
+     A system with no titles of its own falls back to the destination's, so
+     nothing that worked before stops working. SHARED RULE: the office
+     dock's workList() in mjm-ai-system shared/shared_nelos_dock.js is the
+     same decision. Change one, change the other. */
+  const mine = cats.filter((c) => c.module_key === sourceModule);
+  const worksFor = mine.length ? mine
+    : (assignTo ? cats.filter((c) => c.module_key === assignTo) : []);
+
+  /* The rule for one piece of work, asked exactly the way
+     nelos_route_case() asks it: the category's own rule first, then the
+     section default. */
+  const routeFor = (workName) => {
+    const list = routes.filter((r) => r.source_module === sourceModule);
+    return list.find((r) => r.category === workName) ||
+           list.find((r) => !r.category) || null;
+  };
   /* Sorted by name inside the system, which is what makes a list of people
      scannable — the pin decides who is in it, the name decides the order. */
   const picsFor = assignTo
@@ -167,11 +204,26 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
         .sort((a, b) => a.name.localeCompare(b.name))
     : [];
 
-  /* Changing the system invalidates the two answers that hang off it. */
+  /* Changing the system invalidates the PIC, which belongs to it. The WORK
+     survives where this system has titles of its own, because then the list
+     does not depend on the destination at all. */
   function pickAssignTo(key) {
     setAssignTo(key);
-    setWork('');
     setPic('');
+    if (!mine.length) setWork('');
+  }
+
+  /* CHOOSING THE WORK SAYS WHERE IT GOES, because that is what the office
+     set on Case Routing. Applied on every change of work rather than only
+     the first: picking the work is the later act, so it wins, and picking a
+     different one moves the destination again. Changing the destination
+     afterwards still overrides it for this one case. */
+  function pickWork(name) {
+    setWork(name);
+    const rule = name ? routeFor(name) : null;
+    if (!rule || !rule.to_module) return;
+    if (rule.to_module !== assignTo) { setAssignTo(rule.to_module); setPic(''); }
+    if (rule.to_user_id) setPic(rule.to_user_id);
   }
 
   /* Priority is no longer asked for. It is a property of the KIND of case,
@@ -319,7 +371,7 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
 
         <label className="nc-label" htmlFor="nnc-work">Work</label>
         {worksFor.length ? (
-          <CfSelect id="nnc-work" value={work} onChange={(e) => setWork(e.target.value)}>
+          <CfSelect id="nnc-work" value={work} onChange={(e) => pickWork(e.target.value)}>
             <option value="">— choose the work —</option>
             {worksFor.map((c) => (
               <option key={c.name} value={c.name}>{c.name}</option>
