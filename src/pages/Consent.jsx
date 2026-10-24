@@ -291,12 +291,15 @@ function Consent({ session, userName }) {
   const photoInputRef = useRef(null);
 
   // ════════════════ LOAD DATA ════════════════
+  // Closed is excluded the same way Cancelled is — the office decided
+  // this order's business is done, so no new consent should be signed
+  // against it. See Close AL in mjm-ai-system/operation/operation_booking.html.
   const loadActiveALs = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('shared_al_orders')
       .select('*')
-      .not('status', 'in', '("Cancelled","Collected")')
+      .not('status', 'in', '("Cancelled","Closed","Collected")')
       .gt('balance_quantity', 0)
       .order('created_at', { ascending: false });
 
@@ -400,7 +403,7 @@ function Consent({ session, userName }) {
       const { data, error } = await supabase
         .from('shared_al_orders')
         .select('*')
-        .not('status', 'in', '("Cancelled","Collected")')
+        .not('status', 'in', '("Cancelled","Closed","Collected")')
         .or('al_number.ilike.%' + safe + '%,order_number.ilike.%' + safe + '%,customer_name.ilike.%' + safe + '%')
         .order('created_at', { ascending: false })
         .limit(50);

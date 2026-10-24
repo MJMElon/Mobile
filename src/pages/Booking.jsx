@@ -246,13 +246,16 @@ function Booking({ session, userName }) {
   // ════════════════════════════════════════════════════════
   //  DATA LOADING
   // ════════════════════════════════════════════════════════
+  // Closed is excluded the same way Cancelled is — the office decided
+  // this order's business is done, so no new collection should be booked
+  // against it. See Close AL in mjm-ai-system/operation/operation_booking.html.
   const loadALData = useCallback(async () => {
     try {
       const results = await Promise.all([
         supabase
           .from('shared_al_orders')
           .select('*')
-          .not('status', 'in', '("Cancelled","Collected")')
+          .not('status', 'in', '("Cancelled","Closed","Collected")')
           .gt('balance_quantity', 0)
           .order('customer_name', { ascending: true }),
         supabase.from('shared_plots').select('plot_name, nursery_name'),
