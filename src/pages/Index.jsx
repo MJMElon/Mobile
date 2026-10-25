@@ -287,7 +287,7 @@ export default function IndexPage() {
       { page: 'do_signing', href: 'do_signing.html', icon: 'clipboard', bg: 'bg-emerald-100', fg: 'text-emerald-600', title: 'Issue Collection DO' },
       { page: 'consent', href: 'consent.html', icon: 'pen', bg: 'bg-amber-100', fg: 'text-amber-600', title: 'Customer Consent' },
       { page: 'booking', href: 'booking.html', icon: 'calendar', bg: 'bg-blue-100', fg: 'text-blue-600', title: 'Customer Collection Time Slot Booking' },
-      { page: 'seal', href: 'seal.html', icon: 'tag', bg: 'bg-slate-100', fg: 'text-slate-600', title: 'Seal Management' },
+      { page: 'seal', href: 'seal.html', icon: 'tag', bg: 'bg-slate-100', fg: 'text-slate-600', title: 'Seal Manage' },
     ].filter((m) => canOpenAdminPage(profile, m.page));
     return (
       <div className="fade-enter" style={{ background: '#f1f5f9', minHeight: '100vh' }}>
