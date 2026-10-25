@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { compressImage } from '../lib/gemini';
 import { SEAL_RECEIPT_JOB, looksOffline, queueJob, sendSealReceipt } from '../lib/mobileQueue.js';
 import { isOnline } from '../lib/auth';
-import { formatSealRanges, rangeQty, sealNo } from '../lib/sealRanges.js';
+import { formatSealRanges, rangeQty, sealCode, sealNo } from '../lib/sealRanges.js';
 import AuthGate from '../components/AuthGate';
 import TopNav from '../components/TopNav';
 import CfSelect from '../components/CfSelect.jsx';
@@ -32,6 +32,7 @@ const STATUS_ORDER = ['in_stock', 'pending', 'scanned', 'collected'];
 const LIST_CACHE = 'mjm_seal_list_v1';
 const RECEIPT_CACHE = 'mjm_seal_receipts_v1';
 const ORDER_CACHE = 'mjm_seal_orders_v1';
+const DELIVERY_CACHE = 'mjm_seal_deliveries_v1';
 
 function readCache(key) {
   try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; }
@@ -56,6 +57,41 @@ const fmtWhen = (at) => {
   try { return new Date(at).toLocaleString('en-MY', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { return String(at); }
 };
 const rangeText = (a, b) => (a === b ? a : a + ' – ' + b);
+
+/* The seals in A that are not in B, as ranges. What a delivery from HQ sent
+   that site did not key, and the other way round. Running numbers join, so
+   two rolls that meet read as one. */
+function normRanges(list) {
+  const out = [];
+  (list || []).forEach((g) => {
+    const a = sealNo(g.start), b = sealNo(g.end || g.start);
+    if (a == null || b == null) return;
+    const w = Math.max(String(g.start || '').replace(/\D+/g, '').length, String(g.end || g.start || '').replace(/\D+/g, '').length);
+    out.push({ s: Math.min(a, b), e: Math.max(a, b), w });
+  });
+  out.sort((x, y) => x.s - y.s);
+  const m = [];
+  out.forEach((r) => {
+    const last = m[m.length - 1];
+    if (last && r.s <= last.e + 1) { last.e = Math.max(last.e, r.e); last.w = Math.max(last.w, r.w); } else m.push({ ...r });
+  });
+  return m;
+}
+function minusRanges(a, b) {
+  const bb = normRanges(b);
+  const out = [];
+  normRanges(a).forEach((r) => {
+    let cur = r.s;
+    bb.forEach((x) => {
+      if (x.e < cur || x.s > r.e) return;
+      if (x.s > cur) out.push({ start: sealCode(cur, r.w), end: sealCode(x.s - 1, r.w) });
+      cur = Math.max(cur, x.e + 1);
+    });
+    if (cur <= r.e) out.push({ start: sealCode(cur, r.w), end: sealCode(r.e, r.w) });
+  });
+  return out;
+}
+const qtyOf = (list) => (list || []).reduce((t, r) => t + rangeQty(r.start, r.end), 0);
 
 /* An offline search has only the saved list to look in, so it asks the
    same question seal_list asks — all digits is a seal number, anything else
@@ -88,6 +124,7 @@ function Seal({ session, userName }) {
   const [receipts, setReceipts] = useState(null);
   const [receiptsCachedAt, setReceiptsCachedAt] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [deliveries, setDeliveries] = useState([]); // from HQ, not yet received
   const [viewer, setViewer] = useState(null); // full-size photo url
 
   const loadList = useCallback(async (q) => {
@@ -136,7 +173,7 @@ function Seal({ session, userName }) {
     try {
       const { data, error } = await supabase
         .from('seal_receipts')
-        .select('id, client_ref, order_id, received_date, ranges, photo_urls, is_opening, remark, received_by, created_at')
+        .select('*')
         .order('received_date', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(100);
@@ -170,10 +207,30 @@ function Seal({ session, userName }) {
     } catch (e) { /* the dropdown is optional */ }
   }, []);
 
+  /* Deliveries HQ has sent and site has not confirmed. Kept on the phone so
+     a delivery can be confirmed with no line; the database closes it when
+     the receipt arrives. */
+  const loadDeliveries = useCallback(async () => {
+    const cached = readCache(DELIVERY_CACHE);
+    if (cached && Array.isArray(cached.rows)) setDeliveries(cached.rows);
+    if (!isOnline()) return;
+    try {
+      const { data, error } = await supabase
+        .from('seal_deliveries')
+        .select('id, site, ranges, status, packed_by, packed_at, delivered_by, delivered_at, remark')
+        .neq('status', 'received')
+        .order('id', { ascending: false });
+      if (error) return; // not set up yet: Receive works as it always did
+      setDeliveries(data || []);
+      writeCache(DELIVERY_CACHE, { at: Date.now(), rows: data || [] });
+    } catch (e) { /* the picker is optional */ }
+  }, []);
+
   useEffect(() => {
     loadReceipts();
     loadOrders();
-  }, [loadReceipts, loadOrders]);
+    loadDeliveries();
+  }, [loadReceipts, loadOrders, loadDeliveries]);
 
   // The search, debounced — the gun types a whole seal number in a blink,
   // a person types one digit at a time.
@@ -204,6 +261,7 @@ function Seal({ session, userName }) {
   const [recvOpen, setRecvOpen] = useState(false);
   const [recvRows, setRecvRows] = useState(() => [newSealRow()]);
   const [orderId, setOrderId] = useState('');
+  const [deliveryId, setDeliveryId] = useState('');
   const [recvDate, setRecvDate] = useState(localISO());
   const [remark, setRemark] = useState('');
   const [isOpening, setIsOpening] = useState(false);
@@ -215,6 +273,7 @@ function Seal({ session, userName }) {
   function openReceive() {
     setRecvRows([newSealRow()]);
     setOrderId('');
+    setDeliveryId('');
     setRecvDate(localISO());
     setRemark('');
     setIsOpening(false);
@@ -259,6 +318,15 @@ function Seal({ session, userName }) {
   if (!photos.length) recvProblems.push('Take at least one photo');
   if (!recvDate) recvProblems.push('Pick the received date');
 
+  /* Site keys the delivery itself, then sees whether it matches what HQ
+     sent. A difference never stops the save -- what site counted is what is
+     kept, and the database opens a NELOS case to HQ. */
+  const delivery = deliveryId ? deliveries.find((d) => String(d.id) === deliveryId) : null;
+  const sentQty = delivery ? qtyOf(delivery.ranges) : 0;
+  const notKeyed = delivery && recvRanges.length ? minusRanges(delivery.ranges, recvRanges) : [];
+  const notSent = delivery && recvRanges.length ? minusRanges(recvRanges, delivery.ranges) : [];
+  const deliveryDiffers = !!delivery && recvRanges.length > 0 && (notKeyed.length > 0 || notSent.length > 0);
+
   async function saveReceipt() {
     if (recvProblems.length || saving) return;
     setSaving(true);
@@ -273,13 +341,20 @@ function Seal({ session, userName }) {
         received_date: recvDate,
         ranges: recvRanges,
         photo_urls: [],
-        is_opening: isOpening,
+        is_opening: delivery ? false : isOpening,
         remark: remark.trim() || null,
         received_by: userName || null,
         received_by_id: session?.user?.id || null,
       },
       photoBase64s: photos,
     };
+    // Only when one is picked: a database without the delivery SQL has no
+    // such column, and Receive must go on working there.
+    if (delivery) job.payload.delivery_id = delivery.id;
+    if (deliveryDiffers && !window.confirm('What you keyed does not match what HQ sent. Save it as you counted it? HQ will get a NELOS case.')) {
+      setSaving(false);
+      return;
+    }
 
     let offline = false;
     try {
@@ -296,12 +371,21 @@ function Seal({ session, userName }) {
     setSaving(false);
     setRecvOpen(false);
     showToast(offline ? '📴 Saved offline — will sync' : 'Saved — ' + recvTotal.toLocaleString() + ' seals received');
+    if (delivery) {
+      // Off the picker now, online or not -- it is confirmed.
+      const left = deliveries.filter((d) => d.id !== delivery.id);
+      setDeliveries(left);
+      writeCache(DELIVERY_CACHE, { at: Date.now(), rows: left });
+    }
     if (!offline) {
       loadReceipts();
       loadList(search.trim());
+      loadDeliveries();
     }
   }
 
+  const deliveryLabel = (d) => ['Delivery #' + d.id, qtyOf(d.ranges).toLocaleString() + ' seals',
+    d.status === 'delivered' ? 'Delivered ' + fmtDate(d.delivered_at) : 'Packed ' + fmtDate(d.packed_at)].join(' · ');
   const orderLabel = (o) => [o.order_no || '#' + o.id, o.supplier, o.qty != null ? Number(o.qty).toLocaleString() : null].filter(Boolean).join(' · ');
   const orderById = useMemo(() => Object.fromEntries(orders.map((o) => [String(o.id), o])), [orders]);
 
@@ -316,6 +400,11 @@ function Seal({ session, userName }) {
         >
           <Icon name="box" className="w-6 h-6" /> Receive Seals
         </button>
+        {deliveries.length > 0 && (
+          <div className="text-[11px] font-black text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 -mt-2">
+            {deliveries.length} deliver{deliveries.length === 1 ? 'y' : 'ies'} from HQ waiting to be received — press Receive Seals and pick it.
+          </div>
+        )}
 
         <div className="tab-row">
           <button className={`tab-btn ${tab === 'seals' ? 'active' : ''}`} onClick={() => setTab('seals')}><Icon name="tag" className="w-3.5 h-3.5 inline-block align-[-2px]" /> Seals</button>
@@ -433,6 +522,7 @@ function Seal({ session, userName }) {
                         </div>
                       </div>
                       <div className="font-mono text-[11px] font-bold text-slate-600 mt-2 break-words">{formatSealRanges(rg) || '—'}</div>
+                      {rc.delivery_id && <div className="text-[10px] font-bold text-slate-400 mt-1">Delivery #{rc.delivery_id} from HQ</div>}
                       {order && <div className="text-[10px] font-bold text-slate-400 mt-1">Order: {orderLabel(order)}</div>}
                       {rc.remark && <div className="text-[11px] font-bold text-slate-500 mt-1">{rc.remark}</div>}
                       {(rc.photo_urls || []).length > 0 && (
@@ -465,6 +555,32 @@ function Seal({ session, userName }) {
           </div>
 
           <div className="p-5 sm:p-6 space-y-5">
+            <div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Icon name="box" className="w-3.5 h-3.5" /> Delivery from HQ</div>
+              <CfSelect value={deliveryId} onChange={(e) => setDeliveryId(e.target.value)}>
+                <option value="">— Not a delivery from HQ (opening stock, other) —</option>
+                {deliveries.map((d) => (
+                  <option key={d.id} value={String(d.id)}>{deliveryLabel(d)}</option>
+                ))}
+              </CfSelect>
+              {delivery && (
+                <p className="text-[11px] font-bold text-slate-500 mt-2">
+                  HQ sent <span className="font-black text-slate-700">{sentQty.toLocaleString()}</span> seals. Scan the first and last seal of each roll that arrived — it is checked against what HQ sent.
+                </p>
+              )}
+              {deliveryDiffers && (
+                <div className="text-[11px] font-black text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mt-2">
+                  Does not match what HQ sent.
+                  {notKeyed.length > 0 && <> {qtyOf(notKeyed).toLocaleString()} sent but not scanned: {formatSealRanges(notKeyed)}.</>}
+                  {notSent.length > 0 && <> {qtyOf(notSent).toLocaleString()} scanned but not on the delivery: {formatSealRanges(notSent)}.</>}
+                  {' '}You can still save — HQ will get a NELOS case.
+                </div>
+              )}
+              {delivery && recvRanges.length > 0 && !deliveryDiffers && (
+                <div className="text-[11px] font-black text-emerald-700 mt-2">✔ Matches what HQ sent.</div>
+              )}
+            </div>
+
             <div>
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Icon name="tag" className="w-3.5 h-3.5" /> Seal ranges</div>
               <p className="text-[10px] font-bold text-slate-400 mb-3">Scan the first seal, then the last. Enter moves on by itself.</p>
@@ -514,13 +630,13 @@ function Seal({ session, userName }) {
               </div>
             </div>
 
-            <label className="flex items-start gap-3 cursor-pointer select-none">
+            {!delivery && <label className="flex items-start gap-3 cursor-pointer select-none">
               <input type="checkbox" checked={isOpening} onChange={(e) => setIsOpening(e.target.checked)} className="w-5 h-5 shrink-0 mt-0.5 accent-emerald-600 cursor-pointer" />
               <span>
                 <span className="text-sm font-black text-slate-700">Opening stock</span>
                 <span className="block text-[11px] font-bold text-slate-400">Tick when keying seals that were already at UNN 1 before the system.</span>
               </span>
-            </label>
+            </label>}
 
             <div>
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Icon name="camera" className="w-3.5 h-3.5" /> Photos <span className="text-red-500">*</span></div>
