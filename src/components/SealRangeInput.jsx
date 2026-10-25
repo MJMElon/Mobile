@@ -101,7 +101,7 @@ export function useSealChecks(rows, kind) {
 
 /** The entry rows themselves. `notes(row, index)` returns extra JSX under a
     row (the check result), so each page words its own answer. */
-export default function SealRangeInput({ rows, onChange, notes, disabled }) {
+export default function SealRangeInput({ rows, onChange, notes, disabled, hint = true }) {
   const startRefs = useRef({});
   const endRefs = useRef({});
   const [focusId, setFocusId] = useState(null);
@@ -204,7 +204,7 @@ export default function SealRangeInput({ rows, onChange, notes, disabled }) {
               </div>
               <div className="flex items-center justify-between mt-1.5 pl-7">
                 <span className="text-[10px] font-bold text-slate-400">
-                  {rd.qty ? <>Qty <span className="font-black text-slate-700">{rd.qty.toLocaleString()}</span></> : rd.blank ? 'Scan the first seal, then the last' : ''}
+                  {rd.qty ? <>Qty <span className="font-black text-slate-700">{rd.qty.toLocaleString()}</span></> : rd.blank && hint ? 'Scan the first seal, then the last' : ''}
                 </span>
                 {rd.bad && <span className="text-[10px] font-black text-red-600">{rd.bad}</span>}
                 {!rd.bad && overlaps.has(i) && <span className="text-[10px] font-black text-red-600">Overlaps another range above</span>}

@@ -56,5 +56,16 @@ is(/recvProblems\.push\([^)]*match/i.test(src), false, 'a difference is never a 
 is(/readCache\(DELIVERY_CACHE\)/.test(src) && /writeCache\(DELIVERY_CACHE/.test(src), true, 'the deliveries are kept on the phone for no line');
 is(/\.neq\('status', 'received'\)/.test(src), true, 'only deliveries site has not confirmed are offered');
 
+// The form as the office asked for it (25 Oct 2026).
+const form = cut(src, '{/* ══ RECEIVE SEALS ══ */}', '{/* ══ PHOTO VIEWER ══ */}');
+is(/<option value="">Choose a delivery<\/option>/.test(form) && /<option value="other">Other<\/option>/.test(form), true, 'the delivery starts on Choose a delivery, with Other for anything not from HQ');
+is(/recvProblems\.push\('Choose a delivery/.test(src), true, 'and one has to be chosen');
+is(form.indexOf('Received date') < form.indexOf('Delivery from HQ'), true, 'the received date is asked first');
+is(/Seal order|Seals arriving at UNN 1|Scan the first seal/.test(form), false, 'no seal order, no subtitle, no scan hint');
+is(/recvProblems\.join/.test(form), false, 'no line listing what is missing; Save says it when pressed');
+is(/Save receive/.test(form), true, 'the button reads Save receive');
+is(/capture=/.test(src) || /push\('Take at least one photo/.test(src), false, 'a photo is uploaded from anywhere and is not required');
+is(/TopNav title="Seal Manage"/.test(src), true, 'the page is called Seal Manage');
+
 console.log(fails ? '\n' + fails + ' FAILED' : '\nall passed');
 process.exit(fails ? 1 : 0);
