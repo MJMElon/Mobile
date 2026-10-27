@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import {
-  checkOpsAccess, rememberUser, displayName, signOutLocal, cachedSession, isOnline,
-  loadOpsProfile, canOpenAdminPage,
+  resolveAccess, refuseCustomer, rememberUser, displayName, signOutLocal, cachedSession, isOnline,
+  canOpenAdminPage,
 } from '../lib/auth';
-import { hasOffline, openOffline, sealOffline } from '../lib/offlineVault.js';
+import AccessNotice from '../components/AccessNotice.jsx';
+import { hasOffline, openOffline, sealOffline, forgetOffline } from '../lib/offlineVault.js';
 import { lastSync, startAutoSync, syncNow } from '../lib/adminSync.js';
 import BookCover from '../components/BookCover.jsx';
 import PortalBar from '../components/PortalBar.jsx';
@@ -91,7 +92,7 @@ function neverReachedServer(error) {
 // used by password-recovery links and the awaiting-approval notice. They
 // share one cover (BookCover) so a change to one cannot miss the other.
 export default function IndexPage() {
-  const [screen, setScreen] = useState('loading'); // loading | auth | dash
+  const [screen, setScreen] = useState('loading'); // loading | auth | dash | customer | unknown
   const [session, setSession] = useState(null);
   const [isSignUp, setIsSignUp] = useState(false);
   const [isRecovering, setIsRecovering] = useState(
@@ -99,8 +100,11 @@ export default function IndexPage() {
   );
   const [btnLabel, setBtnLabel] = useState('Login');
   const [busy, setBusy] = useState(false);
-  // null until the profile is read, and null is "nobody has been asked".
+  // The profile the gate decided on. The dashboard is never drawn without
+  // one, and canOpenAdminPage answers no to a null — no answer is no tiles.
   const [profile, setProfile] = useState(null);
+  const refused = useRef(false);   // a customer was refused and signed out
+  const gateSess = useRef(null);   // the session Try again re-checks
 
   const nameRef = useRef(null);
   const emailRef = useRef(null);
@@ -112,28 +116,41 @@ export default function IndexPage() {
     // Ops-access gate runs deferred (setTimeout 0) so it executes OUTSIDE the
     // onAuthStateChange callback — calling .from() inside the callback holds
     // the auth lock and deadlocks ("stuck on Processing"). Same fix as legacy.
+    /* One read decides everything: whether this is a customer, whether the
+       account holds the portal, and which tiles to draw (555 MJM Team → User
+       Access → Admin Portal). A failed read uses the last profile this phone
+       read for the SAME user id, and with none it enters nothing, draws no
+       tiles and offers Try again with the session kept. */
     async function runGate(s) {
-      if (loggingOut.current) return;
+      if (loggingOut.current || refused.current) return;
+      gateSess.current = s;
       rememberUser(s);
-      const ok = await checkOpsAccess(s, { failClosed: false });
-      if (!ok) {
+      const access = await resolveAccess(s);
+      if (loggingOut.current || refused.current) return;
+      if (access.state === 'customer') {
+        refused.current = true;
+        setProfile(null);
+        setScreen('customer');
+        await refuseCustomer(s);
+        return;
+      }
+      if (access.state === 'unknown') {
+        setProfile(null);
+        setScreen('unknown');
+        return;
+      }
+      if (access.state === 'pending') {
         window.location.replace('auth.html');
         return;
       }
+      setProfile(access.profile);
       setSession(s);
       setScreen('dash');
-      /* Which of the three tiles this person may open — 555 MJM Team → User
-         Access → Admin Portal. Read AFTER the dashboard is on screen rather
-         than before it: the gate above has already said they belong here,
-         and holding the portal open on a blank screen while a second read
-         goes out is how a slow signal reads as a broken app. A null profile
-         draws all three, which is what they have always been. */
-      const prof = await loadOpsProfile(s);
-      if (!loggingOut.current) setProfile(prof);
     }
+    IndexPage._runGate = runGate;
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
-      if (loggingOut.current) return;
+      if (loggingOut.current || refused.current) return;
       if (event === 'PASSWORD_RECOVERY') {
         setIsRecovering(true);
         setScreen('auth');
@@ -155,6 +172,7 @@ export default function IndexPage() {
     });
 
     supabase.auth.getSession().then(({ data: { session: s } }) => {
+      if (refused.current) return;
       const useSess = s || cachedSession();
       if (!useSess) setScreen('auth');
       else if (!isRecovering) setTimeout(() => runGate(useSess), 0);
@@ -231,6 +249,9 @@ export default function IndexPage() {
       const raw = key ? JSON.parse(localStorage.getItem(key)) : null;
       const session = raw || (data && data.session) || null;
       if (key && session) await sealOffline(email, pw, { storageKey: key, session });
+      /* The gate runs beside this, and sealing is slow on purpose — so a
+         customer it refused meanwhile has their copy taken back here. */
+      if (refused.current) forgetOffline(email);
     } catch (e) { /* nothing to do */ }
   }
 
@@ -275,6 +296,15 @@ export default function IndexPage() {
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#050a0e' }}>
         <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Loading…</div>
       </div>
+    );
+  }
+
+  if (screen === 'customer' || screen === 'unknown') {
+    return (
+      <AccessNotice
+        kind={screen}
+        onRetry={() => gateSess.current && IndexPage._runGate && IndexPage._runGate(gateSess.current)}
+      />
     );
   }
 

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { forgetOffline } from './offlineVault.js';
 
 export const isOnline = () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false);
 
@@ -66,57 +67,146 @@ export function hasOpsAccess(profile) {
  * close when somebody actually unticks one.
  */
 export function canOpenAdminPage(profile, page) {
+  /* A profile nobody could read is NOT "nobody has been asked". Absent
+     mobile_actions on a profile that WAS read is the yes below; no profile
+     at all is no answer, and no answer must never draw every tile — that is
+     how a failed read used to put the whole portal in front of anybody. */
+  if (!profile || typeof profile !== 'object') return false;
   if (!page) return true;
-  const acts = ((profile && profile.permissions) || {}).mobile_actions;
+  const acts = (profile.permissions || {}).mobile_actions;
   const entry = acts && acts[page];
   if (!entry || typeof entry !== 'object') return true;
   return !!entry.view;
 }
 
-// Read the profile and decide access. `failClosed` controls the default when
-// the profile read errors: entry points (login) fail closed so customers
-// don't slip through; interior pages fail open so a brief Supabase hiccup
-// doesn't lock real admins out.
-//
-// `page` narrows it to one screen of the portal — holding the portal is not
-// the same question as being allowed this part of it.
-export async function checkOpsAccess(session, { failClosed = false, page = null } = {}) {
-  let profile = null;
-  let readOk = false;
-  try {
-    const resp = await supabase
-      .from('shared_profiles')
-      .select('role, user_type, permissions')
-      .eq('id', session.user.id)
-      .maybeSingle();
-    if (resp && !resp.error) {
-      readOk = true;
-      profile = resp.data;
-    }
-  } catch (e) {
-    console.warn('[mjm-gate] profile read failed:', e);
-  }
-  if (!readOk) return !failClosed; // fail open/closed per caller
-  if (!hasOpsAccess(profile)) return false;
-  return canOpenAdminPage(profile, page);
+/* ── Customers are not staff, whatever else their row says ─────────────
+ *
+ * "All staff system. Customer only can see sales web and customer portal."
+ * A Sales Web customer signs in on the SAME Supabase project, so their login
+ * works here too; what tells them apart is shared_profiles.user_type. A read
+ * that SUCCEEDS and says 'customer' is refused, signed out and told where the
+ * shop is — on every sign-in route and every page load with a session. */
+export const CUSTOMER_REFUSAL =
+  'This is the MJM Nursery staff system. Customer accounts cannot sign in here. ' +
+  'Please use the MJM Nursery shop at https://www.mjmnursery.com';
+export const SHOP_URL = 'https://www.mjmnursery.com';
+export const CHECK_FAILED =
+  'We could not check your account just now. Please check your connection and try again.';
+
+export function isCustomer(profile) {
+  return !!profile && String(profile.user_type || '').trim().toLowerCase() === 'customer';
 }
 
-/* The signed-in person's profile, for the dashboard — which has to decide
-   which tiles to draw and cannot do that from the session alone. Null on any
-   failure, and every caller treats null as "nobody has been asked", so a
-   failed read draws the portal as it has always been rather than an empty
-   screen. */
-export async function loadOpsProfile(session) {
+/* The last profile this phone READ for each user id. It is what lets a
+   member of staff who opened the portal this morning carry on when the line
+   drops (field use, flaky signal) — and ONLY that same user id: a cached
+   answer about one person is never an answer about another. A customer is
+   never kept. */
+const PROFILE_CACHE = 'mjm_mobile_profile_v1';
+
+function readProfileCache() {
+  try { return JSON.parse(localStorage.getItem(PROFILE_CACHE)) || {}; } catch (e) { return {}; }
+}
+export function cachedProfile(uid) {
+  if (!uid) return null;
+  const e = readProfileCache()[uid];
+  return e && e.profile && typeof e.profile === 'object' ? e.profile : null;
+}
+function rememberProfile(uid, profile) {
+  if (!uid || !profile || isCustomer(profile)) return;
+  try {
+    const all = readProfileCache();
+    all[uid] = { profile, at: Date.now() };
+    localStorage.setItem(PROFILE_CACHE, JSON.stringify(all));
+  } catch (e) { /* full or refused storage — the online path is unaffected */ }
+}
+export function forgetProfile(uid) {
+  try {
+    const all = readProfileCache();
+    if (uid) delete all[uid];
+    localStorage.setItem(PROFILE_CACHE, JSON.stringify(all));
+  } catch (e) { /* nothing to do */ }
+}
+
+/* One read of the profile. A returned {error} is a failure exactly like a
+   thrown one — supabase-js reports a refusal or a dead line by RETURNING it,
+   so a check that only catches throws treats most failures as success. */
+async function readProfile(session) {
   try {
     const resp = await supabase
       .from('shared_profiles')
       .select('role, user_type, permissions')
       .eq('id', session.user.id)
       .maybeSingle();
-    return resp && !resp.error ? resp.data : null;
+    if (!resp || resp.error) {
+      console.warn('[mjm-gate] profile read failed:', resp && resp.error);
+      return { ok: false, profile: null };
+    }
+    return { ok: true, profile: resp.data || null };
   } catch (e) {
-    return null;
+    console.warn('[mjm-gate] profile read failed:', e);
+    return { ok: false, profile: null };
   }
+}
+
+/* Decide what this session may do. One answer, read by every door:
+ *   'customer' — a Sales Web customer: refuse, sign out, point at the shop
+ *   'unknown'  — the read failed and this phone has nothing for this user:
+ *                do not enter, draw no tiles, keep the session, offer retry
+ *   'pending'  — staff account with no staff access yet: the Pending notice
+ *   'page'     — holds the portal, not this screen of it
+ *   'ok'       — in
+ * `profile` is whatever the answer was decided on (fresh or cached). */
+export async function resolveAccess(session, { page = null } = {}) {
+  const uid = session && session.user && session.user.id;
+  const r = await readProfile(session);
+  let profile;
+  let fromCache = false;
+  if (r.ok) {
+    profile = r.profile;
+    if (isCustomer(profile)) {
+      forgetProfile(uid);
+      return { state: 'customer', profile, fromCache };
+    }
+    if (profile) rememberProfile(uid, profile);
+    else forgetProfile(uid);
+  } else {
+    /* A cached answer is trusted only when it could have let them in on its
+       own: the same user id, not a customer, and staff access of its own.
+       Anything else — including a cache written by an older version for
+       everybody, customers among them — is no answer at all. */
+    const cached = cachedProfile(uid);
+    if (!cached || isCustomer(cached) || !hasOpsAccess(cached)) {
+      return { state: 'unknown', profile: null, fromCache: true };
+    }
+    profile = cached;
+    fromCache = true;
+  }
+  if (!hasOpsAccess(profile)) return { state: 'pending', profile, fromCache };
+  if (page && !canOpenAdminPage(profile, page)) return { state: 'page', profile, fromCache };
+  return { state: 'ok', profile, fromCache };
+}
+
+/* Kept for anything that only wants a yes or no. It no longer fails open:
+   an unknown answer is a no. */
+export async function checkOpsAccess(session, { page = null } = {}) {
+  const a = await resolveAccess(session, { page });
+  return a.state === 'ok';
+}
+
+/* A customer is signed out of THIS portal and every trace of them on this
+   phone goes with it. Local scope: their Sales Web sign-in on other devices
+   is theirs, and nothing here should end it. */
+export async function refuseCustomer(session) {
+  const uid = session && session.user && session.user.id;
+  forgetProfile(uid);
+  // Their sealed offline copy too, or a no-line sign-in puts it back.
+  try { if (session && session.user && session.user.email) forgetOffline(session.user.email); } catch (e) { /* */ }
+  // Ask Supabase FIRST, while the token is still where it can find it —
+  // signOutLocal wipes the sb- keys before its own call, so on its own it
+  // would end the session on the phone and never tell the server.
+  try { await supabase.auth.signOut({ scope: 'local' }); } catch (e) { /* offline: the local wipe below still happens */ }
+  await signOutLocal();
 }
 
 export function rememberUser(session) {

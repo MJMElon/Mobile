@@ -96,3 +96,15 @@ export async function openOffline(email, password) {
 export function hasOffline(email) {
   return !!loadAll()[norm(email)];
 }
+
+/** Drop this email's sealed copy. Used when an account is REFUSED — a Sales
+    Web customer must not leave behind a copy that would put their session
+    back on this phone with no line. Same function in the FC Portal's
+    offlineVault.js. Change one, change the other. */
+export function forgetOffline(email) {
+  const all = loadAll();
+  if (!all[norm(email)]) return false;
+  delete all[norm(email)];
+  saveAll(all);
+  return true;
+}

@@ -57,17 +57,18 @@ const perms = (mobile_actions) => ({ permissions: { mobile_actions } });
 
 console.log('\n── 1. Absent is a yes ──');
 {
-  check('nobody has been asked about this person at all',
-        canOpenAdminPage(null, 'consent'), true);
   check('a profile with no mobile_actions',
         canOpenAdminPage({ permissions: { modules: { mobile: 'normal' } } }, 'consent'), true);
   check('a mobile_actions that names the OTHER screens',
         canOpenAdminPage(perms({ booking: { view: false } }), 'consent'), true);
-  /* The read can fail — no signal, a refusal, a blip. loadOpsProfile answers
-     null for all of them, and null draws the portal as it has always been. A
-     check that cannot run must not take a module away from somebody who was
-     working fine a minute ago. */
-  check('and a profile that could not be read', canOpenAdminPage(null, 'booking'), true);
+  /* But NO PROFILE is not "nobody has been asked" — it is no answer. A
+     profile that could not be read used to come back null and draw every
+     tile, which is how a failed read showed the whole portal to anybody.
+     The gate now decides on a profile read or cached for the same person,
+     and the tiles are never drawn without one. See
+     customers_cannot_enter_the_admin_portal.cjs. */
+  check('a profile that could not be read draws nothing', canOpenAdminPage(null, 'booking'), false);
+  check('nor with no page named', canOpenAdminPage(null, null), false);
 }
 
 console.log('\n── 2. An explicit no is a no ──');
