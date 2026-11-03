@@ -128,7 +128,9 @@ function Consent({ session, userName }) {
   // ── Consent detail modal ──
   const [detailOpen, setDetailOpen] = useState(false);
   const [currentAL, setCurrentAL] = useState(null);
-  const [totalPreviouslyConsented, setTotalPreviouslyConsented] = useState(0);
+  // What a NEW consent is capped at — the AL's own balance_quantity, set
+  // fresh each time the modal opens. See the long comment on it below.
+  const [consentMaxQty, setConsentMaxQty] = useState(0);
   const [selectedQty, setSelectedQty] = useState(0);
   const [customQty, setCustomQty] = useState('');
   const [fullActive, setFullActive] = useState(false);
@@ -564,14 +566,24 @@ function Consent({ session, userName }) {
     setHistoryErr('');
     setDetailOpen(true);
 
-    // Total previously consented for this AL
-    let prevTotal = 0;
-    const { data: prevConsents } = await supabase
-      .from('mobile_consent_records')
-      .select('consent_qty')
-      .eq('al_number', alNumber);
-    if (prevConsents) prevTotal = prevConsents.reduce((sum, c) => sum + (c.consent_qty || 0), 0);
-    setTotalPreviouslyConsented(prevTotal);
+    // Consent allowance is gated by the AL's remaining BALANCE TO COLLECT —
+    // not by ordered qty minus every consent ever signed, which is what this
+    // read before 3 Nov 2026. That rule could read an AL as fully consented
+    // while most of it was still sitting uncollected: N2T596 had one consent
+    // signed in July with nothing ever scanned against it and one signed in
+    // November scanned past its own stated qty, so two consents summed to
+    // the full 1,200 ordered while 750 was still physically on the ground —
+    // and no third consent could be signed for it. The balance is what is
+    // actually left, so that is what a new consent is capped at.
+    //
+    // This does carry a cost the old rule did not: nothing here stops two
+    // consents signed in the same visit from adding up to more than the
+    // balance, because signing a consent does not move balance_quantity —
+    // only a DO does. That is an acceptable trade for being able to sign
+    // for what is really there; if double-signing becomes a real problem,
+    // the fix is to also subtract what is already consented and not yet
+    // DO'd, not to go back to gating on the order total.
+    setConsentMaxQty(Math.max(0, al.balance_quantity || 0));
 
     loadConsentHistory(alNumber);
   }
@@ -582,23 +594,19 @@ function Consent({ session, userName }) {
   }
 
   // ── Derived qty math ──
-  // Consent allowance is gated by the AL's TOTAL ORDERED qty, not its
-  // remaining balance. Each consent records customer agreement for part
-  // of what they ordered; cumulative consents across collection events
-  // can total the full ordered qty, regardless of how much has already
-  // been delivered (DO'd).
-  const ordered = currentAL?.quantity_ordered || 0;
-  const remaining = Math.max(0, ordered - totalPreviouslyConsented);
+  // See the long comment in openConsentModal() for why this is the
+  // balance rather than ordered minus total consented.
+  const remaining = consentMaxQty;
 
   function getMaxConsentQty() {
     if (!currentAL) return 0;
-    return Math.max(0, (currentAL.quantity_ordered || 0) - totalPreviouslyConsented);
+    return consentMaxQty;
   }
 
   function selectQty(qty) {
     const max = getMaxConsentQty();
     if (max <= 0) {
-      showToast('⚠️ All ordered qty already consented');
+      showToast('⚠️ Nothing left on the balance to consent for');
       return;
     }
     if (qty > max) {
@@ -627,7 +635,7 @@ function Consent({ session, userName }) {
   function selectFull() {
     const max = getMaxConsentQty();
     if (max <= 0) {
-      showToast('⚠️ All ordered qty already consented');
+      showToast('⚠️ Nothing left on the balance to consent for');
       return;
     }
     setSelectedQty(max);
@@ -635,7 +643,7 @@ function Consent({ session, userName }) {
     setFullActive(true);
   }
 
-  const maxQtyHint = '(Max: ' + remaining.toLocaleString() + ' remaining of ' + ordered.toLocaleString() + ' ordered)';
+  const maxQtyHint = '(Max: ' + remaining.toLocaleString() + ' remaining to collect)';
 
   // ════════════════ CONSENT HISTORY ════════════════
   async function loadConsentHistory(alNumber) {
@@ -887,8 +895,10 @@ function Consent({ session, userName }) {
     const al = currentAL;
     // Update local count map
     setConsentCountMap((prev) => ({ ...prev, [al.al_number]: (prev[al.al_number] || 0) + 1 }));
-    const newPrevTotal = totalPreviouslyConsented + selectedQty;
-    setTotalPreviouslyConsented(newPrevTotal);
+    // consentMaxQty is NOT reduced by what was just signed — see the
+    // comment in openConsentModal(). Signing a consent does not move
+    // balance_quantity; only a DO does, so the balance this cap reads is
+    // unchanged until one is issued.
 
     await loadConsentHistory(al.al_number);
 
