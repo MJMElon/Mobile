@@ -8,13 +8,19 @@
    The form asks the questions in the order the person answering them
    thinks:
 
+     Work         THE FIRST QUESTION, because the destination follows from
+                  it. This system's own case titles — see worksFor below
+                  for why they are the RAISING system's and not the
+                  destination's.
      Assign to    which system works this — Seedling Stock, HQ Operation,
                   FC, Admin, Auditor.
                   Read from nelos_modules, not hardcoded: the User Setting
                   page can rename or add one, and this follows.
-     Work         that system's own case titles. nelos_categories.module_key
-                  scopes them, which is the whole point of that column —
-                  the Audit Portal should not be offering "Height Shortfall".
+                  NOT ON SCREEN until the work is chosen: the rule answers
+                  it, and a box asking who solves this, standing open above
+                  a Work list full of jobs this system does not solve, is
+                  two instructions where there is one question. See showDest
+                  in shared_nelos_dock.js, which is the same rule.
      PIC          the people pinned to that system in nelos_handlers, by
                   name. Optional: a case with nobody on it is the system's
                   to pick up, which is how the queue is meant to work.
@@ -217,14 +223,40 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
      set on Case Routing. Applied on every change of work rather than only
      the first: picking the work is the later act, so it wins, and picking a
      different one moves the destination again. Changing the destination
-     afterwards still overrides it for this one case. */
+     afterwards still overrides it for this one case.
+
+     NO RULE FALLS BACK TO THE SYSTEM THAT RAISED IT — what Case Routing
+     promises in those words at the foot of every block, and what
+     nelos_route_case() does with a case that names no queue. Left alone
+     instead, the row would come back on screen carrying whatever the LAST
+     work put there, which is nobody's answer reading as if it were one.
+     Nelos itself is the exception, as in the dashboard's routedTo(): the
+     case log is not a queue anybody works, so the row asks.
+
+     NO ROUTES TO READ leaves both as they are — the fail-open every other
+     gate here follows. SHARED RULE: onWork() in the office dock
+     (mjm-ai-system shared/shared_nelos_dock.js). Change one, change the
+     other. */
   function pickWork(name) {
     setWork(name);
     const rule = name ? routeFor(name) : null;
-    if (!rule || !rule.to_module) return;
+    if (!rule || !rule.to_module) {
+      if (name && routes.length) {
+        const home = sourceModule === 'nelos' ? '' : sourceModule;
+        if (home !== assignTo) { setAssignTo(home); setPic(''); }
+      }
+      return;
+    }
     if (rule.to_module !== assignTo) { setAssignTo(rule.to_module); setPic(''); }
     if (rule.to_user_id) setPic(rule.to_user_id);
   }
+
+  /* WHO SOLVES IT IS SHOWN ONCE THERE IS SOMETHING TO SHOW — a work has
+     been chosen and the rule has had its say, or there is no work list to
+     derive anything from and the person has to say where it goes. Hidden in
+     that second case the form could not be filled in at all. SHARED RULE:
+     showDest() in the office dock. */
+  const showDest = !!work || !worksFor.length;
 
   /* Priority is no longer asked for. It is a property of the KIND of case,
      not a judgement the person raising it should have to make at the moment
@@ -272,12 +304,16 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
        means. A system with no case titles set up yet falls back to a typed
        line, so an empty nelos_categories cannot make this form unusable. */
     const title = (worksFor.length ? work : titleRef.current?.value.trim()) || '';
-    if (!assignTo) return setErr('Choose who this is for.');
+    /* THE WORK IS ASKED FIRST, because the destination is hidden until it
+       has been answered. The other order refused with "Choose who this is
+       for" over a box that is not on the form — a refusal pointing at
+       nothing. SHARED RULE: submitCase() in the office dock. */
     if (!title) {
       setErr(worksFor.length ? 'Choose the work.' : 'Say what the case is.');
       if (!worksFor.length) titleRef.current?.focus();
       return;
     }
+    if (!assignTo) return setErr('Choose who this is for.');
 
     setBusy(true);
     setErr(null);
@@ -361,14 +397,9 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
 
         {err && <div className="nc-flash nc-flash-bad">{err}</div>}
 
-        <label className="nc-label" htmlFor="nnc-to">Assign to</label>
-        <CfSelect id="nnc-to" value={assignTo} onChange={(e) => pickAssignTo(e.target.value)}>
-          <option value="">— choose a system —</option>
-          {modules.map((m) => (
-            <option key={m.key} value={m.key}>{m.label}</option>
-          ))}
-        </CfSelect>
-
+        {/* WORK FIRST, because the destination follows from it. Asked the
+            other way round — as it was — the form moved an answer the
+            person had just given. */}
         <label className="nc-label" htmlFor="nnc-work">Work</label>
         {worksFor.length ? (
           <CfSelect id="nnc-work" value={work} onChange={(e) => pickWork(e.target.value)}>
@@ -390,20 +421,32 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
           />
         )}
 
-        <label className="nc-label" htmlFor="nnc-pic">PIC</label>
-        <CfSelect
-          id="nnc-pic"
-          value={pic}
-          onChange={(e) => setPic(e.target.value)}
-          disabled={!assignTo}
-        >
-          <option value="">
-            {assignTo && !picsFor.length ? 'Nobody pinned to this system yet' : 'Anyone in that system'}
-          </option>
-          {picsFor.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </CfSelect>
+        {showDest && (
+          <>
+            <label className="nc-label" htmlFor="nnc-to">Assign to</label>
+            <CfSelect id="nnc-to" value={assignTo} onChange={(e) => pickAssignTo(e.target.value)}>
+              <option value="">— choose a system —</option>
+              {modules.map((m) => (
+                <option key={m.key} value={m.key}>{m.label}</option>
+              ))}
+            </CfSelect>
+
+            <label className="nc-label" htmlFor="nnc-pic">PIC</label>
+            <CfSelect
+              id="nnc-pic"
+              value={pic}
+              onChange={(e) => setPic(e.target.value)}
+              disabled={!assignTo}
+            >
+              <option value="">
+                {assignTo && !picsFor.length ? 'Nobody pinned to this system yet' : 'Anyone in that system'}
+              </option>
+              {picsFor.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </CfSelect>
+          </>
+        )}
 
         <div className="nc-two">
           <div>
