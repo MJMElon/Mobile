@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { checkOpsAccess, rememberUser, isOnline } from '../lib/auth';
-import { hasOffline, openOffline, sealOffline } from '../lib/offlineVault.js';
+import { resolveAccess, refuseCustomer, rememberUser, isOnline } from '../lib/auth';
+import AccessNotice from '../components/AccessNotice.jsx';
+import { hasOffline, openOffline, sealOffline, forgetOffline } from '../lib/offlineVault.js';
 
 /* A login that never reached the server, as opposed to one the server
    refused — same test as Index.jsx and the FC Portal's AuthScreen. */
@@ -34,6 +35,11 @@ export default function AuthPage() {
   const [smsSendLabel, setSmsSendLabel] = useState('Send SMS');
   const [showPw, setShowPw] = useState(false);
   const postLoginRan = useRef(false);
+  // 'customer' once a Sales Web customer has been refused and signed out;
+  // 'unknown' when the profile could not be read and nothing is cached.
+  const [notice, setNotice] = useState(null);
+  const lastSession = useRef(null);
+  const refused = useRef(false);
 
   // Field refs
   const epEmail = useRef(null);
@@ -53,11 +59,25 @@ export default function AuthPage() {
       if (!session) return showStatus('Login failed.', 'error');
       if (postLoginRan.current) return;
       postLoginRan.current = true;
+      lastSession.current = session;
       showStatus('Checking access...', 'success');
       rememberUser(session);
-      // Entry point → fail CLOSED so customers don't slip through.
-      const ok = await checkOpsAccess(session, { failClosed: true });
-      if (!ok) {
+      /* Every sign-in route (password, email code, SMS code) and a page
+         opened with a session already in it ends here. A customer is
+         refused and signed out; a read nobody could make enters nothing. */
+      const access = await resolveAccess(session);
+      if (access.state === 'customer') {
+        refused.current = true;
+        setNotice('customer');
+        await refuseCustomer(session);
+        return;
+      }
+      if (access.state === 'unknown') {
+        postLoginRan.current = false; // Try again runs this once more
+        setNotice('unknown');
+        return;
+      }
+      if (access.state !== 'ok') {
         setPendingEmail(session.user.email || '');
         return;
       }
@@ -126,6 +146,8 @@ export default function AuthPage() {
       const key = Object.keys(localStorage).find((k) => /^sb-.+-auth-token$/.test(k));
       const raw = key ? JSON.parse(localStorage.getItem(key)) : null;
       if (key && (raw || data.session)) await sealOffline(email, pw, { storageKey: key, session: raw || data.session });
+      // A customer the gate refused while this was sealing keeps no copy.
+      if (refused.current) forgetOffline(email);
     } catch (e) { /* nothing to do */ }
     await AuthPage._handlePostLogin(data.session);
   }
@@ -224,6 +246,19 @@ export default function AuthPage() {
   }
 
   const onEnter = (fn) => (e) => e.key === 'Enter' && fn();
+
+  if (notice) {
+    return (
+      <AccessNotice
+        kind={notice}
+        onRetry={() => {
+          if (!lastSession.current) return location.reload();
+          setNotice(null);
+          AuthPage._handlePostLogin(lastSession.current);
+        }}
+      />
+    );
+  }
 
   // ── Waiting for access: a note left inside the book ──
   if (pendingEmail !== null) {
