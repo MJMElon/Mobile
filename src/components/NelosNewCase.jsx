@@ -136,9 +136,15 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
       .select('source_module,category,to_module,to_user_id,to_user_name')
       .then(({ data, error }) => { if (alive && !error) setRoutes(data || []); });
 
+    /* EVERY COLUMN, not the four this reads. raise_modules, pic_seat_no and
+       pic_user_id arrive with RUN_ME_nelos_routing_is_the_category.sql, and
+       naming a column a table has not got is not an empty cell in
+       PostgREST — the whole select comes back 400 and the Work list is
+       empty. Both the office dock and nelos_user_setting.html read this
+       table the same way for the same reason. */
     supabase
       .from('nelos_categories')
-      .select('name,module_key,default_priority,default_days')
+      .select('*')
       .eq('active', true)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true })
@@ -152,9 +158,14 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
        raise a case needs to be able to name who should get it. The table
        is readable by any authenticated user and carries the pin this
        needs. */
+    /* `*`, so seat_no comes with it: the PIC the office sets on Case
+       Routing is a SEAT ("Admin 2") and the box on this form is a PERSON,
+       so the seat has to be resolved to whoever holds it. Naming seat_no
+       on a database without it would empty the whole PIC list rather than
+       leave out one field. */
     supabase
       .from('nelos_handlers')
-      .select('user_id,full_name,email,primary_module')
+      .select('*')
       .then(({ data, error }) => {
         if (!alive || error) return;
         setPeople(data || []);
@@ -174,32 +185,55 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
   // Revoke the preview's object URL rather than leaking it.
   useEffect(() => () => { if (photo?.url) URL.revokeObjectURL(photo.url); }, [photo]);
 
-  /* WHICH LIST THE WORK DROPDOWN IS FILLED FROM, and it is the system
-     RAISING the case, not the one it is being sent to.
+  /* WHICH LIST THE WORK DROPDOWN IS FILLED FROM: the titles the system this
+     case is raised in is allowed to raise. Nothing else.
 
-     It was the destination, and the office walked into what that means:
-     choosing "give this to Admin" offered ADMIN's titles, so a title set up
-     under THIS system on Case Routing — with a rule saying who solves it —
-     could not be chosen here at all. The screen that lists titles under the
-     system that raises them and a form that asked it the other way round
-     were two answers to one question. The destination falls out of the work
-     now, from the rule, which is what that screen is for.
+     It was the DESTINATION's titles once, and the office walked into what
+     that means: choosing "give this to Admin" offered ADMIN's titles, so a
+     title this system was meant to raise could not be chosen here at all.
+     It was then this system's OWN titles, which was right as far as it went
+     and still asked the question of a column that meant something else —
+     nelos_categories.module_key is the system that SOLVES a title now, and
+     who may raise one is the From System tick list on Case Routing.
 
-     A system with no titles of its own falls back to the destination's, so
-     nothing that worked before stops working. SHARED RULE: the office
-     dock's workList() in mjm-ai-system shared/shared_nelos_dock.js is the
-     same decision. Change one, change the other. */
-  const mine = cats.filter((c) => c.module_key === sourceModule);
-  const worksFor = mine.length ? mine
-    : (assignTo ? cats.filter((c) => c.module_key === assignTo) : []);
+     IT NEEDS NO FALLBACK ANY MORE. A system with no titles of its own used
+     to borrow the destination's; a title the office has left open to any
+     system is in every Work list, so that is answered by the rule rather
+     than by an exception.
 
-  /* The rule for one piece of work, asked exactly the way
-     nelos_route_case() asks it: the category's own rule first, then the
-     section default. */
-  const routeFor = (workName) => {
-    const list = routes.filter((r) => r.source_module === sourceModule);
-    return list.find((r) => r.category === workName) ||
-           list.find((r) => !r.category) || null;
+     SHARED RULE: the office dock's workList() / mayRaiseFrom() in
+     mjm-ai-system shared/shared_nelos_dock.js is the same decision, and
+     RUN_ME_nelos_routing_is_the_category.sql states the three meanings of
+     raise_modules in its own words. Change one, change the others. */
+  const ANY_SYSTEM = '*';
+  const mayRaiseFrom = (c, key) => {
+    const rm = c.raise_modules;
+    // Absent or null is nobody having been asked, which is not a no
+    // anywhere here; an EMPTY array is a deliberate nobody-by-hand, which
+    // is what an automatic title wants. The two must not be folded in
+    // together.
+    if (rm === undefined || rm === null) return true;
+    if (!rm.length) return false;
+    return rm.includes(ANY_SYSTEM) || rm.includes(key);
+  };
+  const worksFor = cats.filter((c) => mayRaiseFrom(c, sourceModule));
+
+  /* A SECTION DEFAULT, which is all of nelos_routes that is still live. A
+     per-category row there is inert: the title names its own solver and
+     both this form and nelos_route_case() read that first. What a default
+     still answers is a title neither knows — a line somebody typed. */
+  const defaultRouteFor = () =>
+    routes.find((r) => r.source_module === sourceModule && !r.category) || null;
+
+  /* WHO HOLDS A SEAT, e.g. who "Admin 2" is. The office sets the PIC as a
+     seat, because a seat is a job and outlasts whoever sits in it; this
+     form names a person. Nobody in that seat answers empty, which leaves
+     the PIC unset — and no PIC has always meant the whole queue. */
+  const seatHolder = (key, seatNo) => {
+    if (!key || seatNo == null || seatNo === '') return '';
+    const p = people.find((x) => x.primary_module === key
+                              && Number(x.seat_no) === Number(seatNo));
+    return p ? String(p.user_id) : '';
   };
   /* Sorted by name inside the system, which is what makes a list of people
      scannable — the pin decides who is in it, the name decides the order. */
@@ -210,13 +244,13 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
         .sort((a, b) => a.name.localeCompare(b.name))
     : [];
 
-  /* Changing the system invalidates the PIC, which belongs to it. The WORK
-     survives where this system has titles of its own, because then the list
-     does not depend on the destination at all. */
+  /* Changing the system invalidates the PIC, which belongs to it. THE WORK
+     ALWAYS SURVIVES now: the list is the titles this system may raise, so
+     the destination cannot change it, and clearing the work would throw
+     away an answer nothing had invalidated. */
   function pickAssignTo(key) {
     setAssignTo(key);
     setPic('');
-    if (!mine.length) setWork('');
   }
 
   /* CHOOSING THE WORK SAYS WHERE IT GOES, because that is what the office
@@ -239,16 +273,58 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
      other. */
   function pickWork(name) {
     setWork(name);
-    const rule = name ? routeFor(name) : null;
-    if (!rule || !rule.to_module) {
-      if (name && routes.length) {
+    if (!name) return;
+
+    /* THE TITLE NAMES THE QUEUE, so the page this was opened on decides
+       nothing. Asked in the same order nelos_route_case() asks it: the
+       title, then the section default, then the system it was raised in. */
+    const row = worksFor.find((c) => c.name === name) || null;
+    let dest = row?.module_key || null;
+    if (!dest) dest = defaultRouteFor()?.to_module || null;
+
+    if (!dest) {
+      // FAILS OPEN: nothing readable at all is a database that could not
+      // answer, not an answer of nobody, so both boxes are left alone.
+      if (cats.length || routes.length) {
         const home = sourceModule === 'nelos' ? '' : sourceModule;
         if (home !== assignTo) { setAssignTo(home); setPic(''); }
       }
       return;
     }
-    if (rule.to_module !== assignTo) { setAssignTo(rule.to_module); setPic(''); }
-    if (rule.to_user_id) setPic(rule.to_user_id);
+
+    const movedTo = dest !== assignTo;
+    if (movedTo) setAssignTo(dest);
+
+    /* The PIC the office named, resolved from the seat where it is one.
+       Applied where the destination just MOVED — which takes the old PIC
+       with it, a person pinned to the system this was going to not being in
+       the one it is going to now — or where nobody has been chosen yet. A
+       choice somebody made against a destination that has not moved is
+       theirs and stands.
+
+       CHECKED AGAINST THE PEOPLE, not against the dropdown: setAssignTo has
+       not taken effect yet at this point, so the list on screen is still
+       the old system's. A PIC the office named who is not pinned to the
+       destination names nobody, and the whole queue takes the case. */
+    const named = row && row.pic_user_id && people.some(
+      (p) => String(p.user_id) === String(row.pic_user_id) && p.primary_module === dest)
+      ? String(row.pic_user_id) : '';
+    const want = named || seatHolder(dest, row?.pic_seat_no);
+    if (want && (movedTo || !pic)) setPic(want);
+    else if (movedTo) setPic('');
+  }
+
+  /* THE SEAT THE OFFICE SET FOR THE CHOSEN WORK, and only while the
+     destination is still the one the title names. Overriding Assign to
+     sends this one case to another system, where that number is a
+     different person or nobody at all, so the seat does not travel with
+     it and the whole of the new queue takes the case. SHARED RULE:
+     seatOfWork() in the office dock. */
+  function seatFromWork() {
+    const row = worksFor.find((c) => c.name === work) || null;
+    if (!row || row.pic_seat_no == null) return null;
+    if (assignTo !== row.module_key) return null;
+    return Number(row.pic_seat_no);
   }
 
   /* WHO SOLVES IT IS SHOWN ONCE THERE IS SOMETHING TO SHOW — a work has
@@ -257,6 +333,11 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
      that second case the form could not be filled in at all. SHARED RULE:
      showDest() in the office dock. */
   const showDest = !!work || !worksFor.length;
+
+  /* `mine` is gone with the destination fallback: the Work list no longer
+     has two possible sources, so there is nothing to tell apart. A
+     variable nothing reads is the half-removal the office repository has a
+     rule about. */
 
   /* Priority is no longer asked for. It is a property of the KIND of case,
      not a judgement the person raising it should have to make at the moment
@@ -356,6 +437,18 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
         raised_by: me.name,
         raised_by_id: me.id,
       };
+      /* THE SEAT, so the office setting actually reaches the case. The
+         trigger cannot supply it: it returns early on a case that already
+         names its queue — routing is the default, not a rule — and this
+         form always names one, so a PIC set as "Admin 2" on Case Routing
+         had never once landed on a case raised from a form. NULL there
+         means the whole queue, which is what no PIC means and stays the
+         default, so it is only sent when there is one — a database without
+         the column still takes the insert. SHARED RULE: submitCase() in
+         the office dock. */
+      const seatNo = seatFromWork();
+      if (seatNo != null) row.assigned_seat_no = seatNo;
+
       // photo_url arrives with migration_nelos_case_tools.sql. Only send the
       // column when there is a photo, so a database without it still takes
       // the insert.
