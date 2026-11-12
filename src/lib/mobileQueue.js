@@ -99,16 +99,53 @@ export async function sendBooking(job) {
   if (error) throw new Error(error.message);
 }
 
+/* ONE PRESS OF SAVE IS ONE DO, AND THE DATABASE HANDS OUT ITS NUMBER.
+   The number the form shows is a preview: the trigger in
+   shared/RUN_ME_do_number_never_repeats.sql moves a number already taken
+   to the next free one, so a customer collecting twice in a day gets 01
+   and 02 and never 01 twice (DO-MUGJB901, 5 Nov). The row that comes back
+   is the DO, and its number is the one the PDF and the portal carry.
+
+   A retry is recognised by client_uid, one id per press made on the phone,
+   NOT by the number. Asking "is this do_number already there" answered yes
+   for a genuine SECOND DO that had been handed the same preview number, and
+   dropped it without a word. A queued job from before client_uid keeps the
+   old question, having nothing else to ask. A database without the column
+   is told once and the same row sent again without it. The FC Portal copy
+   is insertDORow in src/modules/do/data.js. Change one, change the other. */
+let _doNoClientUid = false;
+export function newDOPressId() {
+  try { if (globalThis.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) { /* fall through */ }
+  return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+function namesClientUid(err) {
+  const t = `${err?.message || ''} ${err?.details || ''} ${err?.hint || ''}`;
+  return /client_uid/i.test(t) && (err?.code === '42703' || err?.code === 'PGRST204' || /column/i.test(t));
+}
+async function doByPress(uid) {
+  if (!uid || _doNoClientUid) return null;
+  const { data, error } = await supabase.from('shared_do_records').select('*').eq('client_uid', uid).limit(1);
+  if (error) { if (namesClientUid(error)) { _doNoClientUid = true; return null; } throw new Error(error.message); }
+  return (data && data[0]) || null;
+}
+
 export async function sendDO(job) {
-  // A retry of a flush that was cut off after the insert must not post the
-  // DO twice. do_number is unique per issue (the offline ones carry an OFF
-  // marker with a timestamp), so its presence is the fact of the matter.
-  const { data: dup, error: dupErr } = await supabase
-    .from('shared_do_records')
-    .select('id')
-    .eq('do_number', job.payload.do_number)
-    .limit(1);
-  if (dupErr) throw new Error(dupErr.message);
+  const uid = job.payload.client_uid;
+  let dup = null;
+  if (uid && !_doNoClientUid) {
+    const mine = await doByPress(uid);
+    if (mine) return mine;
+  }
+  if (!uid || _doNoClientUid) {
+    // A job from before client_uid: the number is all it has to go on.
+    const { data: byNum, error: dupErr } = await supabase
+      .from('shared_do_records')
+      .select('id')
+      .eq('do_number', job.payload.do_number)
+      .limit(1);
+    if (dupErr) throw new Error(dupErr.message);
+    dup = byNum;
+  }
 
   // The caller (DoSigning.jsx's saveScanDO, online path) needs the real row
   // right after this returns, to open the Who Loaded This DO step against
@@ -129,8 +166,20 @@ export async function sendDO(job) {
       const sigPath = `do_signatures/${payload.al_number}/${payload.do_number}_${Date.now()}.png`;
       payload.signature_url = await uploadSignature(sigPath, job.sigDataUrl);
     }
-    const { data: inserted, error } = await supabase.from('shared_do_records').insert([payload]).select().single();
+    if (_doNoClientUid) delete payload.client_uid;
+    let { data: inserted, error } = await supabase.from('shared_do_records').insert([payload]).select().single();
+    if (error && payload.client_uid && namesClientUid(error)) {
+      _doNoClientUid = true;
+      delete payload.client_uid;
+      ({ data: inserted, error } = await supabase.from('shared_do_records').insert([payload]).select().single());
+    }
+    if (error && error.code === '23505' && payload.client_uid) {
+      const mine = await doByPress(payload.client_uid);
+      if (mine) return mine;
+    }
     if (error) throw new Error(error.message);
+    // The database may have moved the number; the row is the DO.
+    if (inserted && inserted.do_number) payload.do_number = inserted.do_number;
 
     /* Deduct the balance from what the server holds NOW. Only when the
        insert happened in THIS call: a retry that found the DO already
