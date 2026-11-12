@@ -136,11 +136,10 @@ function Consent({ session, userName }) {
   const [fullActive, setFullActive] = useState(false);
   const [history, setHistory] = useState(null); // null=loading, []=empty, [...]=rows
   const [historyErr, setHistoryErr] = useState('');
-  // Seal (barcode) scans against each consent, from the FC scan app —
-  // keyed by consent_id, so ConsentHistory can show "which seals were
-  // actually scanned for THIS collection trip" under each row. Fetched in
-  // one request per AL rather than one per row.
-  const [sealLogs, setSealLogs] = useState({});
+  // The Seal Log (which seals the FC Portal scanned against each consent)
+  // MOVED to Seal Manage -> Seal with Customer -> View consent, on the
+  // office request, where each issued seal is drawn green once scanned and
+  // a seal keyed by hand reads in red. This screen keeps the seals ISSUED.
 
   // ── Sign modal ──
   const [signOpen, setSignOpen] = useState(false);
@@ -649,7 +648,6 @@ function Consent({ session, userName }) {
   async function loadConsentHistory(alNumber) {
     setHistory(null);
     setHistoryErr('');
-    setSealLogs({});
     const { data, error } = await supabase
       .from('mobile_consent_records')
       .select('*')
@@ -661,27 +659,6 @@ function Consent({ session, userName }) {
       return;
     }
     setHistory(data || []);
-    loadSealLogs((data || []).map((c) => c.id));
-  }
-
-  // The barcodes actually scanned against each consent in this AL's
-  // history, from fcportal_scan_records — the same table the FC scan app
-  // (Barcode_Counter) writes to and reads from (fetchScanRecords there is
-  // the per-consent version of this same query). One request covering
-  // every consent id in the history, grouped client-side by consent_id,
-  // rather than one request per row.
-  async function loadSealLogs(consentIds) {
-    if (!consentIds.length) return;
-    const { data, error } = await supabase
-      .from('fcportal_scan_records')
-      .select('consent_id, barcode, scanned_at')
-      .in('consent_id', consentIds);
-    if (error) return; // seal log is supplementary — a failure here shouldn't block the history itself
-    const byConsent = {};
-    (data || []).forEach((r) => {
-      (byConsent[r.consent_id] = byConsent[r.consent_id] || []).push(r);
-    });
-    setSealLogs(byConsent);
   }
 
   // ════════════════ PROCEED TO SIGN ════════════════
@@ -1161,7 +1138,6 @@ function Consent({ session, userName }) {
               <ConsentHistory
                 history={history}
                 err={historyErr}
-                sealLogs={sealLogs}
                 isAdmin={isAdmin}
                 onEditSeals={openEditSeals}
                 onViewPhoto={setPhotoViewer}
@@ -1502,15 +1478,7 @@ function Consent({ session, userName }) {
 }
 
 // ── Consent history table ──
-function ConsentHistory({ history, err, sealLogs = {}, isAdmin = false, onEditSeals, onViewPhoto }) {
-  const [expanded, setExpanded] = useState(() => new Set());
-  function toggleExpanded(id) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
+function ConsentHistory({ history, err, isAdmin = false, onEditSeals, onViewPhoto }) {
 
   if (history === null) {
     return <div className="text-center py-4 text-slate-300 text-xs font-bold uppercase tracking-widest">Loading…</div>;
@@ -1548,12 +1516,6 @@ function ConsentHistory({ history, err, sealLogs = {}, isAdmin = false, onEditSe
               const dt = c.created_at
                 ? new Date(c.created_at).toLocaleString('en-MY', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
                 : '—';
-              // Ascending by the seal's own code value — same convention
-              // the FC scan app's own Scan Log uses (see ScanModule.jsx).
-              const seals = (sealLogs[c.id] || [])
-                .slice()
-                .sort((a, b) => String(a.barcode).localeCompare(String(b.barcode), undefined, { numeric: true, sensitivity: 'base' }));
-              const isOpen = expanded.has(c.id);
               return (
                 <Fragment key={c.id || i}>
                   <tr>
@@ -1616,27 +1578,6 @@ function ConsentHistory({ history, err, sealLogs = {}, isAdmin = false, onEditSe
                               + Seal Number
                             </button>
                           </div>
-                        )
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => toggleExpanded(c.id)}
-                        className="w-full text-left px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                      >
-                        <Icon name="tag" className="w-3.5 h-3.5 inline-block align-[-3px]" /> Seal Log — {seals.length} entr{seals.length === 1 ? 'y' : 'ies'} {isOpen ? '▲' : '▼'}
-                      </button>
-                      {isOpen && (
-                        seals.length ? (
-                          <div className="px-4 pb-3 flex flex-wrap gap-1.5">
-                            {seals.map((s, si) => (
-                              <span key={si} className="text-[10px] font-mono font-bold text-slate-600 bg-white border border-slate-200 rounded-md px-2 py-1">
-                                {s.barcode}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="px-4 pb-3 text-[10px] font-bold text-slate-300">No seals scanned for this entry.</div>
                         )
                       )}
                     </td>
