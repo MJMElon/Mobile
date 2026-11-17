@@ -51,18 +51,15 @@
 import { useEffect, useRef, useState } from 'react';
 import CfSelect from './CfSelect.jsx';
 import { supabase } from '../lib/supabase';
+import { NURSERY_RANGES, loadNurseryPlots } from '../lib/nurseryPlots';
 import Icon from './Icon.jsx';
 
-/* The four nurseries and the plots each one has, copied from
-   audit/audit_pending.js in the hub — which itself copies the module
-   scripts, deliberately, because each runs on its own page. If a nursery
-   gains plots there, it gains them here. */
-const NURSERY_PLOTS = {
-  PN: Array.from({ length: 52 }, (_, i) => `P${String(i + 1).padStart(2, '0')}`),
-  BNN: Array.from({ length: 14 }, (_, i) => `B${String(i + 1).padStart(2, '0')}`),
-  UNN1: Array.from({ length: 18 }, (_, i) => `U${String(i + 1).padStart(2, '0')}`),
-  UNN2: Array.from({ length: 20 }, (_, i) => `N${String(i + 1).padStart(2, '0')}`),
-};
+/* THE PLOTS COME FROM SEEDLING STOCK. This was the four ranges written out,
+   copied from audit/audit_pending.js in the hub — which copied the audit
+   module's own scripts — so a plot the office added was on no raise form in
+   the company. lib/nurseryPlots.js is the whole of why; the ranges are only
+   its floor, and a read that fails leaves exactly what this form offered
+   before. */
 const NURSERY_LABEL = { PN: 'Pre Nursery', BNN: 'BNN', UNN1: 'UNN1', UNN2: 'UNN2' };
 
 /* Shown only if nelos_modules cannot be read. The five systems as they
@@ -94,6 +91,9 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
   const [pic, setPic] = useState('');
   const [nursery, setNursery] = useState('');
   const [plot, setPlot] = useState('');
+  /* Starts as the four ranges so the picker works on the first paint, and is
+     replaced by the office's list the moment that read lands. */
+  const [plots, setPlots] = useState(NURSERY_RANGES);
   const [photo, setPhoto] = useState(null); // { file, url }
 
   const [busy, setBusy] = useState(false);
@@ -114,6 +114,11 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
      a valid case, not a blocked form. */
   useEffect(() => {
     let alive = true;
+
+    /* The office's plot list, over the four ranges. Never rejects, so there
+       is nothing to catch: the ranges are already on screen and this only
+       ever adds to them. */
+    loadNurseryPlots().then((by) => { if (alive) setPlots(by); });
 
     /* handler_label is the short name — Seedling Stock, HQ Operation, FC,
        Admin, Auditor — and it already exists: migration_nelos_seats.sql seeded it as the half of
@@ -550,7 +555,7 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
               onChange={(e) => { setNursery(e.target.value); setPlot(''); }}
             >
               <option value="">— none —</option>
-              {Object.keys(NURSERY_PLOTS).map((n) => (
+              {Object.keys(plots).map((n) => (
                 <option key={n} value={n}>{NURSERY_LABEL[n]}</option>
               ))}
             </CfSelect>
@@ -564,7 +569,7 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
               disabled={!nursery}
             >
               <option value="">{nursery ? '— none —' : 'Nursery first'}</option>
-              {(NURSERY_PLOTS[nursery] || []).map((p) => (
+              {(plots[nursery] || []).map((p) => (
                 <option key={p} value={p}>{p}</option>
               ))}
             </CfSelect>
