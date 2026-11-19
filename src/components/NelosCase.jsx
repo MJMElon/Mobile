@@ -31,6 +31,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import Icon from './Icon.jsx';
+import { fmtLatLng, mapsHref, gaiaHref } from '../lib/latLng';
 
 const SOURCE_LABEL = {
   operation: 'Seedling Stock System',
@@ -234,6 +235,31 @@ export default function NelosCase({ caseId, me, onClose }) {
         <div className="nc-fact"><div className="nc-k">PIC</div>
           <div className="nc-v">{c.assignee_name || <em>Unassigned</em>}</div></div>
       </div>
+
+      {/* WHERE, as a coordinate, when the person raising it said. Optional
+          on the form, so absent on most cases and then not drawn at all.
+          TWO doors and never one: Gaia is the map the nursery walks by, and
+          its link does nothing on a phone without the app, so Maps always
+          stands beside it. SHARED: NelosWindow.jsx in the FC Portal. */}
+      {fmtLatLng(c.location_lat, c.location_lng) && (
+        <div style={{ marginTop: 8, padding: '11px 14px', background: '#f8fafc', border: '1px solid #eef2f7', borderRadius: 12 }}>
+          <div className="nc-k">Location</div>
+          <div className="nc-v">📍 {fmtLatLng(c.location_lat, c.location_lng)}</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <a href={gaiaHref(c.location_lat, c.location_lng)}
+              style={{ flex: 1, textAlign: 'center', padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 900,
+                       letterSpacing: '.06em', textTransform: 'uppercase', textDecoration: 'none', color: '#fff', background: '#1b4332' }}>
+              Open in Gaia
+            </a>
+            <a href={mapsHref(c.location_lat, c.location_lng)} target="_blank" rel="noopener noreferrer"
+              style={{ flex: 1, textAlign: 'center', padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 900,
+                       letterSpacing: '.06em', textTransform: 'uppercase', textDecoration: 'none', color: '#913673',
+                       background: '#fff', border: '1.5px solid #e2e8f0' }}>
+              Open in Maps
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* What was written about it. The sheet never showed this at all,
           which left an admin deciding what to do from the title alone. */}
