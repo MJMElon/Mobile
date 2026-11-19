@@ -10,6 +10,7 @@ import SealRangeInput, { newSealRow, overlappingRows, readSealRow, sealRangesOf,
 import { useToast } from '../components/Toast';
 import { formatSealRanges, rangeQty, sealNo } from '../lib/sealRanges.js';
 import Icon from '../components/Icon.jsx';
+import { downloadConsentPdf } from '../lib/pdf.js';
 
 export default function ConsentPage() {
   return <AuthGate page="consent">{({ session, userName }) => <Consent session={session} userName={userName} />}</AuthGate>;
@@ -90,6 +91,9 @@ const SCOPED_CSS = `
 .history-table { width:100%; border-collapse:collapse; font-size:12px; }
 .history-table th { background:#f8fafc; padding:8px 12px; text-align:left; font-size:9px; text-transform:uppercase; letter-spacing:.08em; font-weight:900; color:#64748b; border-bottom:2px solid #e2e8f0; }
 .history-table td { padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; vertical-align:middle; }
+.consent-pdf-btn { display:inline-flex; align-items:center; gap:5px; padding:6px 11px; border-radius:9px; border:1px solid #a7f3d0; background:#ecfdf5; color:#047857; font-size:10px; font-weight:900; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
+.consent-pdf-btn:hover:not(:disabled) { background:#d1fae5; }
+.consent-pdf-btn:disabled { opacity:.55; }
 .photo-area { border:2px dashed #cbd5e1; border-radius:16px; background:#f8fafc; text-align:center; padding:.9rem; cursor:pointer; transition:all .2s; }
 .photo-area:hover { border-color:#10b981; background:#ecfdf5; }
 .photo-area.has-photo { border-style:solid; border-color:#10b981; padding:.5rem; }
@@ -1478,7 +1482,27 @@ function Consent({ session, userName }) {
 }
 
 // ── Consent history table ──
+/* The terms as the customer read them, both languages: the row does not
+   record which one was on screen, so the paper carries both. Read off
+   CONSENT_STRINGS so the PDF cannot word them differently from the form. */
+const CONSENT_PDF_TERMS = ['en', 'ms'].map((lang) => ({
+  lang,
+  heading: CONSENT_STRINGS[lang].tcHeader + ' (' + (lang === 'en' ? 'English' : 'Bahasa Melayu') + ')',
+  items: CONSENT_STRINGS[lang].terms,
+  agree: CONSENT_STRINGS[lang].agree,
+}));
+
 function ConsentHistory({ history, err, isAdmin = false, onEditSeals, onViewPhoto }) {
+  // Which record's PDF is being built: the photo has to be fetched first, so
+  // a press shows it is working rather than looking dead.
+  const [pdfBusy, setPdfBusy] = useState(null);
+  async function downloadPdf(c, key) {
+    if (pdfBusy != null) return;
+    setPdfBusy(key);
+    try { await downloadConsentPdf(c, CONSENT_PDF_TERMS); }
+    catch (e) { alert('Could not make the PDF: ' + (e && e.message ? e.message : e)); }
+    finally { setPdfBusy(null); }
+  }
 
   if (history === null) {
     return <div className="text-center py-4 text-slate-300 text-xs font-bold uppercase tracking-widest">Loading…</div>;
@@ -1508,7 +1532,7 @@ function ConsentHistory({ history, err, isAdmin = false, onEditSeals, onViewPhot
         <table className="history-table">
           <thead>
             <tr>
-              <th>#</th><th>Date &amp; Time</th><th>Qty</th><th>AI Count</th><th>Signature</th>
+              <th>#</th><th>Date &amp; Time</th><th>Qty</th><th>AI Count</th><th>Signature</th><th>PDF</th>
             </tr>
           </thead>
           <tbody>
@@ -1524,9 +1548,26 @@ function ConsentHistory({ history, err, isAdmin = false, onEditSeals, onViewPhot
                     <td><span className="font-black text-emerald-700">{(c.consent_qty || 0).toLocaleString()}</span></td>
                     <td>{c.ai_sticker_count != null ? <span className="text-blue-700 font-black">{c.ai_sticker_count.toLocaleString()}</span> : '—'}</td>
                     <td>{c.signature_data ? <img src={c.signature_data} style={{ height: '32px', borderRadius: '6px', border: '1px solid #e2e8f0' }} alt="sig" /> : '—'}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="consent-pdf-btn"
+                        onClick={() => downloadPdf(c, c.id ?? i)}
+                        disabled={pdfBusy != null}
+                        title="Download this consent as a PDF"
+                        style={{ cursor: pdfBusy != null ? 'wait' : 'pointer' }}
+                      >
+                        {pdfBusy === (c.id ?? i) ? 'Making…' : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3M6 20h12a2 2 0 002-2V8l-6-6H6a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                            PDF
+                          </>
+                        )}
+                      </button>
+                    </td>
                   </tr>
                   <tr>
-                    <td colSpan={5} style={{ padding: 0, background: '#f8fafc' }}>
+                    <td colSpan={6} style={{ padding: 0, background: '#f8fafc' }}>
                       {Array.isArray(c.seal_ranges) && c.seal_ranges.length > 0 ? (
                         <div className="px-4 pt-2 flex items-start gap-3">
                           <div className="flex-1 min-w-0">
