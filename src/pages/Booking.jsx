@@ -6,6 +6,7 @@ import TopNav from '../components/TopNav';
 import CfSelect from '../components/CfSelect.jsx';
 import { useToast } from '../components/Toast';
 import Icon from '../components/Icon.jsx';
+import { bookableHours, closingHour, crossesLunch, hoursNeeded as slotHoursNeeded, loadSlotSettings, lunchLabel } from '../lib/collectionSlots.js';
 
 export default function BookingPage() {
   return <AuthGate page="booking">{({ session, userName }) => <Booking session={session} userName={userName} />}</AuthGate>;
@@ -58,13 +59,12 @@ function getHoliday(dateStr) {
   return MY_HOLIDAYS[dateStr] || null;
 }
 
-const HOURS_WEEKDAY = [8, 9, 10, 11, 12, 13, 14, 15, 16];
-const HOURS_SAT = [8, 9, 10, 11];
+/* The hours come from the office setting (System Settings -> Collection
+   Time Slot) through lib/collectionSlots.js, lunch taken out. */
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAY_HEADERS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-const RATE = 350; // seedlings processed per hour per booking
 
 // ── Date helpers ──
 function getMonday(d) {
@@ -102,7 +102,7 @@ function isPast(d) {
   return check < today;
 }
 function hoursNeeded(qty) {
-  return Math.ceil(qty / RATE);
+  return slotHoursNeeded(qty);
 }
 
 const W_CODES = { 0: 'Clear', 1: 'Mainly Clear', 2: 'Partly Cloudy', 3: 'Overcast', 45: 'Foggy', 48: 'Fog', 51: 'Lt Drizzle', 53: 'Drizzle', 55: 'Hvy Drizzle', 61: 'Lt Rain', 63: 'Rain', 65: 'Hvy Rain', 80: 'Lt Showers', 81: 'Showers', 82: 'Hvy Showers', 95: 'T-Storm', 96: 'T-Storm+Hail', 99: 'Hvy T-Storm' };
@@ -184,6 +184,17 @@ const PAGE_CSS = `
 
 // in-memory weather cache (mirrors legacy _wCache)
 const _wCache = {};
+
+/* Why a booking from startH to endH cannot go on that day, or ''. A
+   booking may not run into the lunch break, nor past closing. */
+function slotProblem(dateStr, startH, endH) {
+  if (crossesLunch(startH, endH)) {
+    return 'Runs into the lunch break (' + lunchLabel(formatHour) + '). Reduce the quantity or pick another time.';
+  }
+  const close = closingHour(new Date(dateStr + 'T00:00:00').getDay());
+  if (endH > close) return 'Runs past closing (' + formatHour(close) + '). Reduce the quantity or pick an earlier time.';
+  return '';
+}
 
 function Booking({ session, userName }) {
   const { ToastHost, showToast } = useToast();
@@ -291,7 +302,7 @@ function Booking({ session, userName }) {
   useEffect(() => {
     (async () => {
       try {
-        await Promise.all([loadALData(), loadMonthBookings(currentYear, currentMonth)]);
+        await Promise.all([loadALData(), loadMonthBookings(currentYear, currentMonth), loadSlotSettings()]);
       } catch (err) {
         console.error('loadAll error:', err);
         setLoadError('Error loading - check console');
@@ -467,8 +478,7 @@ function Booking({ session, userName }) {
   // ════════════════════════════════════════════════════════
   function buildTimeOptions(dateStr, sourceBookings, preselectHour) {
     const d = new Date(dateStr + 'T00:00:00');
-    const isSat = d.getDay() === 6;
-    const hours = isSat ? HOURS_SAT : HOURS_WEEKDAY;
+    const hours = bookableHours(d.getDay());
     const dayBks = (sourceBookings || []).filter(
       (b) => (b.booking_date || '').substring(0, 10) === dateStr && b.status !== 'cancelled',
     );
@@ -610,6 +620,12 @@ function Booking({ session, userName }) {
     const timeVal = bkTime; // e.g. "09:00"
     const startH = parseInt(timeVal.split(':')[0]);
     const endH = startH + hoursNeeded(bookingQty);
+    const bad = slotProblem(bkDate, startH, endH);
+    if (bad) {
+      setBkSaving(false);
+      showToast('⚠️ ' + bad);
+      return;
+    }
     const payload = {
       al_number: selectedAL.al_number,
       order_number: selectedAL.order_number || '',
@@ -677,8 +693,7 @@ function Booking({ session, userName }) {
     setDetPlot(b.plot_name || '');
 
     const d = new Date((b.booking_date || '') + 'T00:00:00');
-    const isSat = d.getDay() === 6;
-    const hours = isSat ? HOURS_SAT : HOURS_WEEKDAY;
+    const hours = bookableHours(d.getDay());
     const startH = b.start_time ? parseInt(b.start_time.split(':')[0]) : 8;
     setDetTimeOptions(hours.map((h) => ({ value: String(h).padStart(2, '0') + ':00', label: timeSlotLabel(h) })));
     setDetTime(String(startH).padStart(2, '0') + ':00');
@@ -708,6 +723,12 @@ function Booking({ session, userName }) {
     const startH = parseInt(timeVal.split(':')[0]);
     const editQty = parseInt(detQty) || selectedBooking.collection_qty;
     const editEndH = startH + hoursNeeded(editQty);
+    const bad = slotProblem(detDate, startH, editEndH);
+    if (bad) {
+      setDetSaving(false);
+      showToast('⚠️ ' + bad);
+      return;
+    }
     const updates = {
       booking_date: detDate,
       start_time: timeVal,
