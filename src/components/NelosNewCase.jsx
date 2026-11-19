@@ -51,18 +51,16 @@
 import { useEffect, useRef, useState } from 'react';
 import CfSelect from './CfSelect.jsx';
 import { supabase } from '../lib/supabase';
+import { NURSERY_RANGES, loadNurseryPlots } from '../lib/nurseryPlots';
+import { parseLatLng, fmtLatLng, detectLatLng, hasLocationColumns } from '../lib/latLng';
 import Icon from './Icon.jsx';
 
-/* The four nurseries and the plots each one has, copied from
-   audit/audit_pending.js in the hub — which itself copies the module
-   scripts, deliberately, because each runs on its own page. If a nursery
-   gains plots there, it gains them here. */
-const NURSERY_PLOTS = {
-  PN: Array.from({ length: 52 }, (_, i) => `P${String(i + 1).padStart(2, '0')}`),
-  BNN: Array.from({ length: 14 }, (_, i) => `B${String(i + 1).padStart(2, '0')}`),
-  UNN1: Array.from({ length: 18 }, (_, i) => `U${String(i + 1).padStart(2, '0')}`),
-  UNN2: Array.from({ length: 20 }, (_, i) => `N${String(i + 1).padStart(2, '0')}`),
-};
+/* THE PLOTS COME FROM SEEDLING STOCK. This was the four ranges written out,
+   copied from audit/audit_pending.js in the hub — which copied the audit
+   module's own scripts — so a plot the office added was on no raise form in
+   the company. lib/nurseryPlots.js is the whole of why; the ranges are only
+   its floor, and a read that fails leaves exactly what this form offered
+   before. */
 const NURSERY_LABEL = { PN: 'Pre Nursery', BNN: 'BNN', UNN1: 'UNN1', UNN2: 'UNN2' };
 
 /* Shown only if nelos_modules cannot be read. The five systems as they
@@ -94,7 +92,47 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
   const [pic, setPic] = useState('');
   const [nursery, setNursery] = useState('');
   const [plot, setPlot] = useState('');
+  /* Starts as the four ranges so the picker works on the first paint, and is
+     replaced by the office's list the moment that read lands. */
+  const [plots, setPlots] = useState(NURSERY_RANGES);
   const [photo, setPhoto] = useState(null); // { file, url }
+  /* WHERE, as a coordinate. Optional. `locOn` is whether this database has
+     the columns — the box is not drawn until it says yes (lib/latLng.js). */
+  const [locOn, setLocOn] = useState(false);
+  const [locText, setLocText] = useState('');
+  const [locMsg, setLocMsg] = useState(null); // { text, bad }
+  const [locBusy, setLocBusy] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    hasLocationColumns(supabase).then((on) => { if (alive) setLocOn(on); });
+    return () => { alive = false; };
+  }, []);
+
+  /* DETECT. A press and never something the form does on opening: asking
+     for a position puts a permission prompt on the screen, and it should
+     arrive because somebody asked for it. Every failure says what to do
+     instead, which is always the same thing — key it in. */
+  async function detectLoc() {
+    setLocBusy(true);
+    setLocMsg(null);
+    try {
+      const p = await detectLatLng();
+      setLocText(fmtLatLng(p.lat, p.lng));
+      setLocMsg({
+        text: 'Detected' + (isFinite(p.accuracy) ? `, accurate to about ${Math.round(p.accuracy)} m` : '') +
+              '. You can still correct it.',
+      });
+    } catch (e) {
+      setLocMsg({
+        bad: true,
+        text: e?.reason === 'unsupported' ? 'This phone cannot give a location. Key it in instead.'
+          : e?.reason === 'denied' ? 'Location is switched off for this app. Allow it in the browser, or key it in.'
+          : e?.reason === 'timeout' ? 'No location yet, the signal is weak. Try again, or key it in.'
+          : 'Could not get a location. Try again, or key it in.',
+      });
+    }
+    setLocBusy(false);
+  }
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
@@ -114,6 +152,11 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
      a valid case, not a blocked form. */
   useEffect(() => {
     let alive = true;
+
+    /* The office's plot list, over the four ranges. Never rejects, so there
+       is nothing to catch: the ranges are already on screen and this only
+       ever adds to them. */
+    loadNurseryPlots().then((by) => { if (alive) setPlots(by); });
 
     /* handler_label is the short name — Seedling Stock, HQ Operation, FC,
        Admin, Auditor — and it already exists: migration_nelos_seats.sql seeded it as the half of
@@ -396,6 +439,15 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
     }
     if (!assignTo) return setErr('Choose who this is for.');
 
+    /* OPTIONAL, and a wrong one is not. Empty is no location; something
+       typed that is not two numbers in range is refused before anything is
+       uploaded. SHARED RULE: submitCase() in the office dock. */
+    const loc = locOn ? parseLatLng(locText) : null;
+    if (loc === false) {
+      return setErr('The location is not a coordinate. Key it as latitude, longitude ' +
+                    '(for example 4.123456, 117.123456), press Detect, or leave it empty.');
+    }
+
     setBusy(true);
     setErr(null);
     const remarks = remarksRef.current?.value.trim() || null;
@@ -453,6 +505,8 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
       // column when there is a photo, so a database without it still takes
       // the insert.
       if (photoUrl) row.photo_url = photoUrl;
+      // The location, on the same terms: only named when there is one.
+      if (loc) { row.location_lat = loc.lat; row.location_lng = loc.lng; }
 
       const { data, error } = await supabase.from('nelos_cases').insert([row]).select().single();
       if (error) {
@@ -550,7 +604,7 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
               onChange={(e) => { setNursery(e.target.value); setPlot(''); }}
             >
               <option value="">— none —</option>
-              {Object.keys(NURSERY_PLOTS).map((n) => (
+              {Object.keys(plots).map((n) => (
                 <option key={n} value={n}>{NURSERY_LABEL[n]}</option>
               ))}
             </CfSelect>
@@ -564,12 +618,35 @@ export default function NelosNewCase({ module: sourceModule, me, onClose }) {
               disabled={!nursery}
             >
               <option value="">{nursery ? '— none —' : 'Nursery first'}</option>
-              {(NURSERY_PLOTS[nursery] || []).map((p) => (
+              {(plots[nursery] || []).map((p) => (
                 <option key={p} value={p}>{p}</option>
               ))}
             </CfSelect>
           </div>
         </div>
+
+        {locOn && (
+          <>
+            <label className="nc-label" htmlFor="nnc-loc">
+              Location <span style={{ fontWeight: 700, textTransform: 'none', letterSpacing: 0, color: '#cbd5e1' }}>(optional)</span>
+            </label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+              <input id="nnc-loc" className="nc-input" style={{ flex: 1, minWidth: 0 }} value={locText}
+                maxLength={60} autoComplete="off" placeholder="Latitude, longitude"
+                onChange={(e) => { setLocText(e.target.value); setLocMsg(null); setErr(null); }} />
+              <button type="button" onClick={detectLoc} disabled={locBusy}
+                style={{ flex: '0 0 auto', padding: '0 12px', border: '1.5px solid #e2e8f0', borderRadius: 11,
+                         background: '#f8fafc', fontSize: 11, fontWeight: 900, whiteSpace: 'nowrap',
+                         color: locBusy ? '#94a3b8' : '#913673', cursor: 'pointer' }}>
+                📍 {locBusy ? 'Detecting…' : 'Detect'}
+              </button>
+            </div>
+            {locMsg && (
+              <div style={{ marginTop: 5, fontSize: 10.5, fontWeight: 700, lineHeight: 1.45,
+                            color: locMsg.bad ? '#b91c1c' : '#64748b' }}>{locMsg.text}</div>
+            )}
+          </>
+        )}
 
         <label className="nc-label">Photo</label>
         {photo ? (

@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { supabase } from '../lib/supabase';
 import { displayName } from '../lib/auth';
 import { callGeminiScan, compressImage } from '../lib/gemini';
-import { DO_JOB, looksOffline, queueJob, sendDO } from '../lib/mobileQueue.js';
+import { DO_JOB, looksOffline, newDOPressId, queueJob, sendDO } from '../lib/mobileQueue.js';
 import { isOnline } from '../lib/auth';
 import { printDOPdf } from '../lib/pdf';
 import { generateDONumber } from '../lib/doAttach';
@@ -437,6 +437,7 @@ function DoSigning({ session, userName }) {
 
     const payload = {
       do_number: scanDoNumber,
+      client_uid: newDOPressId(),
       al_number: activeAL.al_number,
       delivery_date: scanDate,
       total_qty: total,
@@ -501,7 +502,10 @@ function DoSigning({ session, userName }) {
     // Workers button picks it up once the DO has actually synced.
     setManageOpen(true);
     loadDOsForAL(updatedAL.al_number); // refreshes the list behind the modals; not awaited, nothing below depends on it
-    const printJob = { doNum: scanDoNumber, rec: payload, sig: sigDataUrl, photo: scanPhoto };
+    // The number on the form was a preview; the database hands out the real
+    // one (it moves a number already taken), so print the row's.
+    const realNum = (savedDO && savedDO.do_number) || scanDoNumber;
+    const printJob = { doNum: realNum, rec: { ...payload, do_number: realNum }, sig: sigDataUrl, photo: scanPhoto };
     if (queuedOffline) {
       // Surfaced on screen (not just console) because the worker step being
       // skipped was once reported as a silent bug when it was actually this
