@@ -244,7 +244,12 @@ export default function NelosCase({ caseId, me, onClose }) {
       {fmtLatLng(c.location_lat, c.location_lng) && (
         <div style={{ marginTop: 8, padding: '11px 14px', background: '#f8fafc', border: '1px solid #eef2f7', borderRadius: 12 }}>
           <div className="nc-k">Location</div>
-          <div className="nc-v">📍 {fmtLatLng(c.location_lat, c.location_lng)}</div>
+          {/* The coordinate itself opens Gaia, and the press copies it:
+              Gaia has no link that drops a pin, so pasting it into Gaia
+              search is what marks the spot. */}
+          <a href={gaiaHref(c.location_lat, c.location_lng)} className="nc-v"
+            onClick={() => { try { navigator.clipboard.writeText(fmtLatLng(c.location_lat, c.location_lng)); } catch { /* best effort */ } }}
+            style={{ display: 'block', textDecoration: 'underline', color: '#1b4332' }}>📍 {fmtLatLng(c.location_lat, c.location_lng)}</a>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <a href={gaiaHref(c.location_lat, c.location_lng)}
               style={{ flex: 1, textAlign: 'center', padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 900,
