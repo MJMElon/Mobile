@@ -31,7 +31,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import Icon from './Icon.jsx';
-import { fmtLatLng, mapsHref, gaiaHref } from '../lib/latLng';
+import { fmtLatLng, gaiaHref } from '../lib/latLng';
 
 const SOURCE_LABEL = {
   operation: 'Seedling Stock System',
@@ -238,9 +238,9 @@ export default function NelosCase({ caseId, me, onClose }) {
 
       {/* WHERE, as a coordinate, when the person raising it said. Optional
           on the form, so absent on most cases and then not drawn at all.
-          TWO doors and never one: Gaia is the map the nursery walks by, and
-          its link does nothing on a phone without the app, so Maps always
-          stands beside it. SHARED: NelosWindow.jsx in the FC Portal. */}
+          The coordinate itself is the only link, to Gaia GPS: the office
+          asked for no buttons beside it. Plain navigation, never a new tab,
+          because an app link in a new tab leaves an empty tab behind. */}
       {fmtLatLng(c.location_lat, c.location_lng) && (
         <div style={{ marginTop: 8, padding: '11px 14px', background: '#f8fafc', border: '1px solid #eef2f7', borderRadius: 12 }}>
           <div className="nc-k">Location</div>
@@ -250,19 +250,6 @@ export default function NelosCase({ caseId, me, onClose }) {
           <a href={gaiaHref(c.location_lat, c.location_lng)} className="nc-v"
             onClick={() => { try { navigator.clipboard.writeText(fmtLatLng(c.location_lat, c.location_lng)); } catch { /* best effort */ } }}
             style={{ display: 'block', textDecoration: 'underline', color: '#1b4332' }}>📍 {fmtLatLng(c.location_lat, c.location_lng)}</a>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <a href={gaiaHref(c.location_lat, c.location_lng)}
-              style={{ flex: 1, textAlign: 'center', padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 900,
-                       letterSpacing: '.06em', textTransform: 'uppercase', textDecoration: 'none', color: '#fff', background: '#1b4332' }}>
-              Open in Gaia
-            </a>
-            <a href={mapsHref(c.location_lat, c.location_lng)} target="_blank" rel="noopener noreferrer"
-              style={{ flex: 1, textAlign: 'center', padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 900,
-                       letterSpacing: '.06em', textTransform: 'uppercase', textDecoration: 'none', color: '#913673',
-                       background: '#fff', border: '1.5px solid #e2e8f0' }}>
-              Open in Maps
-            </a>
-          </div>
         </div>
       )}
 
