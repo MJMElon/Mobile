@@ -17,6 +17,15 @@ import { supabase } from '../lib/supabase';
 import { isOnline } from '../lib/auth';
 import { rangeQty, sealDigits, sealNo } from '../lib/sealRanges.js';
 
+/* A SEAL NUMBER IS SIX DIGITS, every time it is written down. The office:
+   whatever is keyed -- here, on the FC Portal Add, on Seal Management in
+   HQ -- must be exactly six digits or it cannot be saved, and every record
+   in the system carries six. 4187 typed without its zeros is refused, not
+   padded: the person in front of the roll is the one who can read it.
+   The FC Portal (MANUAL_SEAL_DIGITS) and the office seal page say the same. */
+export const SEAL_DIGITS = 6;
+const sixDigits = (v) => String(v || '').replace(/\D+/g, '').slice(0, SEAL_DIGITS);
+
 let _rowSeq = 0;
 export const newSealRow = () => ({ id: 'sr' + (++_rowSeq), start: '', end: '' });
 
@@ -28,7 +37,9 @@ export function readSealRow(r) {
   const blank = !String(r.start || '').trim() && !String(r.end || '').trim();
   if (blank) return { blank: true };
   if (!s) return { bad: 'Start seal missing' };
+  if (s.length !== SEAL_DIGITS) return { bad: 'Start seal must be 6 digits' };
   if (String(r.end || '').trim() && !e) return { bad: 'End seal is not a number' };
+  if (e && e.length !== SEAL_DIGITS) return { bad: 'End seal must be 6 digits' };
   const end = e || s;
   if (sealNo(end) < sealNo(s)) return { bad: 'End is before Start' };
   return { start: s, end, qty: rangeQty(s, end), key: s + '|' + end };
@@ -173,10 +184,11 @@ export default function SealRangeInput({ rows, onChange, notes, disabled, hint =
                   style={{ padding: '9px 12px', minWidth: 0 }}
                   inputMode="numeric"
                   autoComplete="off"
-                  placeholder="Start seal"
+                  placeholder="Start seal (6 digits)"
                   value={r.start}
                   disabled={disabled}
-                  onChange={(e) => setField(r.id, 'start', e.target.value)}
+                  maxLength={SEAL_DIGITS}
+                  onChange={(e) => setField(r.id, 'start', sixDigits(e.target.value))}
                   onKeyDown={(e) => onStartKey(e, r)}
                 />
                 <span className="text-slate-300 font-black shrink-0">–</span>
@@ -189,7 +201,8 @@ export default function SealRangeInput({ rows, onChange, notes, disabled, hint =
                   placeholder="End (blank = 1)"
                   value={r.end}
                   disabled={disabled}
-                  onChange={(e) => setField(r.id, 'end', e.target.value)}
+                  maxLength={SEAL_DIGITS}
+                  onChange={(e) => setField(r.id, 'end', sixDigits(e.target.value))}
                   onKeyDown={(e) => onEndKey(e, r, i)}
                 />
                 <button
