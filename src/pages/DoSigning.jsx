@@ -12,6 +12,7 @@ import TopNav from '../components/TopNav';
 import SignaturePad from '../components/SignaturePad';
 import { useToast } from '../components/Toast';
 import Icon from '../components/Icon.jsx';
+import { readAllRows, withLiveBalance } from '../lib/alBalance.js';
 
 export default function DoSigningPage() {
   return <AuthGate page="do_signing">{({ session, userName }) => <DoSigning session={session} userName={userName} />}</AuthGate>;
@@ -159,18 +160,22 @@ function DoSigning({ session, userName }) {
   // it. See Close AL in mjm-ai-system/operation/operation_booking.html.
   const loadActiveALs = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    /* The balance is the office Booking page own figure, worked out from the
+       DOs (src/lib/alBalance.js), so the list is filtered AFTER it is worked
+       out rather than on the stored column. */
+    const { data, error } = await readAllRows(() => supabase
       .from('shared_al_orders')
       .select('*')
       .not('status', 'in', '("Cancelled","Closed","Collected")')
-      .gt('balance_quantity', 0)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false }));
     if (error) {
       setLoadErr(error.message);
       setLoading(false);
       return;
     }
-    setAlData(data || []);
+    const live = await withLiveBalance(supabase, data || []);
+    setAlData(live.filter((r) => (Number(r.balance_quantity) || 0) > 0));
     const { data: c } = await supabase.from('mobile_consent_records').select('al_number');
     setConsentALSet(new Set((c || []).map((r) => r.al_number)));
     setLoading(false);
@@ -482,8 +487,9 @@ function DoSigning({ session, userName }) {
       queuedOffline = true;
     }
 
-    // The phone's own picture of the balance moves either way — the server
-    // copy is deducted by sendDO, now or at flush.
+    // The phone's own picture of the balance moves either way. The server
+    // copy is worked out by the database from the DOs when this DO lands
+    // (mjm-ai-system shared/RUN_ME_al_balance_is_the_dos.sql).
     const newBalance = (activeAL.balance_quantity ?? 0) - total;
     const updatedAL = { ...activeAL, balance_quantity: newBalance };
     setAlData((prev) => {

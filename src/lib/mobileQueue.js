@@ -181,22 +181,10 @@ export async function sendDO(job) {
     // The database may have moved the number; the row is the DO.
     if (inserted && inserted.do_number) payload.do_number = inserted.do_number;
 
-    /* Deduct the balance from what the server holds NOW. Only when the
-       insert happened in THIS call: a retry that found the DO already
-       posted must not deduct a second time. (A cut between insert and
-       deduct leaves the balance undeducted — the same exposure the online
-       path's two awaits always had.) */
-    const { data: al } = await supabase
-      .from('shared_al_orders')
-      .select('balance_quantity')
-      .eq('id', job.alId)
-      .maybeSingle();
-    if (al) {
-      await supabase
-        .from('shared_al_orders')
-        .update({ balance_quantity: (al.balance_quantity ?? 0) - job.totalQty })
-        .eq('id', job.alId);
-    }
+    /* NOTHING IS DEDUCTED HERE ANY MORE. The database works the AL balance
+       out from the DOs on every write (mjm-ai-system shared/
+       RUN_ME_al_balance_is_the_dos.sql), so the insert above is what moves
+       it. A read-then-write from a phone was one of the six stale writers. */
 
     // The standardized DO PDF onto the customer's Sales Web order —
     // best-effort, exactly as the online path treats it.
