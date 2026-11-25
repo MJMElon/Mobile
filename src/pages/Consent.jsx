@@ -11,6 +11,7 @@ import { useToast } from '../components/Toast';
 import { formatSealRanges, rangeQty, sealNo } from '../lib/sealRanges.js';
 import Icon from '../components/Icon.jsx';
 import { downloadConsentPdf } from '../lib/pdf.js';
+import { readAllRows, withLiveBalance } from '../lib/alBalance.js';
 
 export default function ConsentPage() {
   return <AuthGate page="consent">{({ session, userName }) => <Consent session={session} userName={userName} />}</AuthGate>;
@@ -301,19 +302,23 @@ function Consent({ session, userName }) {
   // against it. See Close AL in mjm-ai-system/operation/operation_booking.html.
   const loadActiveALs = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    /* The balance is the office Booking page own figure, worked out from the
+       DOs (src/lib/alBalance.js), so the list is filtered AFTER it is worked
+       out rather than on the stored column. */
+    const { data, error } = await readAllRows(() => supabase
       .from('shared_al_orders')
       .select('*')
       .not('status', 'in', '("Cancelled","Closed","Collected")')
-      .gt('balance_quantity', 0)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false }));
 
     if (error) {
       setLoadErr(error.message);
       setLoading(false);
       return;
     }
-    setAlData(data || []);
+    const live = await withLiveBalance(supabase, data || []);
+    setAlData(live.filter((r) => (Number(r.balance_quantity) || 0) > 0));
 
     const { data: consents } = await supabase.from('mobile_consent_records').select('al_number');
     const map = {};
@@ -372,7 +377,6 @@ function Consent({ session, userName }) {
       .from('shared_al_orders')
       .select('*')
       .not('status', 'in', '("Cancelled","Collected")')
-      .lte('balance_quantity', 0)
       .in('al_number', recentAlNumbers)
       .order('created_at', { ascending: false });
     if (error) {
@@ -380,7 +384,8 @@ function Consent({ session, userName }) {
       setCompletedData([]);
       return;
     }
-    setCompletedData(data || []);
+    const live = await withLiveBalance(supabase, data || []);
+    setCompletedData(live.filter((r) => (Number(r.balance_quantity) || 0) <= 0));
   }, []);
 
   useEffect(() => {
@@ -414,7 +419,8 @@ function Consent({ session, userName }) {
         .limit(50);
       if (token !== liveSearchTokenRef.current) return; // a newer search is already in flight
       if (error) { setLiveMatches([]); return; }
-      const rows = data || [];
+      const rows = await withLiveBalance(supabase, data || []);
+      if (token !== liveSearchTokenRef.current) return;
       setLiveMatches(rows);
 
       const alNumbers = rows.map((r) => r.al_number).filter(Boolean);
